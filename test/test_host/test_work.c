@@ -253,3 +253,126 @@ void test_decode_stratum_prevhash(void)
     decode_stratum_prevhash(stratum_hex, prevhash);
     TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, prevhash, 32);
 }
+
+// Integration tests
+// Test: test_block1_full_pipeline
+// Validates the full pipeline for Bitcoin block #1 (single-tx block)
+void test_block1_full_pipeline(void)
+{
+    // Raw coinbase transaction
+    const char *coinbase_tx_hex = "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a0100000043410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000";
+
+    // Expected merkle root (internal byte order)
+    const char *merkle_root_hex = "982051fd1e4ba744bbbe680e1fee14677ba1a3c3540bf7b1cdb606e857233e0e";
+
+    // Expected prevhash (internal byte order)
+    const char *prevhash_hex = "6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000";
+
+    // Full header hex
+    const char *header_hex = "010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051fd1e4ba744bbbe680e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e36299";
+
+    // Expected block hash (internal byte order)
+    const char *block_hash_hex = "4860eb18bf1b1620e37e9490fc8a427514416fd75159ab86688e9a8300000000";
+
+    // Step 1: SHA256d the coinbase transaction and verify merkle root
+    uint8_t coinbase_tx[256];
+    size_t coinbase_len = hex_to_bytes(coinbase_tx_hex, coinbase_tx, sizeof(coinbase_tx));
+    TEST_ASSERT_GREATER_THAN_INT(0, coinbase_len);
+
+    uint8_t computed_merkle[32];
+    sha256d(coinbase_tx, coinbase_len, computed_merkle);
+
+    uint8_t expected_merkle[32];
+    hex_to_bytes(merkle_root_hex, expected_merkle, 32);
+
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_merkle, computed_merkle, 32);
+
+    // Step 2: serialize_header with block params and verify 80-byte header
+    uint8_t prevhash[32];
+    hex_to_bytes(prevhash_hex, prevhash, 32);
+
+    uint8_t merkle_root[32];
+    hex_to_bytes(merkle_root_hex, merkle_root, 32);
+
+    uint8_t computed_header[80];
+    serialize_header(1, prevhash, merkle_root, 0x4966bc61, 0x1d00ffff, 0x9962e301, computed_header);
+
+    uint8_t expected_header[80];
+    hex_to_bytes(header_hex, expected_header, 80);
+
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_header, computed_header, 80);
+
+    // Step 3: SHA256d the header and verify block hash
+    uint8_t computed_hash[32];
+    sha256d(computed_header, 80, computed_hash);
+
+    uint8_t expected_hash[32];
+    hex_to_bytes(block_hash_hex, expected_hash, 32);
+
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_hash, computed_hash, 32);
+}
+
+// Test: test_block170_merkle_and_hash
+// Validates merkle root construction and header hashing for block #170 (2-tx block)
+void test_block170_merkle_and_hash(void)
+{
+    // Coinbase hash (internal)
+    const char *coinbase_hash_hex = "82501c1178fa0b222c1f3d474ec726b832013f0a532b44bb620cce8624a5feb1";
+
+    // Branch[0] (internal)
+    const char *branch_hex = "169e1e83e930853391bc6f35f605c6754cfead57cf8387639d3b4096c54f18f4";
+
+    // Expected merkle root (internal)
+    const char *expected_merkle_hex = "ff104ccb05421ab93e63f8c3ce5c2c2e9dbb37de2764b3a3175c8166562cac7d";
+
+    // Full header hex
+    const char *header_hex = "0100000055bd840a78798ad0da853f68974f3d183e2bd1db6a842c1feecf222a00000000ff104ccb05421ab93e63f8c3ce5c2c2e9dbb37de2764b3a3175c8166562cac7d51b96a49ffff001d283e9e70";
+
+    // Expected block hash (internal)
+    const char *block_hash_hex = "eea2d48d2fced4346842835c659e493d323f06d4034469a8905714d100000000";
+
+    // Step 1: Convert coinbase_hash and branch from hex
+    uint8_t coinbase_hash[32];
+    hex_to_bytes(coinbase_hash_hex, coinbase_hash, 32);
+
+    uint8_t branch[1][32];
+    hex_to_bytes(branch_hex, branch[0], 32);
+
+    // Step 2: build_merkle_root and verify
+    uint8_t computed_merkle[32];
+    build_merkle_root(coinbase_hash, branch, 1, computed_merkle);
+
+    uint8_t expected_merkle[32];
+    hex_to_bytes(expected_merkle_hex, expected_merkle, 32);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_merkle, computed_merkle, 32);
+
+    // Step 3: Convert header from hex
+    uint8_t header[80];
+    hex_to_bytes(header_hex, header, 80);
+
+    // Step 4: SHA256d the header and verify block hash
+    uint8_t computed_hash[32];
+    sha256d(header, 80, computed_hash);
+
+    uint8_t expected_hash[32];
+    hex_to_bytes(block_hash_hex, expected_hash, 32);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_hash, computed_hash, 32);
+}
+
+// Test: test_decode_stratum_prevhash_real
+// Validates decode_stratum_prevhash with real block #1 data
+void test_decode_stratum_prevhash_real(void)
+{
+    // Stratum hex (8 groups of 4 bytes, each group byte-reversed)
+    const char *stratum_hex = "0a8ce26f72b3f1b646a2a6c14ff763ae65831e939c085ae10019d66800000000";
+
+    // Expected internal byte order
+    const char *expected_hex = "6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000";
+
+    uint8_t prevhash[32];
+    decode_stratum_prevhash(stratum_hex, prevhash);
+
+    uint8_t expected[32];
+    hex_to_bytes(expected_hex, expected, 32);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, prevhash, 32);
+}

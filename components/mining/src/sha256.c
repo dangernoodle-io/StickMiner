@@ -76,7 +76,7 @@ static inline void store_be64(uint8_t *p, uint64_t v) {
 }
 
 // Core SHA-256 compression function (hot path, marked IRAM_ATTR)
-static IRAM_ATTR void sha256_transform(uint32_t state[8], const uint8_t block[64]) {
+IRAM_ATTR void sha256_transform(uint32_t state[8], const uint8_t block[64]) {
     uint32_t W[64];
     uint32_t a, b, c, d, e, f, g, h;
     uint32_t T1, T2;

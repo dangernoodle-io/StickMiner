@@ -1,0 +1,13 @@
+#pragma once
+
+// WiFi
+#define CONFIG_WIFI_SSID      "your-ssid"
+#define CONFIG_WIFI_PASS      "your-password"
+
+// Pool
+#define CONFIG_POOL_HOST      "pool.example.com"
+#define CONFIG_POOL_PORT      3333
+
+// Worker
+#define CONFIG_WALLET_ADDR    "your-wallet-address"
+#define CONFIG_WORKER_NAME    "worker-1"

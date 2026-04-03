@@ -25,6 +25,8 @@ jobs:
             ${{ runner.os }}-platformio-
       - name: Install PlatformIO
         run: pip install platformio
+      - name: Create config from example
+        run: cp src/config.h.example src/config.h
       - name: Build firmware
         run: pio run
 
@@ -63,5 +65,7 @@ jobs:
             ${{ runner.os }}-platformio-
       - name: Install PlatformIO
         run: pip install platformio
+      - name: Create config from example
+        run: cp src/config.h.example src/config.h
       - name: Static analysis
         run: pio check --skip-packages
