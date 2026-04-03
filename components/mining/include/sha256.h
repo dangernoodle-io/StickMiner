@@ -33,3 +33,6 @@ void sha256_process_block(sha256_ctx_t *ctx, const uint8_t block[64]);
 
 // Clone a context (save midstate for reuse)
 void sha256_clone(sha256_ctx_t *dst, const sha256_ctx_t *src);
+
+// Raw compression function (exposed for optimized mining loop)
+void sha256_transform(uint32_t state[8], const uint8_t block[64]);

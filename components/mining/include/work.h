@@ -34,6 +34,8 @@ typedef struct {
     uint32_t version;            // for version rolling
     uint32_t ntime;              // for ntime rolling
     char     job_id[64];
+    char     extranonce2_hex[17]; // extranonce2 as hex string (8 bytes = 16 hex chars + null)
+    bool     clean;              // true = new block, interrupt mining immediately
 } mining_work_t;
 
 // Coinbase construction: coinb1 + extranonce1 + extranonce2 + coinb2 -> SHA256d

@@ -23,6 +23,9 @@ void test_build_coinbase_hash(void);
 void test_build_merkle_root_no_branches(void);
 void test_build_merkle_root_with_branches(void);
 void test_decode_stratum_prevhash(void);
+void test_block1_full_pipeline(void);
+void test_block170_merkle_and_hash(void);
+void test_decode_stratum_prevhash_real(void);
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -53,6 +56,11 @@ int main(void) {
     RUN_TEST(test_build_merkle_root_no_branches);
     RUN_TEST(test_build_merkle_root_with_branches);
     RUN_TEST(test_decode_stratum_prevhash);
+
+    // Integration tests
+    RUN_TEST(test_block1_full_pipeline);
+    RUN_TEST(test_block170_merkle_and_hash);
+    RUN_TEST(test_decode_stratum_prevhash_real);
 
     return UNITY_END();
 }
