@@ -4,6 +4,12 @@
 
 #include <stdint.h>
 #include "esp_attr.h"
+#include "soc/hwcrypto_reg.h"
+#include "soc/soc.h"
+
+// Volatile pointers for direct register access
+#define SHA_H_REG   ((volatile uint32_t *)SHA_H_BASE)
+#define SHA_TEXT_REG ((volatile uint32_t *)SHA_TEXT_BASE)
 
 // Enable SHA-256 hardware peripheral clock. Call once at startup.
 void sha256_hw_init(void);
@@ -46,10 +52,76 @@ IRAM_ATTR void sha256_hw_midstate(const uint8_t header_block1[64],
 // nonce: nonce to test.
 // digest_hw[8]: written only on potential hit (upper 16 bits of SHA_H[7] == 0).
 // Returns raw SHA_H_REG[7] value; caller checks (h7_raw >> 16) == 0 for hit.
-IRAM_ATTR uint32_t sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
-                                         const uint32_t block2_words[3],
-                                         uint32_t nonce,
-                                         uint32_t digest_hw[8]);
+static inline __attribute__((always_inline)) IRAM_ATTR uint32_t
+sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
+                     const uint32_t block2_words[3],
+                     uint32_t nonce,
+                     uint32_t digest_hw[8])
+{
+    uint32_t h7_raw;
+
+    // --- Pass 1: midstate + block2 tail + nonce → SHA_CONTINUE ---
+    // Write midstate_hw to SHA_H (already in HW format, no bswap)
+    for (int i = 0; i < 8; i++) {
+        SHA_H_REG[i] = midstate_hw[i];
+    }
+
+    // Write SHA_TEXT: block2_words[0-2], nonce, padding, bit-length
+    SHA_TEXT_REG[0] = block2_words[0];
+    SHA_TEXT_REG[1] = block2_words[1];
+    SHA_TEXT_REG[2] = block2_words[2];
+    SHA_TEXT_REG[3] = nonce;
+    SHA_TEXT_REG[4] = 0x00000080;
+    SHA_TEXT_REG[5] = 0;
+    SHA_TEXT_REG[6] = 0;
+    SHA_TEXT_REG[7] = 0;
+    SHA_TEXT_REG[8] = 0;
+    SHA_TEXT_REG[9] = 0;
+    SHA_TEXT_REG[10] = 0;
+    SHA_TEXT_REG[11] = 0;
+    SHA_TEXT_REG[12] = 0;
+    SHA_TEXT_REG[13] = 0;
+    SHA_TEXT_REG[14] = 0;
+    SHA_TEXT_REG[15] = 0x80020000;
+
+    REG_WRITE(SHA_CONTINUE_REG, 1);
+    while (REG_READ(SHA_BUSY_REG)) {}
+
+    // --- Pass 2: copy SHA_H → SHA_TEXT directly (no bswap!) ---
+    // This is the key optimization: SHA_H and SHA_TEXT are both in HW format
+    SHA_TEXT_REG[0] = SHA_H_REG[0];
+    SHA_TEXT_REG[1] = SHA_H_REG[1];
+    SHA_TEXT_REG[2] = SHA_H_REG[2];
+    SHA_TEXT_REG[3] = SHA_H_REG[3];
+    SHA_TEXT_REG[4] = SHA_H_REG[4];
+    SHA_TEXT_REG[5] = SHA_H_REG[5];
+    SHA_TEXT_REG[6] = SHA_H_REG[6];
+    SHA_TEXT_REG[7] = SHA_H_REG[7];
+    SHA_TEXT_REG[8] = 0x00000080;
+    SHA_TEXT_REG[9] = 0;
+    SHA_TEXT_REG[10] = 0;
+    SHA_TEXT_REG[11] = 0;
+    SHA_TEXT_REG[12] = 0;
+    SHA_TEXT_REG[13] = 0;
+    SHA_TEXT_REG[14] = 0;
+    SHA_TEXT_REG[15] = 0x00010000;
+
+    REG_WRITE(SHA_START_REG, 1);
+    while (REG_READ(SHA_BUSY_REG)) {}
+
+    // Early reject: check upper 16 bits of SHA_H[7]
+    h7_raw = SHA_H_REG[7];
+    if ((h7_raw >> 16) != 0) {
+        return h7_raw;
+    }
+
+    // Potential hit — read full digest in HW format
+    for (int i = 0; i < 7; i++) {
+        digest_hw[i] = SHA_H_REG[i];
+    }
+    digest_hw[7] = h7_raw;
+    return h7_raw;
+}
 
 // --- Debug utilities ---
 
