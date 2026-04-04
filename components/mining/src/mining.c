@@ -45,11 +45,10 @@ void mining_task(void *arg)
 #ifndef ESP_PLATFORM
     // Block 3: first_hash[32] + 0x80 + zeros + bit_length(256) = 64 bytes
     // Only needed for software SHA path; hardware path handles this internally.
-    uint8_t block3[64];
-    memset(block3, 0, 64);
-    block3[32] = 0x80;
-    block3[62] = 0x01;
-    block3[63] = 0x00;
+    uint32_t block3_words[16];
+    memset(block3_words, 0, sizeof(block3_words));
+    block3_words[8]  = 0x80000000U;  // 0x80 padding byte in BE word
+    block3_words[15] = 0x00000100U;  // bit length 256 in BE word
 #endif
 
     ESP_LOGI(TAG, "mining task started");
