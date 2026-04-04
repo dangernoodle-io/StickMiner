@@ -32,7 +32,12 @@ static inline void store_be32(uint8_t *p, uint32_t v) {
 void mining_task(void *arg)
 {
     mining_work_t work;
+
+#ifdef ESP_PLATFORM
+    uint32_t midstate_hw[8];
+#else
     uint32_t midstate[8];
+#endif
 
     // Block 2: tail[16] + 0x80 + zeros + bit_length(640) = 64 bytes
     uint8_t block2[64];
@@ -60,7 +65,7 @@ void mining_task(void *arg)
 
         ESP_LOGI(TAG, "new job: %s", work.job_id);
 
-        // Precompute MSB target word for early reject.
+        // Precompute MSB target word for early reject (needed only for software path).
         // state[7] is in SHA-256 BE word order: (hash[28]<<24 | hash[29]<<16 | hash[30]<<8 | hash[31])
         // Pack target the same way so the <= comparison works.
         uint32_t target_word0 = ((uint32_t)work.target[28] << 24) |
@@ -73,10 +78,10 @@ void mining_task(void *arg)
                  target_word0);
 
         // Compute midstate from first 64 bytes of header
-        memcpy(midstate, H0, sizeof(H0));
 #ifdef ESP_PLATFORM
-        sha256_hw_transform(midstate, work.header);
+        sha256_hw_midstate(work.header, midstate_hw);
 #else
+        memcpy(midstate, H0, sizeof(H0));
         sha256_transform(midstate, work.header);
 #endif
 
@@ -88,7 +93,7 @@ void mining_task(void *arg)
         block2[63] = 0x80;
 
 #ifdef ESP_PLATFORM
-        sha256_hw_init_job(block2);
+        uint32_t *block2_words = (uint32_t *)block2;
 #endif
 
         int64_t start_us = esp_timer_get_time();
@@ -97,22 +102,18 @@ void mining_task(void *arg)
 
         for (nonce = 0; ; nonce++) {
 #ifdef ESP_PLATFORM
-            // Hardware SHA path (Phase 2 optimized)
-            uint32_t state[8];
-            sha256_hw_mine_first(state, midstate, block2, nonce);
-            uint32_t h7 = sha256_hw_mine_second(state, target_word0);
+            // Hardware SHA path (Phase 3 optimized: zero-bswap HW-format pipeline)
+            uint32_t digest_hw[8];
+            uint32_t h7_raw = sha256_hw_mine_nonce(midstate_hw, block2_words, nonce, digest_hw);
 
-            if (h7 <= target_word0) {
-                // Full target check — state[] already has full digest
+            if ((h7_raw >> 16) == 0) {
+                // Potential hit — convert HW format digest to BE hash bytes
                 uint8_t hash[32];
-                store_be32(hash,      state[0]);
-                store_be32(hash + 4,  state[1]);
-                store_be32(hash + 8,  state[2]);
-                store_be32(hash + 12, state[3]);
-                store_be32(hash + 16, state[4]);
-                store_be32(hash + 20, state[5]);
-                store_be32(hash + 24, state[6]);
-                store_be32(hash + 28, state[7]);
+                for (int i = 0; i < 8; i++) {
+                    // digest_hw is in HW LE format; bswap to get standard SHA words, then store BE
+                    uint32_t w = __builtin_bswap32(digest_hw[i]);
+                    store_be32(hash + i * 4, w);
+                }
 
                 if (meets_target(hash, work.target)) {
                     mining_result_t result;
@@ -125,7 +126,11 @@ void mining_task(void *arg)
 
                     ESP_LOGI(TAG, "SHARE FOUND! nonce=%08" PRIx32, nonce);
 #ifdef STICKMINER_DEBUG
-                    // Cross-check with software SHA
+                    // Cross-check with software SHA using standard midstate
+                    uint32_t sw_midstate[8];
+                    memcpy(sw_midstate, H0, sizeof(H0));
+                    sha256_transform(sw_midstate, work.header);
+
                     uint8_t sw_block2[64];
                     memcpy(sw_block2, block2, 64);
                     sw_block2[12] = (uint8_t)(nonce & 0xff);
@@ -133,7 +138,7 @@ void mining_task(void *arg)
                     sw_block2[14] = (uint8_t)((nonce >> 16) & 0xff);
                     sw_block2[15] = (uint8_t)((nonce >> 24) & 0xff);
                     uint32_t sw_state[8];
-                    memcpy(sw_state, midstate, 32);
+                    memcpy(sw_state, sw_midstate, 32);
                     sha256_transform(sw_state, sw_block2);
                     uint8_t sw_block3[64];
                     memset(sw_block3, 0, 64);
@@ -257,10 +262,10 @@ void mining_task(void *arg)
                                    ((uint32_t)work.target[29] << 16) |
                                    ((uint32_t)work.target[30] << 8)  |
                                    (uint32_t)work.target[31];
-                    memcpy(midstate, H0, sizeof(H0));
 #ifdef ESP_PLATFORM
-                    sha256_hw_transform(midstate, work.header);
+                    sha256_hw_midstate(work.header, midstate_hw);
 #else
+                    memcpy(midstate, H0, sizeof(H0));
                     sha256_transform(midstate, work.header);
 #endif
                     memset(block2, 0, 64);
@@ -269,7 +274,7 @@ void mining_task(void *arg)
                     block2[62] = 0x02;
                     block2[63] = 0x80;
 #ifdef ESP_PLATFORM
-                    sha256_hw_init_job(block2);
+                    // block2_words pointer still valid since block2 is static
 #endif
                     start_us = esp_timer_get_time();
                     nonce = (uint32_t)-1;
