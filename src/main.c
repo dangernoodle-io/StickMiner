@@ -24,6 +24,12 @@ void app_main(void)
     // Connect WiFi (blocks until connected)
     ESP_ERROR_CHECK(wifi_init());
 
+    // Suppress noisy wifi debug logs
+    esp_log_level_set("wifi", ESP_LOG_WARN);
+    esp_log_level_set("wifi_init", ESP_LOG_WARN);
+    esp_log_level_set("phy_init", ESP_LOG_WARN);
+    esp_log_level_set("esp_netif_handlers", ESP_LOG_WARN);
+
     // Create inter-task queues
     work_queue = xQueueCreate(1, sizeof(mining_work_t));
     result_queue = xQueueCreate(4, sizeof(mining_result_t));

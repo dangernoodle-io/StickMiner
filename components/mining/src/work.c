@@ -2,6 +2,7 @@
 #include "sha256.h"
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 
 // Utility to write uint32 in little-endian format
 static void write_le32(uint8_t *buf, uint32_t val) {
@@ -121,11 +122,11 @@ void nbits_to_target(uint32_t nbits, uint8_t target[32]) {
 }
 
 bool meets_target(const uint8_t hash[32], const uint8_t target[32]) {
-    // Compare hash vs target byte-by-byte from index 0 (MSB) to 31 (LSB)
-    // Both are big-endian 256-bit integers
+    // Compare hash vs target as little-endian 256-bit integers
+    // byte[31] is MSB, byte[0] is LSB (Bitcoin convention)
     // Return true if hash <= target
 
-    for (int i = 0; i < 32; i++) {
+    for (int i = 31; i >= 0; i--) {
         if (hash[i] < target[i]) {
             return true;
         }
@@ -134,7 +135,6 @@ bool meets_target(const uint8_t hash[32], const uint8_t target[32]) {
         }
     }
 
-    // All bytes equal, hash == target, so it meets
     return true;
 }
 
@@ -210,4 +210,33 @@ void bytes_to_hex(const uint8_t *data, size_t len, char *hex) {
     }
 
     hex[2 * len] = '\0';
+}
+
+void difficulty_to_target(double diff, uint8_t target[32])
+{
+    memset(target, 0, 32);
+    if (diff <= 0) {
+        memset(target, 0xff, 32);
+        return;
+    }
+
+    // Bitcoin LE convention: byte[0]=LSB, byte[31]=MSB
+    // diff1 target has 0xFFFF at BE bytes 4-5, which is LE bytes 26-27
+    double val = 65535.0 / diff;
+
+    // Integer part: right-aligned at LE byte 26 (BE byte 5 → LE byte 26)
+    uint64_t iv = (val < (double)UINT64_MAX) ? (uint64_t)val : UINT64_MAX;
+    for (int i = 26; i <= 31 && iv > 0; i++) {
+        target[i] = (uint8_t)(iv & 0xFF);
+        iv >>= 8;
+    }
+
+    // Fractional part: LE bytes 25 down (BE bytes 6+ → LE bytes 25-)
+    double frac = val - floor(val);
+    for (int i = 25; i >= 20 && frac > 0.0; i--) {
+        frac *= 256.0;
+        uint8_t b = (uint8_t)frac;
+        target[i] = b;
+        frac -= b;
+    }
 }

@@ -6,6 +6,8 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
+#include <stdint.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <errno.h>
@@ -27,6 +29,8 @@ static size_t s_extranonce1_len = 0;
 static int s_extranonce2_size = 4;  // bytes
 static double s_difficulty = 1.0;
 static stratum_job_t s_job;
+static int s_subscribe_id = 0;
+static int s_authorize_id = 0;
 
 // Line buffer for reading from socket
 static char s_linebuf[4096];
@@ -45,7 +49,7 @@ static int stratum_send(const char *msg)
     return 0;
 }
 
-// Send a JSON-RPC request
+// Send a JSON-RPC request. Returns assigned message id, or -1 on error.
 static int stratum_request(const char *method, const char *params_json)
 {
     char buf[512];
@@ -53,7 +57,10 @@ static int stratum_request(const char *method, const char *params_json)
     snprintf(buf, sizeof(buf),
              "{\"id\":%d,\"method\":\"%s\",\"params\":%s}\n",
              id, method, params_json);
-    return stratum_send(buf);
+    if (stratum_send(buf) != 0) {
+        return -1;
+    }
+    return id;
 }
 
 // Read one newline-terminated line from socket. Returns line length, 0 for no data yet, -1 on error.
@@ -165,33 +172,13 @@ static int stratum_connect(void)
     return 0;
 }
 
-// Build share target from difficulty
-static void difficulty_to_target(double diff, uint8_t target[32])
-{
-    memset(target, 0, 32);
-    if (diff <= 0) {
-        memset(target, 0xff, 32);
-        return;
-    }
-    // target = 0x00000000FFFF0000... / diff
-    // Place result in bytes 4-11
-    uint64_t t = (uint64_t)((double)0x0000FFFF00000000ULL / diff);
-    target[4]  = (uint8_t)(t >> 56);
-    target[5]  = (uint8_t)(t >> 48);
-    target[6]  = (uint8_t)(t >> 40);
-    target[7]  = (uint8_t)(t >> 32);
-    target[8]  = (uint8_t)(t >> 24);
-    target[9]  = (uint8_t)(t >> 16);
-    target[10] = (uint8_t)(t >> 8);
-    target[11] = (uint8_t)t;
-}
-
 // Build mining work from current job
 static void build_work(mining_work_t *work)
 {
-    // Build extranonce2 (all zeros)
+    // Build extranonce2 (with nonzero value)
     uint8_t extranonce2[MAX_EXTRANONCE2_SIZE];
-    memset(extranonce2, 0, s_extranonce2_size);
+    memset(extranonce2, 0, sizeof(extranonce2));
+    extranonce2[s_extranonce2_size - 1] = 0x01;
 
     // Store extranonce2 hex in work
     char en2_hex[17];
@@ -207,9 +194,17 @@ static void build_work(mining_work_t *work)
                         s_job.coinb2, s_job.coinb2_len,
                         coinbase_hash);
 
+    char cb_hex[65];
+    bytes_to_hex(coinbase_hash, 32, cb_hex);
+    ESP_LOGD(TAG, "coinbase_hash: %s", cb_hex);
+
     // Build merkle root
     uint8_t merkle_root[32];
     build_merkle_root(coinbase_hash, s_job.merkle_branches, s_job.merkle_count, merkle_root);
+
+    char mr_hex[65];
+    bytes_to_hex(merkle_root, 32, mr_hex);
+    ESP_LOGD(TAG, "merkle_root: %s", mr_hex);
 
     // Serialize header
     serialize_header(s_job.version, s_job.prevhash, merkle_root,
@@ -217,6 +212,10 @@ static void build_work(mining_work_t *work)
 
     // Set target from current difficulty
     difficulty_to_target(s_difficulty, work->target);
+    ESP_LOGD(TAG, "build_work: diff=%.6f target=%02x%02x%02x%02x %02x%02x%02x%02x",
+             s_difficulty,
+             work->target[31], work->target[30], work->target[29], work->target[28],
+             work->target[27], work->target[26], work->target[25], work->target[24]);
 
     work->version = s_job.version;
     work->ntime = s_job.ntime;
@@ -280,10 +279,17 @@ static void handle_notify(cJSON *params)
     s_job.ntime = (uint32_t)strtoul(ntime_j->valuestring, NULL, 16);
     s_job.clean_jobs = clean_j ? cJSON_IsTrue(clean_j) : false;
 
-    ESP_LOGI(TAG, "notify: job=%s clean=%d", s_job.job_id, s_job.clean_jobs);
+    ESP_LOGI(TAG, "notify: job=%s clean=%d ver=%s ntime=%s nbits=%s",
+             s_job.job_id, s_job.clean_jobs,
+             version_j->valuestring, ntime_j->valuestring, nbits_j->valuestring);
 
     mining_work_t work;
     build_work(&work);
+
+    // Debug: dump first 80 bytes of header as hex
+    char hdr_hex[161];
+    bytes_to_hex(work.header, 80, hdr_hex);
+    ESP_LOGD(TAG, "header: %s", hdr_hex);
     work.clean = s_job.clean_jobs;
 
     if (s_job.clean_jobs) {
@@ -302,6 +308,14 @@ static void handle_set_difficulty(cJSON *params)
     if (cJSON_IsNumber(diff)) {
         s_difficulty = diff->valuedouble;
         ESP_LOGI(TAG, "difficulty set to %.4f", s_difficulty);
+
+        // Re-dispatch work with updated target if we have a job
+        if (s_job.job_id[0] != '\0') {
+            mining_work_t work;
+            build_work(&work);
+            work.clean = false;
+            xQueueOverwrite(work_queue, &work);
+        }
     }
 }
 
@@ -345,8 +359,8 @@ static int submit_share(mining_result_t *result)
              result->ntime_hex,
              result->nonce_hex);
 
-    ESP_LOGI(TAG, "submit: job=%s nonce=%s", result->job_id, result->nonce_hex);
-    return stratum_request("mining.submit", params);
+    ESP_LOGD(TAG, "submit: %s", params);
+    return stratum_request("mining.submit", params) < 0 ? -1 : 0;
 }
 
 // Process one JSON message from pool
@@ -378,12 +392,12 @@ static void process_message(const char *line)
     } else if (id_item && cJSON_IsNumber(id_item)) {
         // Response to our request
         int id = id_item->valueint;
-        if (id == 1) {
+        if (id == s_subscribe_id) {
             // Subscribe response
             if (result_item) {
                 handle_subscribe_result(result_item);
             }
-        } else if (id == 2) {
+        } else if (id == s_authorize_id) {
             // Authorize response
             if (result_item && cJSON_IsTrue(result_item)) {
                 ESP_LOGI(TAG, "authorized");
@@ -419,6 +433,7 @@ void stratum_task(void *arg)
     static char line[2048];
 
     ESP_LOGI(TAG, "stratum task started");
+    esp_log_level_set(TAG, ESP_LOG_DEBUG);
 
     for (;;) {
         // Connect
@@ -428,8 +443,9 @@ void stratum_task(void *arg)
             continue;
         }
 
-        // Subscribe (id=1)
-        if (stratum_request("mining.subscribe", "[\"StickMiner/0.1\"]") != 0) {
+        // Subscribe
+        s_subscribe_id = stratum_request("mining.subscribe", "[\"StickMiner/0.1\"]");
+        if (s_subscribe_id < 0) {
             goto reconnect;
         }
 
@@ -449,13 +465,28 @@ void stratum_task(void *arg)
             goto reconnect;
         }
 
-        // Authorize (id=2)
+        // Authorize (must come before suggest_difficulty — pool requires
+        // an authenticated session for difficulty suggestions to take effect)
         {
             char auth_params[128];
             snprintf(auth_params, sizeof(auth_params),
                      "[\"%s.%s\",\"x\"]",
                      CONFIG_WALLET_ADDR, CONFIG_WORKER_NAME);
-            if (stratum_request("mining.authorize", auth_params) != 0) {
+            s_authorize_id = stratum_request("mining.authorize", auth_params);
+            if (s_authorize_id < 0) {
+                goto reconnect;
+            }
+        }
+
+        // Suggest low difficulty after authorize
+        stratum_request("mining.suggest_difficulty", "[0.0002]");
+
+        // Wait for authorize response, set_difficulty, and initial notify
+        for (int i = 0; i < 50; i++) {  // 5s timeout
+            int n = stratum_readline(line, sizeof(line), 100);
+            if (n > 0) {
+                process_message(line);
+            } else if (n < 0) {
                 goto reconnect;
             }
         }
@@ -485,6 +516,8 @@ reconnect:
             s_sock = -1;
         }
         s_extranonce1_len = 0;
+        s_subscribe_id = 0;
+        s_authorize_id = 0;
         ESP_LOGW(TAG, "reconnecting in 5s");
         vTaskDelay(pdMS_TO_TICKS(5000));
     }

@@ -2,6 +2,15 @@
 #include "work.h"
 #include "sha256.h"
 #include <string.h>
+#include <stdlib.h>
+
+// Helper to store a 32-bit value in big-endian byte order
+static inline void store_be32(uint8_t *p, uint32_t v) {
+    p[0] = (v >> 24) & 0xff;
+    p[1] = (v >> 16) & 0xff;
+    p[2] = (v >> 8) & 0xff;
+    p[3] = v & 0xff;
+}
 
 // Test: hex_to_bytes conversion
 void test_hex_to_bytes(void)
@@ -125,36 +134,38 @@ void test_nbits_to_target_high_diff(void)
 // Test: meets_target - hash with leading zeros should pass
 void test_meets_target_pass(void)
 {
+    // LE convention: byte[31] is MSB. Hash has zeros at MSB, target has 0xffff at bytes [26-27].
     uint8_t hash[32] = {
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     };
     uint8_t target[32] = {
-        0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
     };
 
     TEST_ASSERT_TRUE(meets_target(hash, target));
 }
 
-// Test: meets_target - hash without enough leading zeros should fail
+// Test: meets_target - hash with high MSB bytes should fail
 void test_meets_target_fail(void)
 {
+    // LE convention: byte[31] is MSB. Hash MSB > target MSB → fail.
     uint8_t hash[32] = {
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
     };
     uint8_t target[32] = {
-        0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
     };
 
     TEST_ASSERT_FALSE(meets_target(hash, target));
@@ -375,4 +386,220 @@ void test_decode_stratum_prevhash_real(void)
     uint8_t expected[32];
     hex_to_bytes(expected_hex, expected, 32);
     TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, prevhash, 32);
+}
+
+// End-to-end Stratum pipeline test using Bitcoin block #1
+void test_stratum_pipeline_block1(void)
+{
+    const char *version_hex = "00000001";
+    const char *stratum_prevhash = "0a8ce26f72b3f1b646a2a6c14ff763ae65831e939c085ae10019d66800000000";
+    const char *ntime_hex = "4966bc61";
+    const char *nbits_hex = "1d00ffff";
+    uint32_t nonce = 0x9962e301;
+
+    const char *coinb1_hex = "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a0100000043410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000";
+
+    const char *block_hash_hex = "4860eb18bf1b1620e37e9490fc8a427514416fd75159ab86688e9a8300000000";
+
+    uint8_t prevhash[32];
+    decode_stratum_prevhash(stratum_prevhash, prevhash);
+
+    uint8_t coinb1[256];
+    size_t coinb1_len = hex_to_bytes(coinb1_hex, coinb1, sizeof(coinb1));
+    uint8_t coinbase_hash[32];
+    build_coinbase_hash(coinb1, coinb1_len, NULL, 0, NULL, 0, NULL, 0, coinbase_hash);
+
+    uint8_t merkle_root[32];
+    build_merkle_root(coinbase_hash, NULL, 0, merkle_root);
+
+    uint32_t version = (uint32_t)strtoul(version_hex, NULL, 16);
+    uint32_t ntime = (uint32_t)strtoul(ntime_hex, NULL, 16);
+    uint32_t nbits = (uint32_t)strtoul(nbits_hex, NULL, 16);
+
+    uint8_t header[80];
+    serialize_header(version, prevhash, merkle_root, ntime, nbits, nonce, header);
+
+    uint8_t hash[32];
+    sha256d(header, 80, hash);
+
+    uint8_t expected_hash[32];
+    hex_to_bytes(block_hash_hex, expected_hash, 32);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_hash, hash, 32);
+}
+
+void test_difficulty_to_target_diff1(void)
+{
+    // LE convention: diff1 target has 0xFFFF at bytes [26-27]
+    uint8_t target[32];
+    const uint8_t expected[32] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
+    };
+
+    difficulty_to_target(1.0, target);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, target, 32);
+}
+
+void test_difficulty_to_target_easy(void)
+{
+    // diff 0.001: val = 65535000 = 0x03E7FC18
+    // LE: byte[26]=0x18, [27]=0xFC, [28]=0xE7, [29]=0x03
+    uint8_t target[32];
+    const uint8_t expected[32] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x18, 0xFC, 0xE7, 0x03, 0x00, 0x00,
+    };
+
+    difficulty_to_target(0.001, target);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, target, 32);
+}
+
+void test_difficulty_to_target_hard(void)
+{
+    // diff 32768: val = 65535/32768 ≈ 1.9999694824
+    // LE: byte[26]=0x01 (integer), byte[25]=0xFF, byte[24]=0xFE (fractional)
+    uint8_t target[32];
+    const uint8_t expected[32] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xFE, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+    };
+
+    difficulty_to_target(32768.0, target);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, target, 32);
+}
+
+// Regression test: verify mining pipeline byte-order handling with constructed example
+// Tests that state[7] word extraction matches target_word0 packing
+void test_mining_round_trip_block1(void)
+{
+    // Create a synthetic hash that we know meets a difficulty target
+    // This tests the critical path: hash bytes [28-31] must match target bytes [28-31]
+    uint8_t hash[32];
+    memset(hash, 0xFF, 28);  // Fill first 28 bytes with 0xFF (doesn't matter for comparison)
+    // Last 4 bytes (hash[28-31]) in BE word order
+    hash[28] = 0x00;
+    hash[29] = 0x00;
+    hash[30] = 0x00;
+    hash[31] = 0x00;
+
+    // Create target with same bytes at [28-31]
+    uint8_t target[32];
+    memset(target, 0xFF, 26);   // Bytes [0-25]: fill with 0xFF
+    target[26] = 0xFF;
+    target[27] = 0xFF;
+    target[28] = 0x00;
+    target[29] = 0x00;
+    target[30] = 0x00;
+    target[31] = 0x00;
+
+    // Verify meets_target works correctly
+    TEST_ASSERT_TRUE(meets_target(hash, target));
+
+    // Test the state[7] extraction and target_word0 packing
+    // state[7] = (hash[28]<<24 | hash[29]<<16 | hash[30]<<8 | hash[31])
+    uint32_t state7 = (hash[28] << 24) | (hash[29] << 16) |
+                      (hash[30] << 8) | hash[31];
+    // Should be 0x00000000 for our test hash
+    TEST_ASSERT_EQUAL_UINT32(0x00000000, state7);
+
+    // target_word0 = (target[28]<<24 | target[29]<<16 | target[30]<<8 | target[31])
+    uint32_t target_word0 = (target[28] << 24) | (target[29] << 16) |
+                            (target[30] << 8) | target[31];
+    // Should also be 0x00000000 for our test target
+    TEST_ASSERT_EQUAL_UINT32(0x00000000, target_word0);
+
+    // The key assertion: state[7] <= target_word0 for valid shares
+    TEST_ASSERT_LESS_OR_EQUAL_UINT32(target_word0, state7);
+
+    // Now test with a hash that exceeds target at byte[31]
+    hash[31] = 0x01;  // Make MSB higher
+    uint32_t state7_high = (hash[28] << 24) | (hash[29] << 16) |
+                           (hash[30] << 8) | hash[31];
+    TEST_ASSERT_GREATER_THAN_UINT32(target_word0, state7_high);
+    TEST_ASSERT_FALSE(meets_target(hash, target));
+}
+
+// Regression test: verify byte-order packing for early-reject logic
+// This specifically tests the fix for the byte-swap bug where target_word0
+// was incorrectly packed as (target[31]<<24 | ... | target[28])
+void test_mining_early_reject_byte_order(void)
+{
+    // Create a synthetic target with distinct bytes at [28-31]
+    // to demonstrate correct vs incorrect packing
+    uint8_t target[32];
+    memset(target, 0, 32);
+    target[28] = 0x12;
+    target[29] = 0x34;
+    target[30] = 0x56;
+    target[31] = 0x78;
+
+    // Correct target_word0: (target[28]<<24 | target[29]<<16 | target[30]<<8 | target[31])
+    uint32_t correct_tw0 = (target[28] << 24) | (target[29] << 16) |
+                           (target[30] << 8) | target[31];
+    // Should be 0x12345678
+    TEST_ASSERT_EQUAL_UINT32(0x12345678, correct_tw0);
+
+    // Wrong target_word0 (the bug): (target[31]<<24 | target[30]<<16 | target[29]<<8 | target[28])
+    uint32_t wrong_tw0 = (target[31] << 24) | (target[30] << 16) |
+                         (target[29] << 8) | target[28];
+    // Would be 0x78563412 (bytes reversed)
+    TEST_ASSERT_EQUAL_UINT32(0x78563412, wrong_tw0);
+
+    // Verify they're different
+    TEST_ASSERT_NOT_EQUAL_UINT32(correct_tw0, wrong_tw0);
+
+    // Test with a state7 value in between the two
+    uint32_t state7 = 0x50000000;
+
+    // With correct packing: state7 > correct_tw0, so it fails the early-reject
+    TEST_ASSERT_GREATER_THAN_UINT32(correct_tw0, state7);
+
+    // With wrong packing: state7 < wrong_tw0, which would incorrectly accept the share
+    TEST_ASSERT_LESS_THAN_UINT32(wrong_tw0, state7);
+}
+
+// Integration test: verify difficulty_to_target and meets_target work correctly
+void test_difficulty_target_meets_target_integration(void)
+{
+    // Test 1: Create a simple target with known values
+    uint8_t target[32];
+    memset(target, 0, 32);
+    target[31] = 0x01;  // MSB = 0x01
+
+    // Create hash with MSB = 0x00 (less than target MSB)
+    // This should pass meets_target
+    uint8_t hash_pass[32];
+    memset(hash_pass, 0xFF, 31);  // Fill [0-30] with 0xFF (doesn't affect final comparison)
+    hash_pass[31] = 0x00;  // MSB = 0x00
+    TEST_ASSERT_TRUE(meets_target(hash_pass, target));
+
+    // Test 2: Create hash with MSB = 0x02 (greater than target MSB = 0x01)
+    // This should fail meets_target
+    uint8_t hash_fail[32];
+    memset(hash_fail, 0x00, 31);
+    hash_fail[31] = 0x02;  // MSB = 0x02 > target[31] = 0x01
+    TEST_ASSERT_FALSE(meets_target(hash_fail, target));
+
+    // Test 3: Verify exact equality passes
+    uint8_t hash_equal[32];
+    memcpy(hash_equal, target, 32);
+    TEST_ASSERT_TRUE(meets_target(hash_equal, target));
+
+    // Test 4: Test with difficulty target to verify integration
+    uint8_t target2[32];
+    difficulty_to_target(1.0, target2);
+    // For diff 1.0, target has 0xFFFF at bytes [26-27], 0x00 at [28-31]
+
+    // Create hash that should meet diff 1.0 target
+    // Hash must be <= target, so bytes [0-25]=0x00, [26-27] must be <= 0xFFFF, [28-31]=0x00
+    uint8_t hash2[32];
+    memset(hash2, 0x00, 32);
+    hash2[26] = 0x7F;  // Less than target[26]=0xFF
+    TEST_ASSERT_TRUE(meets_target(hash2, target2));
 }

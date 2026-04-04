@@ -6,6 +6,9 @@
 #include <inttypes.h>
 #include "esp_log.h"
 #include "esp_timer.h"
+#ifdef ESP_PLATFORM
+#include "sha256_hw.h"
+#endif
 
 static const char *TAG = "mining";
 
@@ -31,20 +34,24 @@ void mining_task(void *arg)
     mining_work_t work;
     uint32_t midstate[8];
 
-    // Pre-built SHA-256 blocks (constant padding, only nonce/hash changes)
     // Block 2: tail[16] + 0x80 + zeros + bit_length(640) = 64 bytes
     uint8_t block2[64];
-    // Block 3: first_hash[32] + 0x80 + zeros + bit_length(256) = 64 bytes
-    uint8_t block3[64];
 
-    // Pre-build block3 padding (constant for all nonces)
-    // SHA256(32-byte input): data[32] + 0x80 + 23 zero bytes + 64-bit length (256 bits = 0x100)
+#ifndef ESP_PLATFORM
+    // Block 3: first_hash[32] + 0x80 + zeros + bit_length(256) = 64 bytes
+    // Only needed for software SHA path; hardware path handles this internally.
+    uint8_t block3[64];
     memset(block3, 0, 64);
     block3[32] = 0x80;
-    block3[62] = 0x01;  // length = 256 bits = 0x0100 big-endian
+    block3[62] = 0x01;
     block3[63] = 0x00;
+#endif
 
     ESP_LOGI(TAG, "mining task started");
+
+#ifdef ESP_PLATFORM
+    sha256_hw_init();
+#endif
 
     for (;;) {
         if (xQueueReceive(work_queue, &work, portMAX_DELAY) != pdTRUE) {
@@ -53,24 +60,131 @@ void mining_task(void *arg)
 
         ESP_LOGI(TAG, "new job: %s", work.job_id);
 
+        // Precompute MSB target word for early reject.
+        // state[7] is in SHA-256 BE word order: (hash[28]<<24 | hash[29]<<16 | hash[30]<<8 | hash[31])
+        // Pack target the same way so the <= comparison works.
+        uint32_t target_word0 = ((uint32_t)work.target[28] << 24) |
+                                ((uint32_t)work.target[29] << 16) |
+                                ((uint32_t)work.target[30] << 8)  |
+                                (uint32_t)work.target[31];
+        ESP_LOGD(TAG, "target LE MSB: %02x%02x%02x%02x %02x%02x%02x%02x (tw0=%08" PRIx32 ")",
+                 work.target[31], work.target[30], work.target[29], work.target[28],
+                 work.target[27], work.target[26], work.target[25], work.target[24],
+                 target_word0);
+
         // Compute midstate from first 64 bytes of header
         memcpy(midstate, H0, sizeof(H0));
+#ifdef ESP_PLATFORM
+        sha256_hw_transform(midstate, work.header);
+#else
         sha256_transform(midstate, work.header);
+#endif
 
         // Pre-build block2: tail[16] + padding for 80-byte message
-        // tail = header[64..79], then 0x80, zeros, bit_length(640 = 80*8)
         memset(block2, 0, 64);
         memcpy(block2, work.header + 64, 16);
         block2[16] = 0x80;
-        // bit length of 80 bytes = 640 = 0x0280
         block2[62] = 0x02;
         block2[63] = 0x80;
+
+#ifdef ESP_PLATFORM
+        sha256_hw_init_job(block2);
+#endif
 
         int64_t start_us = esp_timer_get_time();
         uint32_t nonce = 0;
         uint32_t hashes = 0;
 
         for (nonce = 0; ; nonce++) {
+#ifdef ESP_PLATFORM
+            // Hardware SHA path (Phase 2 optimized)
+            uint32_t state[8];
+            sha256_hw_mine_first(state, midstate, block2, nonce);
+            uint32_t h7 = sha256_hw_mine_second(state, target_word0);
+
+            if (h7 <= target_word0) {
+                // Full target check — state[] already has full digest
+                uint8_t hash[32];
+                store_be32(hash,      state[0]);
+                store_be32(hash + 4,  state[1]);
+                store_be32(hash + 8,  state[2]);
+                store_be32(hash + 12, state[3]);
+                store_be32(hash + 16, state[4]);
+                store_be32(hash + 20, state[5]);
+                store_be32(hash + 24, state[6]);
+                store_be32(hash + 28, state[7]);
+
+                if (meets_target(hash, work.target)) {
+                    mining_result_t result;
+                    strncpy(result.job_id, work.job_id, sizeof(result.job_id) - 1);
+                    result.job_id[sizeof(result.job_id) - 1] = '\0';
+                    strncpy(result.extranonce2_hex, work.extranonce2_hex, sizeof(result.extranonce2_hex) - 1);
+                    result.extranonce2_hex[sizeof(result.extranonce2_hex) - 1] = '\0';
+                    sprintf(result.ntime_hex, "%08" PRIx32, work.ntime);
+                    sprintf(result.nonce_hex, "%08" PRIx32, nonce);
+
+                    ESP_LOGI(TAG, "SHARE FOUND! nonce=%08" PRIx32, nonce);
+#ifdef STICKMINER_DEBUG
+                    // Cross-check with software SHA
+                    uint8_t sw_block2[64];
+                    memcpy(sw_block2, block2, 64);
+                    sw_block2[12] = (uint8_t)(nonce & 0xff);
+                    sw_block2[13] = (uint8_t)((nonce >> 8) & 0xff);
+                    sw_block2[14] = (uint8_t)((nonce >> 16) & 0xff);
+                    sw_block2[15] = (uint8_t)((nonce >> 24) & 0xff);
+                    uint32_t sw_state[8];
+                    memcpy(sw_state, midstate, 32);
+                    sha256_transform(sw_state, sw_block2);
+                    uint8_t sw_block3[64];
+                    memset(sw_block3, 0, 64);
+                    store_be32(sw_block3,      sw_state[0]);
+                    store_be32(sw_block3 + 4,  sw_state[1]);
+                    store_be32(sw_block3 + 8,  sw_state[2]);
+                    store_be32(sw_block3 + 12, sw_state[3]);
+                    store_be32(sw_block3 + 16, sw_state[4]);
+                    store_be32(sw_block3 + 20, sw_state[5]);
+                    store_be32(sw_block3 + 24, sw_state[6]);
+                    store_be32(sw_block3 + 28, sw_state[7]);
+                    sw_block3[32] = 0x80;
+                    sw_block3[62] = 0x01;
+                    sw_block3[63] = 0x00;
+                    memcpy(sw_state, H0, 32);
+                    sha256_transform(sw_state, sw_block3);
+                    uint8_t sw_hash[32];
+                    store_be32(sw_hash,      sw_state[0]);
+                    store_be32(sw_hash + 4,  sw_state[1]);
+                    store_be32(sw_hash + 8,  sw_state[2]);
+                    store_be32(sw_hash + 12, sw_state[3]);
+                    store_be32(sw_hash + 16, sw_state[4]);
+                    store_be32(sw_hash + 20, sw_state[5]);
+                    store_be32(sw_hash + 24, sw_state[6]);
+                    store_be32(sw_hash + 28, sw_state[7]);
+
+                    // Full sha256d verification (no midstate optimization)
+                    uint8_t verify_header[80];
+                    memcpy(verify_header, work.header, 80);
+                    verify_header[76] = (uint8_t)(nonce & 0xff);
+                    verify_header[77] = (uint8_t)((nonce >> 8) & 0xff);
+                    verify_header[78] = (uint8_t)((nonce >> 16) & 0xff);
+                    verify_header[79] = (uint8_t)((nonce >> 24) & 0xff);
+                    uint8_t full_hash[32];
+                    sha256d(verify_header, 80, full_hash);
+
+                    ESP_LOGI(TAG, "  HW hash:   %02x%02x%02x%02x %02x%02x%02x%02x",
+                             hash[0], hash[1], hash[2], hash[3],
+                             hash[4], hash[5], hash[6], hash[7]);
+                    ESP_LOGI(TAG, "  SW hash:   %02x%02x%02x%02x %02x%02x%02x%02x",
+                             sw_hash[0], sw_hash[1], sw_hash[2], sw_hash[3],
+                             sw_hash[4], sw_hash[5], sw_hash[6], sw_hash[7]);
+                    ESP_LOGI(TAG, "  full hash: %02x%02x%02x%02x %02x%02x%02x%02x",
+                             full_hash[0], full_hash[1], full_hash[2], full_hash[3],
+                             full_hash[4], full_hash[5], full_hash[6], full_hash[7]);
+#endif
+                    xQueueSend(result_queue, &result, 0);
+                }
+            }
+#else
+            // Software SHA path (native build / fallback)
             // Set nonce in block2 (bytes 12-15, little-endian)
             block2[12] = (uint8_t)(nonce & 0xff);
             block2[13] = (uint8_t)((nonce >> 8) & 0xff);
@@ -96,10 +210,8 @@ void mining_task(void *arg)
             memcpy(state, H0, 32);
             sha256_transform(state, block3);
 
-            // Quick reject: check first 4 bytes of hash (big-endian state[0])
-            // For any reasonable difficulty, state[0] must be 0
-            if (state[0] == 0) {
-                // Full target check — convert state to big-endian bytes
+            // Quick reject: check MSB word (LE convention: state[7])
+            if (state[7] <= target_word0) {
                 uint8_t hash[32];
                 store_be32(hash,      state[0]);
                 store_be32(hash + 4,  state[1]);
@@ -123,6 +235,7 @@ void mining_task(void *arg)
                     xQueueSend(result_queue, &result, 0);
                 }
             }
+#endif
 
             hashes++;
 
@@ -137,17 +250,27 @@ void mining_task(void *arg)
                 }
 
                 mining_work_t new_work;
-                if (xQueuePeek(work_queue, &new_work, 0) == pdTRUE && new_work.clean) {
-                    xQueueReceive(work_queue, &new_work, 0);
+                if (xQueueReceive(work_queue, &new_work, 0) == pdTRUE) {
                     memcpy(&work, &new_work, sizeof(work));
                     ESP_LOGI(TAG, "new job: %s", work.job_id);
+                    target_word0 = ((uint32_t)work.target[28] << 24) |
+                                   ((uint32_t)work.target[29] << 16) |
+                                   ((uint32_t)work.target[30] << 8)  |
+                                   (uint32_t)work.target[31];
                     memcpy(midstate, H0, sizeof(H0));
+#ifdef ESP_PLATFORM
+                    sha256_hw_transform(midstate, work.header);
+#else
                     sha256_transform(midstate, work.header);
+#endif
                     memset(block2, 0, 64);
                     memcpy(block2, work.header + 64, 16);
                     block2[16] = 0x80;
                     block2[62] = 0x02;
                     block2[63] = 0x80;
+#ifdef ESP_PLATFORM
+                    sha256_hw_init_job(block2);
+#endif
                     start_us = esp_timer_get_time();
                     nonce = (uint32_t)-1;
                     hashes = 0;

@@ -66,6 +66,9 @@ void nbits_to_target(uint32_t nbits, uint8_t target[32]);
 // Returns true if hash <= target
 bool meets_target(const uint8_t hash[32], const uint8_t target[32]);
 
+// Convert pool difficulty to 256-bit target (little-endian, Bitcoin convention)
+void difficulty_to_target(double diff, uint8_t target[32]);
+
 // Convert stratum prevhash (8 groups of 4 bytes, each group reversed) to raw prevhash
 void decode_stratum_prevhash(const char *hex, uint8_t prevhash[32]);
 

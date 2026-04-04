@@ -26,6 +26,13 @@ void test_decode_stratum_prevhash(void);
 void test_block1_full_pipeline(void);
 void test_block170_merkle_and_hash(void);
 void test_decode_stratum_prevhash_real(void);
+void test_stratum_pipeline_block1(void);
+void test_difficulty_to_target_diff1(void);
+void test_difficulty_to_target_easy(void);
+void test_difficulty_to_target_hard(void);
+void test_mining_round_trip_block1(void);
+void test_mining_early_reject_byte_order(void);
+void test_difficulty_target_meets_target_integration(void);
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -61,6 +68,13 @@ int main(void) {
     RUN_TEST(test_block1_full_pipeline);
     RUN_TEST(test_block170_merkle_and_hash);
     RUN_TEST(test_decode_stratum_prevhash_real);
+    RUN_TEST(test_stratum_pipeline_block1);
+    RUN_TEST(test_difficulty_to_target_diff1);
+    RUN_TEST(test_difficulty_to_target_easy);
+    RUN_TEST(test_difficulty_to_target_hard);
+    RUN_TEST(test_mining_round_trip_block1);
+    RUN_TEST(test_mining_early_reject_byte_order);
+    RUN_TEST(test_difficulty_target_meets_target_integration);
 
     return UNITY_END();
 }

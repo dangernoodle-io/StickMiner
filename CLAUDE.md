@@ -8,6 +8,7 @@ Bitcoin mining firmware for LilyGo T-Dongle S3 (ESP32-S3).
 - Build: `pio run`
 - Flash: `pio run -t upload` (hold BOOT button to enter download mode)
 - Monitor: `pio device monitor`
+- Monitor (non-TTY): `stty -f /dev/cu.usbmodem2101 115200 raw -echo -echoe -echok -echoctl -echoke && cat /dev/cu.usbmodem2101`
 - Host tests: `pio test -e native`
 - Static analysis: `pio check --skip-packages`
 
