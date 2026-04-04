@@ -247,6 +247,9 @@ IRAM_ATTR uint32_t sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
     SHA_TEXT_REG[15] = 0x80020000;
 
     REG_WRITE(SHA_CONTINUE_REG, 1);
+    // Pre-delay: let SHA peripheral finish before polling to reduce wasted APB reads
+    __asm__ volatile("nop; nop; nop; nop; nop; nop; nop; nop;"
+                     "nop; nop; nop; nop; nop; nop; nop; nop;");
     while (REG_READ(SHA_BUSY_REG)) {}
 
     // --- Pass 2: copy SHA_H → SHA_TEXT directly (no bswap!) ---
@@ -269,6 +272,9 @@ IRAM_ATTR uint32_t sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
     SHA_TEXT_REG[15] = 0x00010000;
 
     REG_WRITE(SHA_START_REG, 1);
+    // Pre-delay: let SHA peripheral finish before polling to reduce wasted APB reads
+    __asm__ volatile("nop; nop; nop; nop; nop; nop; nop; nop;"
+                     "nop; nop; nop; nop; nop; nop; nop; nop;");
     while (REG_READ(SHA_BUSY_REG)) {}
 
     // Early reject: check upper 16 bits of SHA_H[7]
