@@ -32,16 +32,16 @@ void app_main(void)
 
     // Create inter-task queues
     work_queue = xQueueCreate(1, sizeof(mining_work_t));
-    result_queue = xQueueCreate(4, sizeof(mining_result_t));
+    result_queue = xQueueCreate(2, sizeof(mining_result_t));
 
     // Start stratum task on Core 0
-    xTaskCreatePinnedToCore(stratum_task, "stratum", 12288, NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(stratum_task, "stratum", 8192, NULL, 5, NULL, 0);
 
     // Start mining task on Core 1 (hardware SHA)
     xTaskCreatePinnedToCore(mining_task, "mining_hw", 4096, NULL, 20, NULL, 1);
 
     // Start software mining task on Core 0 (software SHA, lower priority than stratum)
-    xTaskCreatePinnedToCore(mining_task_sw, "mining_sw", 8192, NULL, 3, NULL, 0);
+    xTaskCreatePinnedToCore(mining_task_sw, "mining_sw", 4096, NULL, 3, NULL, 0);
 
     ESP_LOGI(TAG, "all tasks started");
 }
