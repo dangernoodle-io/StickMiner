@@ -42,6 +42,36 @@ void test_nv_config_init(void);
 void test_nv_config_all_empty_before_provisioning(void);
 void test_nv_config_not_provisioned_by_default(void);
 
+// Forward declarations from test_crc.c
+void test_crc5_chain_inactive(void);
+void test_crc5_reg_write_a8(void);
+void test_crc5_reg_write_3c(void);
+void test_crc5_set_address(void);
+void test_crc16_false_standard(void);
+void test_crc16_false_empty(void);
+
+// Forward declarations from test_pll.c
+void test_pll_500mhz(void);
+void test_pll_600mhz(void);
+void test_pll_400mhz(void);
+void test_pll_vdo_scale_high(void);
+void test_pll_vdo_scale_low(void);
+void test_pll_postdiv_byte(void);
+
+// Forward declarations from test_bm1370.c
+void test_build_cmd_inactive(void);
+void test_build_cmd_read_chipid(void);
+void test_build_cmd_buffer_too_small(void);
+void test_build_job_size(void);
+void test_build_job_crc16(void);
+void test_extract_job_from_header(void);
+void test_parse_nonce_valid(void);
+void test_parse_nonce_bad_preamble(void);
+void test_parse_nonce_too_short(void);
+void test_decode_job_id(void);
+void test_decode_version_bits(void);
+void test_decode_version_bits_max(void);
+
 void setUp(void) {}
 void tearDown(void) {}
 
@@ -91,6 +121,36 @@ int main(void) {
     RUN_TEST(test_nv_config_init);
     RUN_TEST(test_nv_config_all_empty_before_provisioning);
     RUN_TEST(test_nv_config_not_provisioned_by_default);
+
+    // CRC tests
+    RUN_TEST(test_crc5_chain_inactive);
+    RUN_TEST(test_crc5_reg_write_a8);
+    RUN_TEST(test_crc5_reg_write_3c);
+    RUN_TEST(test_crc5_set_address);
+    RUN_TEST(test_crc16_false_standard);
+    RUN_TEST(test_crc16_false_empty);
+
+    // PLL tests
+    RUN_TEST(test_pll_500mhz);
+    RUN_TEST(test_pll_600mhz);
+    RUN_TEST(test_pll_400mhz);
+    RUN_TEST(test_pll_vdo_scale_high);
+    RUN_TEST(test_pll_vdo_scale_low);
+    RUN_TEST(test_pll_postdiv_byte);
+
+    // BM1370 framing tests
+    RUN_TEST(test_build_cmd_inactive);
+    RUN_TEST(test_build_cmd_read_chipid);
+    RUN_TEST(test_build_cmd_buffer_too_small);
+    RUN_TEST(test_build_job_size);
+    RUN_TEST(test_build_job_crc16);
+    RUN_TEST(test_extract_job_from_header);
+    RUN_TEST(test_parse_nonce_valid);
+    RUN_TEST(test_parse_nonce_bad_preamble);
+    RUN_TEST(test_parse_nonce_too_short);
+    RUN_TEST(test_decode_job_id);
+    RUN_TEST(test_decode_version_bits);
+    RUN_TEST(test_decode_version_bits_max);
 
     return UNITY_END();
 }
