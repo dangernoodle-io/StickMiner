@@ -1,17 +1,19 @@
 # TaipanMiner
 
-Bitcoin mining firmware for LilyGo T-Dongle S3 (ESP32-S3).
+Bitcoin mining firmware for ESP32-S3 boards with optional ASIC support.
 
 ## Build
 
 - Framework: ESP-IDF via PlatformIO
-- Build: `pio run`
-- Flash: `pio run -t upload` (hold BOOT button to enter download mode)
-- Monitor: `pio device monitor`
-- Monitor (non-TTY): `stty -f /dev/cu.usbmodem101 115200 raw -echo -echoe -echok -echoctl -echoke && cat /dev/cu.usbmodem101`
-- Host tests: `pio test -e native`
-- Debug build: `pio run -e debug` (adds `TAIPANMINER_DEBUG=1` — enables SW mining task, SHA verification, benchmarks)
-- Static analysis: `pio check --skip-packages`
+- `make help` — show all targets
+- `make build` — build all boards (tdongle-s3 + bitaxe-601)
+- `make build-<env>` — build specific board (e.g. `make build-bitaxe-601`)
+- `make flash-<env>` — flash specific board
+- `make test` — host unit tests
+- `make check` — static analysis (cppcheck)
+- `make coverage` — test + gcovr coverage report
+- `make monitor` — serial monitor
+- Debug: `make build-tdongle-s3-debug` or `make build-bitaxe-601-debug` (adds `TAIPANMINER_DEBUG=1`)
 
 ### Python compatibility
 
@@ -24,25 +26,43 @@ python3.13 -m venv ~/.platformio/penv/.espidf-5.5.3
 
 Then create `~/.platformio/penv/.espidf-5.5.3/pio-idf-venv.json` with the correct version info to prevent PlatformIO from overwriting the venv.
 
+## Boards
+
+| Env | Board | ASIC | Console |
+|-----|-------|------|---------|
+| `tdongle-s3` | LilyGo T-Dongle S3 | none (SW mining) | USB CDC |
+| `bitaxe-601` | Bitaxe 601 Gamma | BM1370 | UART0 |
+
+### Adding a new board
+
+1. **Board header** — create `components/board/include/boards/<board>.h` with pin definitions
+2. **Board dispatch** — add `#elif defined(BOARD_<NAME>)` to `components/board/include/board.h`
+3. **PlatformIO env** — add `[env:<board>]` and `[env:<board>-debug]` to `platformio.ini` with `-DBOARD_<NAME>` (and `-DASIC_<CHIP>` if applicable) in `build_flags`
+4. **sdkconfig delta** — create `sdkconfig/<board>` with settings that differ from `sdkconfig.defaults` (e.g. console type, UART ISR); add `sdkconfig/<board>-debug` for debug overlay
+5. **Gitignore** — add `sdkconfig.<board>` and `sdkconfig.<board>-debug` to `.gitignore` (ESP-IDF auto-generates these at the project root)
+6. **CI/release** — add the env name to the matrix arrays in `ci.yml` and `release.yml`
+7. **default_envs** — add the env to `default_envs` in `platformio.ini`
+
 ## Project layout
 
-- `src/` — app entry point, board pin definitions, version
-- `components/` — ESP-IDF components (mining, stratum, display, wifi_prov, http_server, led, nv_config)
+- `src/` — app entry point, version
+- `components/` — ESP-IDF components (mining, stratum, board, asic, display, wifi_prov, http_server, led, nv_config)
+- `components/board/include/boards/` — per-board pin/peripheral headers
+- `sdkconfig/` — hand-authored sdkconfig deltas per board
 - `test/test_host/` — host-based unit tests (run without hardware via native env)
 - `test/test_device/` — on-device integration tests
 
 ## Hardware
 
-- ESP32-S3 dual-core @ 240MHz, 512KB SRAM, no PSRAM, 16MB flash
-- 80x160 ST7735 LCD, APA102 RGB LED, BOOT button (GPIO0)
-- Pin assignments in `src/board.h`
+- All boards use ESP32-S3 dual-core @ 240MHz
+- Pin assignments in `components/board/include/boards/<board>.h`
+- Board dispatch via `components/board/include/board.h` (`BOARD_*` defines)
 
 ## Architecture
 
 - Core 0: WiFi, Stratum, HTTP server, display, LED
 - Core 1: HW SHA mining (priority 20, nonces 0x00000000-0x7FFFFFFF)
 - Core 0: SW SHA mining (priority 3, nonces 0x80000000-0xFFFFFFFF, yields to WiFi/Stratum)
-- Naming: `s_` prefix for file-scope static variables (e.g., `s_config`, `s_sock`)
 - Inter-core: FreeRTOS queues (work_queue, result_queue) + mutex (mining_stats)
 
 ### Mining pipeline

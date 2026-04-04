@@ -6,48 +6,66 @@ on:
       - 'v*'
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [tdongle-s3, bitaxe-601]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+          # no pip cache — no requirements.txt in repo
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
-          path: ~/.platformio
-          key: ${{ runner.os }}-platformio-${{ hashFiles('**/platformio.ini') }}
-          restore-keys: |
-            ${{ runner.os }}-platformio-
-      - name: Install PlatformIO
-        run: pip install platformio
-      - name: Build firmware
-        run: pio run
-      - name: Prepare binary
+          path: |
+            ~/.platformio
+            ~/.cache/ccache
+          key: ${{ runner.os }}-pio-build-${{ matrix.env }}-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: ${{ runner.os }}-pio-build-${{ matrix.env }}-
+      - name: Install tools
         run: |
-          cp .pio/build/esp32s3/firmware.bin taipanminer.bin
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+          sudo apt-get install -y ccache
+          pip install platformio
+      - name: Build firmware
+        run: make build-${{ matrix.env }}
+      - name: Rename binary
+        run: cp .pio/build/${{ matrix.env }}/firmware.bin taipanminer-${{ matrix.env }}.bin
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
         with:
-          files: taipanminer.bin
-          body: |
-            ## Flash Instructions
+          name: taipanminer-${{ matrix.env }}
+          path: taipanminer-${{ matrix.env }}.bin
 
-            ### With PlatformIO
-            ```bash
-            pio run -t upload
-            ```
-
-            ### With esptool.py
-            ```bash
-            pip install esptool
-            esptool.py --chip esp32s3 --port /dev/ttyACM0 write_flash 0x0 taipanminer.bin
-            ```
-
-            ### OTA (if already running TaipanMiner)
-            ```bash
-            curl -X POST -H "X-OTA-Token: <token>" --data-binary @taipanminer.bin http://taipanminer-XXXX.local/ota/upload
-            ```
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+      - name: Build release body
+        run: |
+          echo "## Binaries" > release-body.md
+          echo "" >> release-body.md
+          echo "| File | Size |" >> release-body.md
+          echo "|------|------|" >> release-body.md
+          for f in taipanminer-*.bin; do
+            size=$(du -h "$f" | cut -f1)
+            echo "| \`$f\` | $size |" >> release-body.md
+          done
+          echo "" >> release-body.md
+          echo "## Flash" >> release-body.md
+          echo '```bash' >> release-body.md
+          echo "esptool.py --chip esp32s3 write_flash 0x0 taipanminer-<board>.bin" >> release-body.md
+          echo '```' >> release-body.md
+      - name: Create release
+        run: gh release create ${{ github.ref_name }} taipanminer-*.bin --notes-file release-body.md
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

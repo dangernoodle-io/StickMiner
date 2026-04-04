@@ -2,70 +2,109 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      include_debug:
+        description: 'Build debug envs'
+        type: boolean
+        default: false
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Cache PlatformIO
-        uses: actions/cache@v4
-        with:
-          path: ~/.platformio
-          key: ${{ runner.os }}-platformio-${{ hashFiles('**/platformio.ini') }}
-          restore-keys: |
-            ${{ runner.os }}-platformio-
-      - name: Install PlatformIO
-        run: pip install platformio
-      - name: Create config from example
-        run: cp src/config.h.example src/config.h
-      - name: Build firmware
-        run: pio run
-
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.platformio
-          key: ${{ runner.os }}-platformio-${{ hashFiles('**/platformio.ini') }}
-          restore-keys: |
-            ${{ runner.os }}-platformio-
-      - name: Install PlatformIO
-        run: pip install platformio
-      - name: Run unit tests
-        run: pio test -e native
+          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: ${{ runner.os }}-pio-
+      - name: Install tools
+        run: pip install platformio gcovr
+      - name: Static analysis
+        run: make check
+      - name: Test and coverage
+        run: make coverage
+      - name: Upload to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          file: gcovr-coveralls.json
+          format: coveralls
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_API_TOKEN }}
 
-  check:
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [tdongle-s3, bitaxe-601]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Cache PlatformIO
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/ccache
+          key: ${{ runner.os }}-pio-build-${{ matrix.env }}-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: ${{ runner.os }}-pio-build-${{ matrix.env }}-
+      - name: Install tools
+        run: |
+          sudo apt-get install -y ccache
+          pip install platformio
+      - name: Build firmware
+        run: make build-${{ matrix.env }}
+
+  debug:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.include_debug == 'true'
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [tdongle-s3-debug, bitaxe-601-debug]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Cache PlatformIO
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/ccache
+          key: ${{ runner.os }}-pio-build-${{ matrix.env }}-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: ${{ runner.os }}-pio-build-${{ matrix.env }}-
+      - name: Install tools
+        run: |
+          sudo apt-get install -y ccache
+          pip install platformio
+      - name: Build debug firmware
+        run: make build-${{ matrix.env }}
+
+  ci:
+    if: always()
+    needs: [test, build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Cache PlatformIO
-        uses: actions/cache@v4
-        with:
-          path: ~/.platformio
-          key: ${{ runner.os }}-platformio-${{ hashFiles('**/platformio.ini') }}
-          restore-keys: |
-            ${{ runner.os }}-platformio-
-      - name: Install PlatformIO
-        run: pip install platformio
-      - name: Create config from example
-        run: cp src/config.h.example src/config.h
-      - name: Static analysis
-        run: pio check --skip-packages
+      - name: Check results
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.build.result }}" != "success" ]; then
+            echo "test=${{ needs.test.result }} build=${{ needs.build.result }}"
+            exit 1
+          fi

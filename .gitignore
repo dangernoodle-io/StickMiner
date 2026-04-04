@@ -1,4 +1,6 @@
 .pio/
 .claude/worktrees/
-sdkconfig.esp32s3
-components/nv_config/include/config.h
+sdkconfig.tdongle-s3
+sdkconfig.tdongle-s3-debug
+sdkconfig.bitaxe-601
+sdkconfig.bitaxe-601-debug
