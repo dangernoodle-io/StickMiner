@@ -40,18 +40,27 @@ Then create `~/.platformio/penv/.espidf-5.5.3/pio-idf-venv.json` with the correc
 ## Architecture
 
 - Core 0: WiFi, Stratum, HTTP server, display, LED
-- Core 1: dedicated HW SHA mining (priority 20, full 32-bit nonce range)
-- Inter-core: FreeRTOS queues (work_queue, result_queue) + mutex (MiningStats)
-- SW mining task runs on Core 0 only in debug builds (`STICKMINER_DEBUG`)
+- Core 1: HW SHA mining (priority 20, nonces 0x00000000-0x7FFFFFFF)
+- Core 0: SW SHA mining (priority 3, nonces 0x80000000-0xFFFFFFFF, yields to WiFi/Stratum)
+- Inter-core: FreeRTOS queues (work_queue, result_queue) + mutex (mining_stats)
 
 ### Mining pipeline
 
 - Phase 3 zero-bswap HW-format pipeline: midstate stored in HW-native word order
-- `sha256_hw_mine_nonce`: midstate→SHA_H, block2+nonce→SHA_TEXT, SHA_CONTINUE, direct SHA_H→SHA_TEXT copy for pass 2, SHA_START
+- `sha256_hw_mine_nonce`: force-inlined, midstate→SHA_H, block2+nonce→SHA_TEXT, SHA_CONTINUE, direct SHA_H→SHA_TEXT copy for pass 2, SHA_START
 - SHA_TEXT registers are NOT preserved after SHA operations (verified empirically)
 - SHA_START is 21% faster than SHA_CONTINUE+H0 for pass 2
+- APB peripheral bus fixed at 80 MHz — HW mining is MMIO-bound, not CPU-bound (~223 kH/s ceiling)
 - BIP 320 version rolling when nonce space exhausted
-- Yield every 512K nonces (0x7FFFF mask), hashrate log every 2M (0x1FFFFF)
+- Yield every 256K nonces (0x3FFFF mask), hashrate log every 1M (0xFFFFF)
+- FreeRTOS tick rate: 100 Hz; vTaskDelay uses pdMS_TO_TICKS()
+- Combined hashrate logged by HW task (hw + sw + total in kH/s)
+
+### Network
+
+- TCP keepalive (60s idle, 10s interval, 3 probes), TCP_NODELAY
+- SO_RCVTIMEO cached to avoid redundant setsockopt calls
+- WiFi: infinite retry with 5s backoff, 60s startup timeout with esp_restart()
 
 ## Testing
 
