@@ -35,7 +35,7 @@ static uint32_t s_version_mask = 0;
 static int s_configure_id = 0;
 
 // Line buffer for reading from socket
-static char s_linebuf[4096];
+static char s_linebuf[2048];
 static int s_linebuf_len = 0;
 
 // Send a string to the socket
@@ -459,7 +459,7 @@ static void process_message(const char *line)
 
 void stratum_task(void *arg)
 {
-    static char line[2048];
+    static char line[1536];
 
     ESP_LOGI(TAG, "stratum task started");
     esp_log_level_set(TAG, ESP_LOG_DEBUG);

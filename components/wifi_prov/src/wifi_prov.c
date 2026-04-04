@@ -21,13 +21,14 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_count < WIFI_MAX_RETRY) {
-            esp_wifi_connect();
-            s_retry_count++;
-            ESP_LOGW(TAG, "retry %d/%d", s_retry_count, WIFI_MAX_RETRY);
-        } else {
-            ESP_LOGE(TAG, "connect failed after %d retries", WIFI_MAX_RETRY);
+        if (s_retry_count >= WIFI_MAX_RETRY) {
+            ESP_LOGW(TAG, "max retries reached, resetting and retrying");
+            s_retry_count = 0;
+            vTaskDelay(pdMS_TO_TICKS(5000));
         }
+        esp_wifi_connect();
+        s_retry_count++;
+        ESP_LOGW(TAG, "retry %d/%d", s_retry_count, WIFI_MAX_RETRY);
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
@@ -60,8 +61,16 @@ esp_err_t wifi_init(void)
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG, "connecting to %s", CONFIG_WIFI_SSID);
-    xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT,
-                        pdFALSE, pdFALSE, portMAX_DELAY);
+    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT,
+                                           pdFALSE, pdFALSE, pdMS_TO_TICKS(60000));
+
+    if ((bits & WIFI_CONNECTED_BIT) == 0) {
+        ESP_LOGE(TAG, "WiFi connection timeout after 60s, restarting");
+        esp_restart();
+    }
+
+    vEventGroupDelete(s_wifi_event_group);
+    s_wifi_event_group = NULL;
 
     return ESP_OK;
 }
