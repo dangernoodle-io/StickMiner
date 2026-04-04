@@ -116,11 +116,7 @@ void mining_task(void *arg)
             uint32_t nonce = 0;
             uint32_t hashes = 0;
 
-#ifdef STICKMINER_DEBUG
             for (nonce = 0; nonce <= 0x7FFFFFFFU; nonce++) {
-#else
-            for (nonce = 0; ; nonce++) {
-#endif
 #ifdef ESP_PLATFORM
             // Hardware SHA path (Phase 3 optimized: zero-bswap HW-format pipeline)
             uint32_t digest_hw[8];
@@ -311,9 +307,7 @@ void mining_task(void *arg)
 
                 vTaskDelay(1);
             }
-#ifndef STICKMINER_DEBUG
-            if (nonce == 0xFFFFFFFFU) break;
-#endif
+
             }  // end nonce loop
 
             // Nonce range exhausted — try rolling version
@@ -327,7 +321,6 @@ void mining_task(void *arg)
     }
 }
 
-#ifdef STICKMINER_DEBUG
 void mining_task_sw(void *arg)
 {
     mining_work_t work;
@@ -415,7 +408,7 @@ void mining_task_sw(void *arg)
             sha256_transform_words(state, block3_words);
 
             // Quick reject
-            if (state[7] <= target_word0) {
+            if ((state[7] >> 16) == 0 && state[7] <= target_word0) {
                 uint8_t hash[32];
                 store_be32(hash,      state[0]);
                 store_be32(hash + 4,  state[1]);
@@ -495,4 +488,3 @@ void mining_task_sw(void *arg)
         ESP_LOGW(TAG, "exhausted sw nonce range for job %s", work.job_id);
     }
 }
-#endif

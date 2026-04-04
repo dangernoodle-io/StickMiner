@@ -40,10 +40,8 @@ void app_main(void)
     // Start mining task on Core 1 (hardware SHA)
     xTaskCreatePinnedToCore(mining_task, "mining_hw", 4096, NULL, 20, NULL, 1);
 
-#ifdef STICKMINER_DEBUG
     // Start software mining task on Core 0 (software SHA, lower priority than stratum)
-    xTaskCreatePinnedToCore(mining_task_sw, "mining_sw", 4096, NULL, 3, NULL, 0);
-#endif
+    xTaskCreatePinnedToCore(mining_task_sw, "mining_sw", 8192, NULL, 3, NULL, 0);
 
     ESP_LOGI(TAG, "all tasks started");
 }
