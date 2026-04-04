@@ -9,6 +9,7 @@
 
 static const char *TAG = "taipanminer";
 
+// cppcheck-suppress unusedFunction
 void app_main(void)
 {
     ESP_LOGI(TAG, "TaipanMiner %s starting...", TAIPANMINER_VERSION);
