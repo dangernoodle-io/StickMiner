@@ -24,6 +24,8 @@ extern QueueHandle_t result_queue;
 typedef struct {
     double hw_hashrate;    // latest HW hashrate (H/s)
     double sw_hashrate;    // latest SW hashrate (H/s)
+    uint32_t hw_shares;    // hardware shares found
+    uint32_t sw_shares;    // software shares found
     SemaphoreHandle_t mutex;
 } mining_stats_t;
 

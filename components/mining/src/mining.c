@@ -150,6 +150,10 @@ void mining_task(void *arg)
                     }
 
                     ESP_LOGI(TAG, "HW SHARE FOUND! nonce=%08" PRIx32, nonce);
+                    if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                        mining_stats.hw_shares++;
+                        xSemaphoreGive(mining_stats.mutex);
+                    }
 #ifdef STICKMINER_DEBUG
                     // Cross-check with software SHA using standard midstate
                     uint32_t sw_midstate[8];
@@ -262,6 +266,10 @@ void mining_task(void *arg)
                     sprintf(result.nonce_hex, "%08" PRIx32, nonce);
 
                     ESP_LOGI(TAG, "HW SHARE FOUND! nonce=%08" PRIx32, nonce);
+                    if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                        mining_stats.hw_shares++;
+                        xSemaphoreGive(mining_stats.mutex);
+                    }
                     xQueueSend(result_queue, &result, 0);
                 }
             }
@@ -276,15 +284,17 @@ void mining_task(void *arg)
                     if (elapsed_us > 0) {
                         double hashrate = (double)hashes / ((double)elapsed_us / 1000000.0);
                         double sw_rate = 0;
+                        uint32_t total_shares = 0;
 #ifdef ESP_PLATFORM
                         if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
                             mining_stats.hw_hashrate = hashrate;
                             sw_rate = mining_stats.sw_hashrate;
+                            total_shares = mining_stats.hw_shares + mining_stats.sw_shares;
                             xSemaphoreGive(mining_stats.mutex);
                         }
-                        ESP_LOGI(TAG, "hw: %.1f kH/s | sw: %.1f kH/s | total: %.1f kH/s",
+                        ESP_LOGI(TAG, "hw: %.1f kH/s | sw: %.1f kH/s | total: %.1f kH/s | shares: %"PRIu32,
                                  hashrate / 1000.0, sw_rate / 1000.0,
-                                 (hashrate + sw_rate) / 1000.0);
+                                 (hashrate + sw_rate) / 1000.0, total_shares);
 #else
                         ESP_LOGI(TAG, "%.1f H/s (nonce=%08" PRIx32 ")", hashrate, nonce + 1);
 #endif
@@ -450,6 +460,10 @@ void mining_task_sw(void *arg)
                     }
 
                     ESP_LOGI(TAG, "SW SHARE FOUND! nonce=%08" PRIx32, nonce);
+                    if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                        mining_stats.sw_shares++;
+                        xSemaphoreGive(mining_stats.mutex);
+                    }
                     xQueueSend(result_queue, &result, 0);
                 }
             }
