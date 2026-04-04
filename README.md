@@ -1,1 +1,1 @@
-# stickminer-cli
+# TaipanMiner
