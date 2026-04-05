@@ -30,7 +30,21 @@ static const char *TAG = "asic";
 // --- Active job table (static to avoid stack allocation ~28 KB) ---
 static mining_work_t s_job_table[BM1370_JOB_ID_MOD];
 static uint8_t s_next_job_id;
-static char s_current_job_id[64];
+static uint32_t s_current_work_seq;
+static double s_current_asic_diff = 0;
+
+// Fixed ASIC ticket mask difficulty — BM1370 produces zero nonces above ~512.
+// Local SHA256d checks each nonce against pool target before submission.
+#define ASIC_TICKET_DIFF 256.0
+
+// --- Nonce dedup (ASIC loops nonce space quickly, reports same results) ---
+#define DEDUP_SIZE 16
+static struct { uint8_t job_id; uint32_t nonce; uint32_t ver; } s_dedup[DEDUP_SIZE];
+static uint8_t s_dedup_idx;
+
+// Debug counters for SHA256d filter
+static uint32_t s_sha_pass;
+static uint32_t s_sha_fail;
 
 // --- UART helpers ---
 static void asic_uart_write(const uint8_t *data, size_t len)
@@ -67,6 +81,17 @@ static void write_reg_chip(uint8_t chip_addr, uint8_t reg, uint8_t d0, uint8_t d
     send_cmd(BM1370_CMD_WRITE, BM1370_GROUP_SINGLE, data, 6);
 }
 
+// --- Update ASIC ticket mask for dynamic pool difficulty ---
+static void set_ticket_mask(double difficulty)
+{
+    uint8_t mask[4];
+    bm1370_difficulty_to_mask(difficulty, mask);
+    write_reg(BM1370_REG_TICKET_MASK, mask[0], mask[1], mask[2], mask[3]);
+    s_current_asic_diff = difficulty;
+    ESP_LOGI(TAG, "ticket mask: diff=%.0f bytes=%02x%02x%02x%02x",
+             difficulty, mask[0], mask[1], mask[2], mask[3]);
+}
+
 // PLL fb_div range for BM1370
 #define BM1370_FB_MIN 160
 #define BM1370_FB_MAX 239
@@ -79,7 +104,7 @@ static void set_pll_freq(float freq_mhz)
     uint8_t vdo = pll_vdo_scale(&pll);
     uint8_t postdiv = pll_postdiv_byte(&pll);
     write_reg(BM1370_REG_PLL, vdo, (uint8_t)pll.fb_div, pll.refdiv, postdiv);
-    ESP_LOGI(TAG, "PLL: target=%.1f actual=%.1f fb=%u ref=%u p1=%u p2=%u",
+    ESP_LOGD(TAG, "PLL: target=%.1f actual=%.1f fb=%u ref=%u p1=%u p2=%u",
              freq_mhz, pll.actual_mhz, pll.fb_div, pll.refdiv, pll.post1, pll.post2);
 }
 
@@ -147,10 +172,7 @@ static esp_err_t bm1370_chip_init(void)
     write_reg(BM1370_REG_CORE_CTRL, 0x80, 0x00, 0x80, 0x0C);
     vTaskDelay(pdMS_TO_TICKS(5));
 
-    // Step 9: Difficulty mask (default diff 512 = 0x1FF → inverted for ASIC)
-    // Ticket mask register 0x14: use 0x0000, 0x0003 for diff ~512
-    uint8_t diff_data[6] = {0x00, 0x14, 0x00, 0x00, 0x00, 0xFF};
-    send_cmd(BM1370_CMD_WRITE, BM1370_GROUP_ALL, diff_data, 6);
+    // Step 9: Ticket mask placeholder — re-written after baud switch + freq ramp (step 16)
     vTaskDelay(pdMS_TO_TICKS(5));
 
     // Step 10: IO driver strength
@@ -199,6 +221,10 @@ static esp_err_t bm1370_chip_init(void)
 
     // Step 15: Hash counting register
     write_reg(BM1370_REG_HASH_COUNT, 0x00, 0x00, 0x1E, 0xB5);
+    vTaskDelay(pdMS_TO_TICKS(5));
+
+    // Step 16: Ticket mask — written last to avoid reset by baud switch or freq ramp
+    set_ticket_mask(ASIC_TICKET_DIFF);
     vTaskDelay(pdMS_TO_TICKS(5));
 
     ESP_LOGI(TAG, "BM1370 init complete");
@@ -254,8 +280,9 @@ esp_err_t asic_init(void)
     ESP_RETURN_ON_ERROR(tps546_init(i2c_bus, TPS546_I2C_ADDR, BM1370_DEFAULT_MV), TAG, "tps546");
     vTaskDelay(pdMS_TO_TICKS(50));
 
-    // 5. EMC2101 temp sensor
+    // 5. EMC2101 temp sensor + fan
     ESP_RETURN_ON_ERROR(emc2101_init(i2c_bus, EMC2101_I2C_ADDR), TAG, "emc2101");
+    ESP_RETURN_ON_ERROR(emc2101_set_fan_duty(63), TAG, "fan on");  // max
 
     // 6. BM1370 chip init sequence
     ESP_RETURN_ON_ERROR(bm1370_chip_init(), TAG, "bm1370 init");
@@ -263,7 +290,6 @@ esp_err_t asic_init(void)
     // Initialize state
     s_next_job_id = 0;
     memset(s_job_table, 0, sizeof(s_job_table));
-    memset(s_current_job_id, 0, sizeof(s_current_job_id));
 
     ESP_LOGI(TAG, "ASIC subsystem ready");
     return ESP_OK;
@@ -285,12 +311,19 @@ void asic_mining_task(void *arg)
             continue;
         }
 
-        // 2. Dispatch new job if job_id changed
-        if (strcmp(work.job_id, s_current_job_id) != 0) {
+        // Set ASIC ticket mask once (fixed at ASIC_TICKET_DIFF)
+        if (s_current_asic_diff == 0) {
+            set_ticket_mask(ASIC_TICKET_DIFF);
+        }
+
+        // 2. Dispatch new job if work changed (new pool job or extranonce2 roll)
+        if (work.work_seq != s_current_work_seq) {
             // Clean job: invalidate all active slots
             if (work.clean) {
                 memset(s_job_table, 0, sizeof(s_job_table));
             }
+            memset(s_dedup, 0, sizeof(s_dedup));
+            s_dedup_idx = 0;
 
             // Cycle job ID
             s_next_job_id = (s_next_job_id + BM1370_JOB_ID_STEP) % BM1370_JOB_ID_MOD;
@@ -305,9 +338,9 @@ void asic_mining_task(void *arg)
 
             // Store in job table
             memcpy(&s_job_table[s_next_job_id], &work, sizeof(work));
-            strncpy(s_current_job_id, work.job_id, sizeof(s_current_job_id) - 1);
+            s_current_work_seq = work.work_seq;
 
-            ESP_LOGI(TAG, "job dispatched (id=%u hw_id=%u)", 0, s_next_job_id);
+            ESP_LOGD(TAG, "job dispatched (id=%u hw_id=%u)", 0, s_next_job_id);
         }
 
         // 3. Try to read nonce response
@@ -316,20 +349,25 @@ void asic_mining_task(void *arg)
         if (n == BM1370_NONCE_LEN) {
             bm1370_nonce_t nonce;
             if (!bm1370_parse_nonce(rx, n, &nonce)) {
-                // Bad preamble — try to re-align
+                ESP_LOGW(TAG, "bad preamble: %02X %02X", rx[0], rx[1]);
                 uart_flush(ASIC_UART_NUM);
                 continue;
             }
 
-            // CRC5 check: crc5(buf+2, 9) should equal 0 for valid packet
-            if (crc5(rx + 2, 9) != 0) {
-                ESP_LOGW(TAG, "nonce CRC5 failed");
+            uint8_t crc_val = crc5(rx + 2, 9);
+            ESP_LOGD(TAG, "rx: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X crc5=%u flags=%02X",
+                     rx[0],rx[1],rx[2],rx[3],rx[4],rx[5],rx[6],rx[7],rx[8],rx[9],rx[10],
+                     crc_val, nonce.crc_flags);
+
+            // CRC5 check
+            if (crc_val != 0) {
+                ESP_LOGW(TAG, "nonce CRC5 failed (got %u)", crc_val);
                 continue;
             }
 
             // Check if job response (bit 7 of crc_flags)
             if (!(nonce.crc_flags & 0x80)) {
-                // Command response, ignore
+                ESP_LOGD(TAG, "command response, skipping");
                 continue;
             }
 
@@ -341,14 +379,31 @@ void asic_mining_task(void *arg)
             }
 
             mining_work_t *orig = &s_job_table[real_job_id];
+            uint32_t ver_bits = bm1370_decode_version_bits(&nonce);
+            uint32_t nonce_val = ((uint32_t)nonce.nonce[0] << 24) | ((uint32_t)nonce.nonce[1] << 16) |
+                                 ((uint32_t)nonce.nonce[2] << 8) | nonce.nonce[3];
+
+            // Dedup: skip if we already submitted this nonce+version for this job
+            bool dup = false;
+            for (int d = 0; d < DEDUP_SIZE; d++) {
+                if (s_dedup[d].job_id == real_job_id && s_dedup[d].nonce == nonce_val && s_dedup[d].ver == ver_bits) {
+                    dup = true;
+                    break;
+                }
+            }
+            if (dup) {
+                continue;
+            }
+            s_dedup[s_dedup_idx] = (typeof(s_dedup[0])){real_job_id, nonce_val, ver_bits};
+            s_dedup_idx = (s_dedup_idx + 1) % DEDUP_SIZE;
+
             nonces_since_log++;
 
-            // Reconstruct header for verification
+            // Local SHA256d verification — only submit nonces meeting pool target
             uint8_t header_copy[80];
             memcpy(header_copy, orig->header, 80);
 
-            // Apply version rolling if present
-            uint32_t ver_bits = bm1370_decode_version_bits(&nonce);
+            // Apply version rolling (LE in header)
             if (ver_bits != 0 && orig->version_mask != 0) {
                 uint32_t rolled = (orig->version & ~orig->version_mask) | (ver_bits & orig->version_mask);
                 header_copy[0] = (uint8_t)(rolled);
@@ -357,22 +412,28 @@ void asic_mining_task(void *arg)
                 header_copy[3] = (uint8_t)(rolled >> 24);
             }
 
-            // Apply nonce (big-endian wire → little-endian header)
-            header_copy[76] = nonce.nonce[3];
-            header_copy[77] = nonce.nonce[2];
-            header_copy[78] = nonce.nonce[1];
-            header_copy[79] = nonce.nonce[0];
+            // Apply nonce — raw ASIC wire bytes map directly to header bytes
+            // (submitted nonce is LE interpretation of wire bytes; pool writes LE back to header)
+            header_copy[76] = nonce.nonce[0];
+            header_copy[77] = nonce.nonce[1];
+            header_copy[78] = nonce.nonce[2];
+            header_copy[79] = nonce.nonce[3];
 
-            // SHA256d verify
             uint8_t hash[32];
             sha256d(header_copy, 80, hash);
 
             if (!meets_target(hash, orig->target)) {
-                // Nonce doesn't meet pool target — normal for ASIC difficulty
+                s_sha_fail++;
                 continue;
             }
+            s_sha_pass++;
 
-            ESP_LOGI(TAG, "share found! job_id=%u", real_job_id);
+            uint32_t rolled_ver = (ver_bits != 0 && orig->version_mask != 0)
+                ? (orig->version & ~orig->version_mask) | (ver_bits & orig->version_mask)
+                : orig->version;
+            ESP_LOGI(TAG, "share: job=%u ver=%08" PRIx32 " n=%02X%02X%02X%02X",
+                     real_job_id, rolled_ver,
+                     nonce.nonce[0], nonce.nonce[1], nonce.nonce[2], nonce.nonce[3]);
 
             // Build result for stratum
             mining_result_t result;
@@ -383,46 +444,50 @@ void asic_mining_task(void *arg)
             // ntime from original work
             snprintf(result.ntime_hex, sizeof(result.ntime_hex), "%08" PRIx32, orig->ntime);
 
-            // nonce as LE hex (bytes in wire BE, we need the actual uint32 in LE hex)
-            uint32_t nonce_val = ((uint32_t)nonce.nonce[0] << 24) | ((uint32_t)nonce.nonce[1] << 16) |
-                                 ((uint32_t)nonce.nonce[2] << 8) | nonce.nonce[3];
-            snprintf(result.nonce_hex, sizeof(result.nonce_hex), "%08" PRIx32, nonce_val);
+            // nonce — submit raw UART bytes as LE uint32 (matches ESP-Miner packed struct on LE ESP32)
+            uint32_t nonce_le = nonce.nonce[0] | ((uint32_t)nonce.nonce[1] << 8) |
+                                ((uint32_t)nonce.nonce[2] << 16) | ((uint32_t)nonce.nonce[3] << 24);
+            snprintf(result.nonce_hex, sizeof(result.nonce_hex), "%08" PRIx32, nonce_le);
 
-            // Version rolling
+            // Version rolling — submit just the rolled bits (XOR delta from base version)
             if (ver_bits != 0 && orig->version_mask != 0) {
-                uint32_t rolled = (orig->version & ~orig->version_mask) | (ver_bits & orig->version_mask);
-                snprintf(result.version_hex, sizeof(result.version_hex), "%08" PRIx32, rolled);
+                snprintf(result.version_hex, sizeof(result.version_hex), "%08" PRIx32, ver_bits);
             }
 
             xQueueSend(result_queue, &result, 0);
-
-            // Update stats
-            if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
-                mining_stats.asic_shares++;
-                xSemaphoreGive(mining_stats.mutex);
-            }
         }
 
-        // 4. Periodic temp reading (~every 5s)
+        // 4. Periodic temp reading + fan control (~every 5s, log every 30s)
         TickType_t now = xTaskGetTickCount();
         if (now - last_temp_tick >= pdMS_TO_TICKS(5000)) {
             float temp;
             if (emc2101_read_temp(&temp) == ESP_OK) {
+                // Fan: always max until hysteresis is implemented
+                emc2101_set_fan_duty(63);
+
                 if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
                     mining_stats.asic_temp_c = temp;
                     xSemaphoreGive(mining_stats.mutex);
                 }
-                ESP_LOGI(TAG, "ASIC temp: %.1f C", temp);
             }
             last_temp_tick = now;
         }
 
-        // 5. Periodic hashrate log (~every 30s)
+        // 5. Periodic status log (~every 30s)
         if (now - last_hashrate_tick >= pdMS_TO_TICKS(30000)) {
             float elapsed_s = (float)(now - last_hashrate_tick) / (float)configTICK_RATE_HZ;
-            if (elapsed_s > 0 && nonces_since_log > 0) {
-                ESP_LOGI(TAG, "nonces: %" PRIu32 " in %.0fs", nonces_since_log, elapsed_s);
+            // Each nonce = ASIC_TICKET_DIFF × 2^32 hashes
+            double hashrate = (elapsed_s > 0) ? (double)nonces_since_log * ASIC_TICKET_DIFF * 4294967296.0 / elapsed_s : 0;
+            uint32_t shares = 0;
+            float temp = 0;
+            if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                mining_stats.asic_hashrate = hashrate;
+                shares = mining_stats.asic_shares;
+                temp = mining_stats.asic_temp_c;
+                xSemaphoreGive(mining_stats.mutex);
             }
+            ESP_LOGI(TAG, "asic: %.1f GH/s | temp: %.1f C | shares: %" PRIu32 " | sha pass/fail: %" PRIu32 "/%" PRIu32,
+                     hashrate / 1e9, temp, shares, s_sha_pass, s_sha_fail);
             nonces_since_log = 0;
             last_hashrate_tick = now;
         }
