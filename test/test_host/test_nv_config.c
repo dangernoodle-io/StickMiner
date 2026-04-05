@@ -2,9 +2,6 @@
 #include "nv_config.h"
 #include <string.h>
 
-// config.h defines are available via nv_config's PRIV_INCLUDE_DIRS
-// but for native tests we just verify the fallback behavior
-
 void test_nv_config_init(void)
 {
     TEST_ASSERT_EQUAL(0, nv_config_init());
