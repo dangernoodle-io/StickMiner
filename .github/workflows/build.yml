@@ -1,4 +1,4 @@
-name: CI
+name: build
 
 on:
   push:
@@ -97,7 +97,7 @@ jobs:
       - name: Build debug firmware
         run: make build-${{ matrix.env }}
 
-  ci:
+  summary:
     if: always()
     needs: [test, build]
     runs-on: ubuntu-latest
