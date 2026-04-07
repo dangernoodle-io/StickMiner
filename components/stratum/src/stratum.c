@@ -53,10 +53,14 @@ static int s_rcvtimeo_ms = -1;
 static int stratum_send(const char *msg)
 {
     int len = strlen(msg);
-    int sent = send(s_sock, msg, len, 0);
-    if (sent < 0) {
-        ESP_LOGE(TAG, "send error: %d", errno);
-        return -1;
+    int total = 0;
+    while (total < len) {
+        int sent = send(s_sock, msg + total, len - total, 0);
+        if (sent < 0) {
+            ESP_LOGE(TAG, "send error: %d", errno);
+            return -1;
+        }
+        total += sent;
     }
     ESP_LOGD(TAG, ">> %s", msg);
     return 0;
@@ -295,6 +299,14 @@ static void handle_notify(cJSON *params)
         return;
     }
 
+    // Check that all string fields are actually strings
+    if (!job_id_j->valuestring || !prevhash_j->valuestring ||
+        !coinb1_j->valuestring || !coinb2_j->valuestring ||
+        !version_j->valuestring || !nbits_j->valuestring || !ntime_j->valuestring) {
+        ESP_LOGW(TAG, "notify fields have wrong type");
+        return;
+    }
+
     // Copy job_id
     strncpy(s_job.job_id, job_id_j->valuestring, sizeof(s_job.job_id) - 1);
     s_job.job_id[sizeof(s_job.job_id) - 1] = '\0';
@@ -490,7 +502,7 @@ static void process_message(const char *line)
 
 void stratum_task(void *arg)
 {
-    static char line[1536];
+    static char line[2048];
 
     ESP_LOGI(TAG, "stratum task started");
 
@@ -546,11 +558,15 @@ void stratum_task(void *arg)
 
         // Authorize
         {
-            char auth_params[128];
-            snprintf(auth_params, sizeof(auth_params),
+            char auth_params[256];
+            int n = snprintf(auth_params, sizeof(auth_params),
                      "[\"%s.%s\",\"%s\"]",
                      s_wallet_addr, s_worker_name,
                      pool_pass);
+            if (n < 0 || n >= (int)sizeof(auth_params)) {
+                ESP_LOGE(TAG, "auth params truncated");
+                goto reconnect;
+            }
             s_authorize_id = stratum_request("mining.authorize", auth_params);
             if (s_authorize_id < 0) {
                 goto reconnect;

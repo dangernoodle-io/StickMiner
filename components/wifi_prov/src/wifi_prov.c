@@ -30,6 +30,8 @@ static TaskHandle_t s_dns_task_handle = NULL;
 static EventGroupHandle_t s_wifi_event_group = NULL;
 static int s_retry_count = 0;
 static char s_ap_ssid[32];
+static esp_event_handler_instance_t s_wifi_handler = NULL;
+static esp_event_handler_instance_t s_ip_handler = NULL;
 #ifdef ESP_PLATFORM
 static bool s_mdns_started = false;
 #endif
@@ -161,10 +163,14 @@ static esp_err_t wifi_connect_sta(bool restart_on_timeout)
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(
-        WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(
-        IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, NULL));
+    if (!s_wifi_handler) {
+        ESP_ERROR_CHECK(esp_event_handler_instance_register(
+            WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, &s_wifi_handler));
+    }
+    if (!s_ip_handler) {
+        ESP_ERROR_CHECK(esp_event_handler_instance_register(
+            IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, &s_ip_handler));
+    }
 
     wifi_config_t wifi_config = {0};
     strncpy((char *)wifi_config.sta.ssid, nv_config_wifi_ssid(), sizeof(wifi_config.sta.ssid));
@@ -184,6 +190,12 @@ static esp_err_t wifi_connect_sta(bool restart_on_timeout)
         // Clean up WiFi so it can be reinitialized
         esp_wifi_stop();
         esp_wifi_deinit();
+
+        // Unregister event handlers and clear handles for fresh registration on retry
+        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, s_wifi_handler);
+        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, s_ip_handler);
+        s_wifi_handler = NULL;
+        s_ip_handler = NULL;
 
         if (restart_on_timeout) {
             ESP_LOGE(TAG, "WiFi connection timeout after 60s, restarting");
