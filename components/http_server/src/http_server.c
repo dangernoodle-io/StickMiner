@@ -20,7 +20,6 @@
 #include "ota_pull.h"
 
 static const char *TAG = "http";
-static int64_t s_start_time;
 static httpd_handle_t s_server = NULL;
 
 extern const unsigned char prov_form_html_gz[];
@@ -168,15 +167,17 @@ static esp_err_t status_handler(httpd_req_t *req)
     set_common_headers(req);
     double hw_rate = 0;
     uint32_t hw_shares = 0;
+    int64_t session_start_us = 0;
 
     if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         hw_rate = mining_stats.hw_hashrate;
         hw_shares = mining_stats.hw_shares;
+        session_start_us = mining_stats.session.start_us;
         xSemaphoreGive(mining_stats.mutex);
     }
 
     const esp_app_desc_t *app = esp_app_get_description();
-    int64_t uptime_s = (esp_timer_get_time() - s_start_time) / 1000000;
+    int64_t uptime_s = (session_start_us > 0) ? (esp_timer_get_time() - session_start_us) / 1000000 : 0;
 
     char buf[640];
     int len = snprintf(buf, sizeof(buf),
@@ -210,21 +211,52 @@ static esp_err_t status_handler(httpd_req_t *req)
 static esp_err_t stats_handler(httpd_req_t *req)
 {
     set_common_headers(req);
-    double hw_rate = 0;
+    double hw_rate = 0, hw_ema = 0;
     uint32_t hw_shares = 0;
+    float temp = 0;
+    uint32_t session_shares = 0, session_rejected = 0;
+    int64_t last_share_us = 0, session_start_us = 0;
+    mining_lifetime_t lifetime = {0};
+#ifdef ASIC_BM1370
+    double asic_rate = 0, asic_ema = 0;
+    uint32_t asic_shares = 0;
+    float asic_temp = 0;
+#endif
 
     if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         hw_rate = mining_stats.hw_hashrate;
+        hw_ema = mining_stats.hw_ema.value;
         hw_shares = mining_stats.hw_shares;
+        temp = mining_stats.temp_c;
+        session_shares = mining_stats.session.shares;
+        session_rejected = mining_stats.session.rejected;
+        last_share_us = mining_stats.session.last_share_us;
+        session_start_us = mining_stats.session.start_us;
+        lifetime = mining_stats.lifetime;
+#ifdef ASIC_BM1370
+        asic_rate = mining_stats.asic_hashrate;
+        asic_ema = mining_stats.asic_ema.value;
+        asic_shares = mining_stats.asic_shares;
+        asic_temp = mining_stats.asic_temp_c;
+#endif
         xSemaphoreGive(mining_stats.mutex);
     }
 
     const esp_app_desc_t *app = esp_app_get_description();
-    int64_t uptime_s = (esp_timer_get_time() - s_start_time) / 1000000;
+    int64_t now_us = esp_timer_get_time();
+    int64_t uptime_s = (session_start_us > 0) ? (now_us - session_start_us) / 1000000 : 0;
+    int64_t last_share_ago_s = (last_share_us > 0) ? (now_us - last_share_us) / 1000000 : -1;
 
     cJSON *root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "hashrate", hw_rate);
+    cJSON_AddNumberToObject(root, "hashrate_avg", hw_ema);
+    cJSON_AddNumberToObject(root, "temp_c", (double)temp);
     cJSON_AddNumberToObject(root, "shares", hw_shares);
+    cJSON_AddNumberToObject(root, "session_shares", session_shares);
+    cJSON_AddNumberToObject(root, "session_rejected", session_rejected);
+    cJSON_AddNumberToObject(root, "last_share_ago_s", (double)last_share_ago_s);
+    cJSON_AddNumberToObject(root, "lifetime_shares", lifetime.total_shares);
+    cJSON_AddNumberToObject(root, "best_diff", lifetime.best_diff);
     cJSON_AddStringToObject(root, "pool_host", nv_config_pool_host());
     cJSON_AddNumberToObject(root, "pool_port", nv_config_pool_port());
     cJSON_AddStringToObject(root, "worker", nv_config_worker_name());
@@ -232,6 +264,12 @@ static esp_err_t stats_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "version", app->version);
     cJSON_AddStringToObject(root, "build_date", app->date);
     cJSON_AddStringToObject(root, "build_time", app->time);
+#ifdef ASIC_BM1370
+    cJSON_AddNumberToObject(root, "asic_hashrate", asic_rate);
+    cJSON_AddNumberToObject(root, "asic_hashrate_avg", asic_ema);
+    cJSON_AddNumberToObject(root, "asic_shares", asic_shares);
+    cJSON_AddNumberToObject(root, "asic_temp_c", (double)asic_temp);
+#endif
 
     char *json = cJSON_PrintUnformatted(root);
     httpd_resp_set_type(req, "application/json");
@@ -501,8 +539,6 @@ esp_err_t http_server_start_prov(void)
 
 void http_server_switch_to_mining(void)
 {
-    s_start_time = esp_timer_get_time();
-
     // Unregister prov handlers
     httpd_unregister_uri_handler(s_server, "/", HTTP_GET);
     httpd_unregister_uri_handler(s_server, "/save", HTTP_POST);
@@ -524,8 +560,6 @@ void http_server_switch_to_mining(void)
 
 esp_err_t http_server_start(void)
 {
-    s_start_time = esp_timer_get_time();
-
     esp_err_t err = ensure_server_started();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "failed to start HTTP server: %s", esp_err_to_name(err));

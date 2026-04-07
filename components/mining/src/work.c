@@ -240,3 +240,15 @@ void difficulty_to_target(double diff, uint8_t target[32])
         frac -= b;
     }
 }
+
+double hash_to_difficulty(const uint8_t hash[32])
+{
+    // Find leading significant 32 bits (hash is big-endian, byte 0 = MSB)
+    uint32_t leading = ((uint32_t)hash[0] << 24) | ((uint32_t)hash[1] << 16) |
+                       ((uint32_t)hash[2] << 8) | hash[3];
+    if (leading == 0) {
+        // Extremely good hash — cap to avoid division by zero
+        return 1e15;
+    }
+    return (double)0xFFFF0000UL / (double)leading;
+}

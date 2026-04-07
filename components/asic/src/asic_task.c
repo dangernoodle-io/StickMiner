@@ -20,6 +20,7 @@
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
+#include "driver/temperature_sensor.h"
 
 #include <string.h>
 #include <inttypes.h>
@@ -430,6 +431,17 @@ void asic_mining_task(void *arg)
             }
             s_sha_pass++;
 
+            {
+                double share_diff = hash_to_difficulty(hash);
+                if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                    uint32_t diff_exp = (share_diff > 1.0) ? (uint32_t)(log2(share_diff)) : 0;
+                    if (diff_exp > mining_stats.lifetime.best_diff) {
+                        mining_stats.lifetime.best_diff = diff_exp;
+                    }
+                    xSemaphoreGive(mining_stats.mutex);
+                }
+            }
+
             uint32_t rolled_ver = (ver_bits != 0 && orig->version_mask != 0)
                 ? (orig->version & ~orig->version_mask) | (ver_bits & orig->version_mask)
                 : orig->version;
@@ -484,10 +496,24 @@ void asic_mining_task(void *arg)
             float temp = 0;
             if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
                 mining_stats.asic_hashrate = hashrate;
+                mining_stats_update_ema(&mining_stats.asic_ema, hashrate, (int64_t)now * (1000000 / configTICK_RATE_HZ));
                 shares = mining_stats.asic_shares;
                 temp = mining_stats.asic_temp_c;
                 xSemaphoreGive(mining_stats.mutex);
             }
+
+            // Read ESP die temp
+            {
+                float esp_temp = 0;
+                temperature_sensor_handle_t th = mining_stats_temp_handle();
+                if (th && temperature_sensor_get_celsius(th, &esp_temp) == ESP_OK) {
+                    if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                        mining_stats.temp_c = esp_temp;
+                        xSemaphoreGive(mining_stats.mutex);
+                    }
+                }
+            }
+
             ESP_LOGI(TAG, "asic: %.1f GH/s | temp: %.1f C | shares: %" PRIu32 " | sha pass/fail: %" PRIu32 "/%" PRIu32,
                      hashrate / 1e9, temp, shares, s_sha_pass, s_sha_fail);
             nonces_since_log = 0;

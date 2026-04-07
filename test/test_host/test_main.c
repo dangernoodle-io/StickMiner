@@ -143,6 +143,15 @@ void test_format_request_basic(void);
 void test_format_request_truncation(void);
 void test_format_request_newline(void);
 
+// Forward declarations from test_stats.c
+void test_ema_seeds_on_first_sample(void);
+void test_ema_converges(void);
+void test_ema_decay(void);
+void test_hash_to_difficulty_leading_zeros(void);
+void test_hash_to_difficulty_diff1(void);
+void test_hash_to_difficulty_easy(void);
+void test_best_diff_only_increases(void);
+
 void setUp(void) {}
 void tearDown(void) {}
 
@@ -293,6 +302,15 @@ int main(void) {
     RUN_TEST(test_format_request_basic);
     RUN_TEST(test_format_request_truncation);
     RUN_TEST(test_format_request_newline);
+
+    // Stats tests
+    RUN_TEST(test_ema_seeds_on_first_sample);
+    RUN_TEST(test_ema_converges);
+    RUN_TEST(test_ema_decay);
+    RUN_TEST(test_hash_to_difficulty_leading_zeros);
+    RUN_TEST(test_hash_to_difficulty_diff1);
+    RUN_TEST(test_hash_to_difficulty_easy);
+    RUN_TEST(test_best_diff_only_increases);
 
     return UNITY_END();
 }
