@@ -12,6 +12,7 @@
 #include "display.h"
 #include "led.h"
 #include "esp_ota_ops.h"
+#include "esp_timer.h"
 #include "partition_fixup.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -28,11 +29,26 @@ TaskHandle_t asic_task_handle = NULL;
 TaskHandle_t mining_hw_task_handle = NULL;
 #endif
 
+static esp_timer_handle_t s_stats_timer = NULL;
+
 static void sntp_init_time(void)
 {
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
     esp_sntp_setservername(0, "pool.ntp.org");
     esp_sntp_init();
+}
+
+static void stats_save_timer_cb(void *arg)
+{
+    (void)arg;
+    mining_lifetime_t lt;
+    if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        lt = mining_stats.lifetime;
+        xSemaphoreGive(mining_stats.mutex);
+    } else {
+        return;
+    }
+    mining_stats_save_lifetime(&lt);
 }
 
 static void start_mining(void)
@@ -53,6 +69,14 @@ static void start_mining(void)
 
     // Initialize mining stats
     mining_stats_init();
+
+    // Start periodic stats save timer (10 minutes)
+    const esp_timer_create_args_t timer_args = {
+        .callback = stats_save_timer_cb,
+        .name = "stats_save",
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&timer_args, &s_stats_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(s_stats_timer, 10ULL * 60 * 1000000));
 
     // Start stratum task on Core 0
     xTaskCreatePinnedToCore(stratum_task, "stratum", 8192, NULL, 5, NULL, 0);

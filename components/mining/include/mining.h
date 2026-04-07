@@ -93,6 +93,31 @@ void package_result(mining_result_t *result,
                     uint32_t nonce,
                     uint32_t ver_bits);
 
+// Exponential moving average state for hashrate smoothing
+typedef struct {
+    double   value;
+    int64_t  last_us;
+} hashrate_ema_t;
+
+// Per-session stats (reset on reboot)
+typedef struct {
+    uint32_t shares;
+    uint64_t hashes;
+    uint32_t rejected;
+    int64_t  start_us;
+    int64_t  last_share_us;   // 0 = no share yet
+} mining_session_t;
+
+// Lifetime stats (persisted to NVS)
+typedef struct {
+    uint32_t total_shares;
+    uint32_t best_diff;       // floor(log2(share_difficulty))
+    uint64_t total_hashes;
+} mining_lifetime_t;
+
+// Update EMA with a new hashrate sample (pure math, no FreeRTOS)
+void mining_stats_update_ema(hashrate_ema_t *ema, double sample, int64_t now_us);
+
 #ifdef ESP_PLATFORM
 // Queues (created by main, used by stratum + mining tasks)
 extern QueueHandle_t work_queue;
@@ -100,6 +125,7 @@ extern QueueHandle_t result_queue;
 
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "driver/temperature_sensor.h"
 
 // Mining task handles (for suspend/resume during OTA verification)
 #ifdef ASIC_BM1370
@@ -108,22 +134,31 @@ extern TaskHandle_t asic_task_handle;
 extern TaskHandle_t mining_hw_task_handle;
 #endif
 
-// Shared hashrate stats (updated by both mining tasks, read for logging)
+// Shared mining stats (updated by mining/stratum tasks, read by HTTP + logging)
 typedef struct {
-    double hw_hashrate;    // latest HW hashrate (H/s)
-    uint32_t hw_shares;    // hardware shares found
+    double              hw_hashrate;
+    hashrate_ema_t      hw_ema;
+    float               temp_c;          // ESP32-S3 die temperature
 #ifdef ASIC_BM1370
-    double asic_hashrate;  // ASIC hashrate (H/s)
-    uint32_t asic_shares;  // ASIC shares found
-    float asic_temp_c;     // ASIC die temperature
+    double              asic_hashrate;
+    hashrate_ema_t      asic_ema;
+    uint32_t            asic_shares;
+    float               asic_temp_c;     // ASIC die temperature via EMC2101
 #endif
-    SemaphoreHandle_t mutex;
+    uint32_t            hw_shares;
+    mining_session_t    session;
+    mining_lifetime_t   lifetime;
+    SemaphoreHandle_t   mutex;
 } mining_stats_t;
 
 extern mining_stats_t mining_stats;
 
 // Initialize mining stats mutex. Call once from main before starting tasks.
 void mining_stats_init(void);
+
+void mining_stats_load_lifetime(void);
+void mining_stats_save_lifetime(const mining_lifetime_t *snapshot);
+temperature_sensor_handle_t mining_stats_temp_handle(void);
 #endif
 
 #ifdef ESP_PLATFORM

@@ -4,11 +4,24 @@
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
+#include <math.h>
+
+void mining_stats_update_ema(hashrate_ema_t *ema, double sample, int64_t now_us)
+{
+    if (ema->value == 0.0) {
+        ema->value = sample;
+    } else {
+        ema->value = 0.2 * sample + 0.8 * ema->value;
+    }
+    ema->last_us = now_us;
+}
 
 #ifdef ESP_PLATFORM
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "sha256_hw.h"
+#include "nvs.h"
+#include "driver/temperature_sensor.h"
 
 static const char *TAG = "mining";
 
@@ -17,9 +30,60 @@ QueueHandle_t result_queue = NULL;
 
 mining_stats_t mining_stats = {0};
 
+static temperature_sensor_handle_t s_temp_handle = NULL;
+
+void mining_stats_load_lifetime(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("taipanminer", NVS_READONLY, &h) != ESP_OK) {
+        return;  // no stats saved yet
+    }
+
+    nvs_get_u32(h, "lt_shares", &mining_stats.lifetime.total_shares);
+    nvs_get_u32(h, "lt_best_diff", &mining_stats.lifetime.best_diff);
+
+    uint32_t lo = 0, hi = 0;
+    nvs_get_u32(h, "lt_hashes_lo", &lo);
+    nvs_get_u32(h, "lt_hashes_hi", &hi);
+    mining_stats.lifetime.total_hashes = ((uint64_t)hi << 32) | lo;
+
+    nvs_close(h);
+    ESP_LOGI(TAG, "loaded lifetime stats: shares=%" PRIu32 " best_diff=%" PRIu32 " hashes=%" PRIu64,
+             mining_stats.lifetime.total_shares, mining_stats.lifetime.best_diff,
+             (uint64_t)mining_stats.lifetime.total_hashes);
+}
+
+void mining_stats_save_lifetime(const mining_lifetime_t *snapshot)
+{
+    nvs_handle_t h;
+    if (nvs_open("taipanminer", NVS_READWRITE, &h) != ESP_OK) {
+        ESP_LOGE(TAG, "failed to open NVS for stats save");
+        return;
+    }
+
+    nvs_set_u32(h, "lt_shares", snapshot->total_shares);
+    nvs_set_u32(h, "lt_best_diff", snapshot->best_diff);
+    nvs_set_u32(h, "lt_hashes_lo", (uint32_t)(snapshot->total_hashes & 0xFFFFFFFF));
+    nvs_set_u32(h, "lt_hashes_hi", (uint32_t)(snapshot->total_hashes >> 32));
+    nvs_commit(h);
+    nvs_close(h);
+}
+
+temperature_sensor_handle_t mining_stats_temp_handle(void)
+{
+    return s_temp_handle;
+}
+
 void mining_stats_init(void)
 {
     mining_stats.mutex = xSemaphoreCreateMutex();
+    mining_stats.session.start_us = esp_timer_get_time();
+
+    mining_stats_load_lifetime();
+
+    temperature_sensor_config_t cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
+    ESP_ERROR_CHECK(temperature_sensor_install(&cfg, &s_temp_handle));
+    ESP_ERROR_CHECK(temperature_sensor_enable(s_temp_handle));
 }
 #endif
 
@@ -215,6 +279,17 @@ bool mine_nonce_range(hash_backend_t *backend,
 #ifdef ESP_PLATFORM
             ESP_LOGI(TAG, "share found! (nonce=%08" PRIx32 ")", nonce);
 
+            {
+                double share_diff = hash_to_difficulty(hash);
+                if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                    uint32_t diff_exp = (share_diff > 1.0) ? (uint32_t)(log2(share_diff)) : 0;
+                    if (diff_exp > mining_stats.lifetime.best_diff) {
+                        mining_stats.lifetime.best_diff = diff_exp;
+                    }
+                    xSemaphoreGive(mining_stats.mutex);
+                }
+            }
+
             xQueueSend(result_queue, &result, 0);
 #endif
             if (result_out) {
@@ -238,10 +313,22 @@ bool mine_nonce_range(hash_backend_t *backend,
                     uint32_t shares = 0;
                     if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
                         mining_stats.hw_hashrate = hashrate;
+                        mining_stats_update_ema(&mining_stats.hw_ema, hashrate, esp_timer_get_time());
+                        mining_stats.session.hashes += hashes;
                         shares = mining_stats.hw_shares;
                         xSemaphoreGive(mining_stats.mutex);
                     }
                     ESP_LOGI(TAG, "hw: %.1f kH/s | shares: %" PRIu32, hashrate / 1000.0, shares);
+                }
+            }
+
+            {
+                float temp = 0;
+                if (s_temp_handle && temperature_sensor_get_celsius(s_temp_handle, &temp) == ESP_OK) {
+                    if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                        mining_stats.temp_c = temp;
+                        xSemaphoreGive(mining_stats.mutex);
+                    }
                 }
             }
 

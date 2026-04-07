@@ -21,6 +21,7 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "cJSON.h"
 
 static const char *TAG = "stratum";
@@ -487,12 +488,26 @@ static void process_message(const char *line)
                     ESP_LOGE(TAG, "share rejected: %s", err_str);
                     free(err_str);
                 }
-            } else if (result_item && cJSON_IsTrue(result_item)) {
-                ESP_LOGI(TAG, "share accepted");
-                if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
-                    mining_stats.hw_shares++;
+                if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+                    mining_stats.session.rejected++;
                     xSemaphoreGive(mining_stats.mutex);
                 }
+            } else if (result_item && cJSON_IsTrue(result_item)) {
+                ESP_LOGI(TAG, "share accepted");
+                int64_t now_us = esp_timer_get_time();
+                mining_lifetime_t lt_snap = {0};
+                if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+                    mining_stats.hw_shares++;
+                    mining_stats.session.shares++;
+                    mining_stats.session.last_share_us = now_us;
+                    mining_stats.lifetime.total_shares++;
+#ifdef ASIC_BM1370
+                    mining_stats.asic_shares++;
+#endif
+                    lt_snap = mining_stats.lifetime;
+                    xSemaphoreGive(mining_stats.mutex);
+                }
+                mining_stats_save_lifetime(&lt_snap);
             }
         }
     }
