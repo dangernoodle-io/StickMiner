@@ -10,6 +10,7 @@
 #include "font8x16.h"
 
 #include <string.h>
+#include <stdbool.h>
 
 static const char *TAG = "display";
 static esp_lcd_panel_handle_t s_panel;
@@ -19,7 +20,7 @@ static esp_lcd_panel_handle_t s_panel;
 #include "driver/spi_master.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_vendor.h"
-#include "logo_rgb565.h"
+#include "logo_bits.h"
 
 #define LCD_SPI_HOST    SPI2_HOST
 #define LCD_PIXEL_CLK   20000000
@@ -185,10 +186,11 @@ static esp_err_t draw_logo_st7735(int x, int y)
     static uint16_t s_logo_row[2][LOGO_W];
     int buf_idx = 0;
     for (int row = 0; row < LOGO_H; row++) {
-        const uint16_t *src = &g_logo_data[row * LOGO_W];
         uint16_t *buf = s_logo_row[buf_idx];
         for (int col = 0; col < LOGO_W; col++) {
-            buf[col] = SWAP16(src[col]);
+            int idx = row * LOGO_W + col;
+            bool fg = (g_logo_bits[idx / 8] >> (7 - (idx % 8))) & 1;
+            buf[col] = fg ? SWAP16(LOGO_FG_COLOR) : 0x0000;
         }
         ESP_RETURN_ON_ERROR(
             esp_lcd_panel_draw_bitmap(s_panel, x, y + row,

@@ -23,12 +23,12 @@ static const char *TAG = "http";
 static int64_t s_start_time;
 static httpd_handle_t s_server = NULL;
 
-extern const char prov_form_html[];
-extern const unsigned int prov_form_html_len;
-extern const char theme_css[];
-extern const unsigned int theme_css_len;
-extern const char logo_svg[];
-extern const unsigned int logo_svg_len;
+extern const unsigned char prov_form_html_gz[];
+extern const unsigned int prov_form_html_gz_len;
+extern const unsigned char theme_css_gz[];
+extern const unsigned int theme_css_gz_len;
+extern const unsigned char logo_svg_gz[];
+extern const unsigned int logo_svg_gz_len;
 
 static esp_err_t preflight_handler(httpd_req_t *req);
 
@@ -69,8 +69,9 @@ static esp_err_t preflight_handler(httpd_req_t *req)
 static esp_err_t prov_form_handler(httpd_req_t *req)
 {
     set_common_headers(req);
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     httpd_resp_set_type(req, "text/html");
-    httpd_resp_send(req, prov_form_html, prov_form_html_len);
+    httpd_resp_send(req, (const char *)prov_form_html_gz, prov_form_html_gz_len);
     return ESP_OK;
 }
 
@@ -284,16 +285,18 @@ static esp_err_t info_handler(httpd_req_t *req)
 static esp_err_t logo_handler(httpd_req_t *req)
 {
     set_common_headers(req);
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     httpd_resp_set_type(req, "image/svg+xml");
-    httpd_resp_send(req, logo_svg, logo_svg_len);
+    httpd_resp_send(req, (const char *)logo_svg_gz, logo_svg_gz_len);
     return ESP_OK;
 }
 
 static esp_err_t theme_handler(httpd_req_t *req)
 {
     set_common_headers(req);
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     httpd_resp_set_type(req, "text/css");
-    httpd_resp_send(req, theme_css, theme_css_len);
+    httpd_resp_send(req, (const char *)theme_css_gz, theme_css_gz_len);
     return ESP_OK;
 }
 
