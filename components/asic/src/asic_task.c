@@ -351,6 +351,11 @@ void asic_mining_task(void *arg)
             memcpy(&s_job_table[s_next_job_id], &work, sizeof(work));
             s_current_work_seq = work.work_seq;
 
+            if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                mining_stats.pool_difficulty = work.difficulty;
+                xSemaphoreGive(mining_stats.mutex);
+            }
+
             ESP_LOGD(TAG, "job dispatched (id=%u hw_id=%u)", 0, s_next_job_id);
         }
 
@@ -511,6 +516,8 @@ void asic_mining_task(void *arg)
             if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
                 mining_stats.asic_hashrate = hashrate;
                 mining_stats_update_ema(&mining_stats.asic_ema, hashrate, (int64_t)now * (1000000 / configTICK_RATE_HZ));
+                mining_stats.hw_hashrate = hashrate;
+                mining_stats_update_ema(&mining_stats.hw_ema, hashrate, (int64_t)now * (1000000 / configTICK_RATE_HZ));
                 shares = mining_stats.asic_shares;
                 temp = mining_stats.asic_temp_c;
                 xSemaphoreGive(mining_stats.mutex);
