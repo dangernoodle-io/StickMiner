@@ -215,9 +215,8 @@ void bytes_to_hex(const uint8_t *data, size_t len, char *hex) {
 void difficulty_to_target(double diff, uint8_t target[32])
 {
     memset(target, 0, 32);
-    if (diff <= 0) {
-        memset(target, 0xff, 32);
-        return;
+    if (!isfinite(diff) || diff < 0.001) {
+        diff = 0.001;
     }
 
     // Bitcoin LE convention: byte[0]=LSB, byte[31]=MSB
@@ -239,6 +238,29 @@ void difficulty_to_target(double diff, uint8_t target[32])
         target[i] = b;
         frac -= b;
     }
+}
+
+bool is_target_valid(const uint8_t target[32])
+{
+    // Reject all-zero target (every hash passes meets_target)
+    bool all_zero = true;
+    for (int i = 0; i < 32; i++) {
+        if (target[i] != 0) { all_zero = false; break; }
+    }
+    if (all_zero) return false;
+
+    // Reject all-0xFF target (trivially easy)
+    bool all_ff = true;
+    for (int i = 0; i < 32; i++) {
+        if (target[i] != 0xFF) { all_ff = false; break; }
+    }
+    if (all_ff) return false;
+
+    // LE MSB bytes must be zero (Bitcoin PoW structure)
+    // target[31] and target[30] == 0 ≈ pool diff >= 0.004
+    if (target[31] != 0 || target[30] != 0) return false;
+
+    return true;
 }
 
 double hash_to_difficulty(const uint8_t hash[32])

@@ -630,3 +630,118 @@ void test_version_rolling_mask_increment(void)
     TEST_ASSERT_EQUAL_HEX32(0, next_version_roll(0, 0));
     TEST_ASSERT_EQUAL_HEX32(0, next_version_roll(0x1234, 0));
 }
+
+// difficulty_to_target edge case tests
+
+void test_difficulty_to_target_nan(void)
+{
+    uint8_t target[32];
+    difficulty_to_target(NAN, target);
+    // NaN should be clamped to minimum diff — target must be valid
+    TEST_ASSERT_TRUE(is_target_valid(target));
+}
+
+void test_difficulty_to_target_inf(void)
+{
+    uint8_t target[32];
+    difficulty_to_target(INFINITY, target);
+    TEST_ASSERT_TRUE(is_target_valid(target));
+}
+
+void test_difficulty_to_target_neg_inf(void)
+{
+    uint8_t target[32];
+    difficulty_to_target(-INFINITY, target);
+    TEST_ASSERT_TRUE(is_target_valid(target));
+}
+
+void test_difficulty_to_target_negative(void)
+{
+    uint8_t target[32];
+    difficulty_to_target(-1.0, target);
+    TEST_ASSERT_TRUE(is_target_valid(target));
+}
+
+void test_difficulty_to_target_zero(void)
+{
+    uint8_t target[32];
+    difficulty_to_target(0.0, target);
+    TEST_ASSERT_TRUE(is_target_valid(target));
+}
+
+void test_difficulty_to_target_tiny(void)
+{
+    uint8_t target[32];
+    difficulty_to_target(1e-10, target);
+    // Clamped to 0.001 — target must be valid
+    TEST_ASSERT_TRUE(is_target_valid(target));
+}
+
+void test_difficulty_to_target_normal(void)
+{
+    uint8_t target[32];
+    difficulty_to_target(512.0, target);
+    TEST_ASSERT_TRUE(is_target_valid(target));
+    // At diff 512, LE MSBs should be zero
+    TEST_ASSERT_EQUAL_UINT8(0, target[31]);
+    TEST_ASSERT_EQUAL_UINT8(0, target[30]);
+}
+
+// is_target_valid tests
+
+void test_is_target_valid_all_zero(void)
+{
+    uint8_t target[32];
+    memset(target, 0, 32);
+    TEST_ASSERT_FALSE(is_target_valid(target));
+}
+
+void test_is_target_valid_all_ff(void)
+{
+    uint8_t target[32];
+    memset(target, 0xFF, 32);
+    TEST_ASSERT_FALSE(is_target_valid(target));
+}
+
+void test_is_target_valid_nonzero_msb31(void)
+{
+    uint8_t target[32];
+    memset(target, 0, 32);
+    target[26] = 0x80;  // valid coefficient
+    target[31] = 0x01;  // bad MSB
+    TEST_ASSERT_FALSE(is_target_valid(target));
+}
+
+void test_is_target_valid_nonzero_msb30(void)
+{
+    uint8_t target[32];
+    memset(target, 0, 32);
+    target[26] = 0x80;  // valid coefficient
+    target[30] = 0x01;  // bad second MSB
+    TEST_ASSERT_FALSE(is_target_valid(target));
+}
+
+void test_is_target_valid_diff1(void)
+{
+    // diff-1 target: LE bytes 26-27 = 0xFF 0xFF (0xFFFF at BE bytes 4-5)
+    uint8_t target[32];
+    memset(target, 0, 32);
+    target[26] = 0xFF;
+    target[27] = 0xFF;
+    TEST_ASSERT_TRUE(is_target_valid(target));
+}
+
+void test_is_target_valid_diff512(void)
+{
+    uint8_t target[32];
+    difficulty_to_target(512.0, target);
+    TEST_ASSERT_TRUE(is_target_valid(target));
+}
+
+void test_is_target_valid_diff_001(void)
+{
+    // Minimum floor difficulty
+    uint8_t target[32];
+    difficulty_to_target(0.001, target);
+    TEST_ASSERT_TRUE(is_target_valid(target));
+}

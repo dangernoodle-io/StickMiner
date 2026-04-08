@@ -431,14 +431,20 @@ void asic_mining_task(void *arg)
             }
             s_sha_pass++;
 
-            {
-                double share_diff = hash_to_difficulty(hash);
-                if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
-                    if (share_diff > mining_stats.lifetime.best_diff) {
-                        mining_stats.lifetime.best_diff = share_diff;
-                    }
-                    xSemaphoreGive(mining_stats.mutex);
+            double share_diff = hash_to_difficulty(hash);
+
+            // Sanity check: share difficulty must be at least half pool difficulty
+            if (share_diff < orig->difficulty * 0.5) {
+                ESP_LOGE(TAG, "share sanity fail: share_diff=%.4f pool_diff=%.4f, skipping",
+                         share_diff, orig->difficulty);
+                continue;
+            }
+
+            if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                if (share_diff > mining_stats.lifetime.best_diff) {
+                    mining_stats.lifetime.best_diff = share_diff;
                 }
+                xSemaphoreGive(mining_stats.mutex);
             }
 
             uint32_t rolled_ver = (ver_bits != 0 && orig->version_mask != 0)
