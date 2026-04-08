@@ -219,7 +219,7 @@ static void handle_configure_result(cJSON *result)
 }
 
 // Build mining work from current job
-static void build_work(mining_work_t *work)
+static bool build_work(mining_work_t *work)
 {
     // Build extranonce2 from rolling counter (LE byte order)
     uint8_t extranonce2[MAX_EXTRANONCE2_SIZE];
@@ -261,6 +261,12 @@ static void build_work(mining_work_t *work)
     // Set target from current difficulty
     difficulty_to_target(s_difficulty, work->target);
     work->difficulty = s_difficulty;
+
+    if (!is_target_valid(work->target)) {
+        ESP_LOGE(TAG, "build_work: invalid target for diff=%.6f, dropping work", s_difficulty);
+        return false;
+    }
+
     ESP_LOGD(TAG, "build_work: diff=%.6f target=%02x%02x%02x%02x %02x%02x%02x%02x",
              s_difficulty,
              work->target[31], work->target[30], work->target[29], work->target[28],
@@ -272,6 +278,7 @@ static void build_work(mining_work_t *work)
     strncpy(work->job_id, s_job.job_id, sizeof(work->job_id) - 1);
     work->job_id[sizeof(work->job_id) - 1] = '\0';
     work->work_seq = ++s_work_seq;
+    return true;
 }
 
 // Handle mining.notify
@@ -344,7 +351,7 @@ static void handle_notify(cJSON *params)
 
     s_extranonce2 = 0;
     mining_work_t work;
-    build_work(&work);
+    if (!build_work(&work)) return;
 
     // Debug: dump first 80 bytes of header as hex
     char hdr_hex[161];
@@ -374,7 +381,7 @@ static void handle_set_difficulty(cJSON *params)
         // stale job table entries that carry the old (easier) target
         if (s_job.job_id[0] != '\0') {
             mining_work_t work;
-            build_work(&work);
+            if (!build_work(&work)) return;
             work.clean = true;
             xQueueOverwrite(work_queue, &work);
         }
@@ -623,7 +630,7 @@ void stratum_task(void *arg)
                     (now - s_last_job_tick) >= pdMS_TO_TICKS(g_miner_config.roll_interval_ms)) {
                     s_extranonce2++;
                     mining_work_t work;
-                    build_work(&work);
+                    if (!build_work(&work)) continue;
                     work.clean = false;
                     xQueueOverwrite(work_queue, &work);
                     s_last_job_tick = now;

@@ -69,6 +69,9 @@ void nbits_to_target(uint32_t nbits, uint8_t target[32]);
 // Returns true if hash <= target
 bool meets_target(const uint8_t hash[32], const uint8_t target[32]);
 
+// Validate target sanity — rejects all-zero, all-0xFF, and targets with non-zero MSBs
+bool is_target_valid(const uint8_t target[32]);
+
 // Convert pool difficulty to 256-bit target (little-endian, Bitcoin convention)
 void difficulty_to_target(double diff, uint8_t target[32]);
 

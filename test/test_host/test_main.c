@@ -37,6 +37,22 @@ void test_mining_early_reject_byte_order(void);
 void test_difficulty_target_meets_target_integration(void);
 void test_version_rolling_mask_increment(void);
 
+// Target validation tests (test_work.c)
+void test_difficulty_to_target_nan(void);
+void test_difficulty_to_target_inf(void);
+void test_difficulty_to_target_neg_inf(void);
+void test_difficulty_to_target_negative(void);
+void test_difficulty_to_target_zero(void);
+void test_difficulty_to_target_tiny(void);
+void test_difficulty_to_target_normal(void);
+void test_is_target_valid_all_zero(void);
+void test_is_target_valid_all_ff(void);
+void test_is_target_valid_nonzero_msb31(void);
+void test_is_target_valid_nonzero_msb30(void);
+void test_is_target_valid_diff1(void);
+void test_is_target_valid_diff512(void);
+void test_is_target_valid_diff_001(void);
+
 // Forward declarations from test_nv_config.c
 void test_nv_config_init(void);
 void test_nv_config_all_empty_before_provisioning(void);
@@ -313,6 +329,22 @@ int main(void) {
     RUN_TEST(test_hash_to_difficulty_easy);
     RUN_TEST(test_hash_to_difficulty_six_zeros);
     RUN_TEST(test_best_diff_only_increases);
+
+    // Target validation tests
+    RUN_TEST(test_difficulty_to_target_nan);
+    RUN_TEST(test_difficulty_to_target_inf);
+    RUN_TEST(test_difficulty_to_target_neg_inf);
+    RUN_TEST(test_difficulty_to_target_negative);
+    RUN_TEST(test_difficulty_to_target_zero);
+    RUN_TEST(test_difficulty_to_target_tiny);
+    RUN_TEST(test_difficulty_to_target_normal);
+    RUN_TEST(test_is_target_valid_all_zero);
+    RUN_TEST(test_is_target_valid_all_ff);
+    RUN_TEST(test_is_target_valid_nonzero_msb31);
+    RUN_TEST(test_is_target_valid_nonzero_msb30);
+    RUN_TEST(test_is_target_valid_diff1);
+    RUN_TEST(test_is_target_valid_diff512);
+    RUN_TEST(test_is_target_valid_diff_001);
 
     return UNITY_END();
 }

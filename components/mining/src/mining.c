@@ -303,16 +303,22 @@ bool mine_nonce_range(hash_backend_t *backend,
             package_result(&result, work, nonce, params->ver_bits);
 
 #ifdef ESP_PLATFORM
+            double share_diff = hash_to_difficulty(hash);
+
+            // Sanity check: share difficulty must be at least half pool difficulty
+            if (share_diff < work->difficulty * 0.5) {
+                ESP_LOGE(TAG, "share sanity fail: share_diff=%.4f pool_diff=%.4f, skipping",
+                         share_diff, work->difficulty);
+                continue;
+            }
+
             ESP_LOGI(TAG, "share found! (nonce=%08" PRIx32 ")", nonce);
 
-            {
-                double share_diff = hash_to_difficulty(hash);
-                if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
-                    if (share_diff > mining_stats.lifetime.best_diff) {
-                        mining_stats.lifetime.best_diff = share_diff;
-                    }
-                    xSemaphoreGive(mining_stats.mutex);
+            if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                if (share_diff > mining_stats.lifetime.best_diff) {
+                    mining_stats.lifetime.best_diff = share_diff;
                 }
+                xSemaphoreGive(mining_stats.mutex);
             }
 
             xQueueSend(result_queue, &result, 0);
