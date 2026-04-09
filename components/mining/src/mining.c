@@ -272,11 +272,29 @@ bool mine_nonce_range(hash_backend_t *backend,
 #ifdef ESP_PLATFORM
     int64_t start_us = esp_timer_get_time();
     uint32_t hashes = 0;
+    hw_backend_ctx_t *hw_ctx = (hw_backend_ctx_t *)backend->ctx;
 #endif
 
     for (uint32_t nonce = params->nonce_start; ; nonce++) {
         uint8_t hash[32];
+#ifdef ESP_PLATFORM
+        uint32_t digest_hw[8];
+        uint32_t h7_raw = sha256_hw_mine_nonce(hw_ctx->midstate_hw,
+                                                hw_ctx->block2_words,
+                                                nonce, digest_hw);
+        hash_result_t hr;
+        if ((h7_raw >> 16) == 0) {
+            for (int i = 0; i < 8; i++) {
+                uint32_t w = __builtin_bswap32(digest_hw[i]);
+                store_be32(hash + i * 4, w);
+            }
+            hr = HASH_CHECK;
+        } else {
+            hr = HASH_MISS;
+        }
+#else
         hash_result_t hr = backend->hash_nonce(backend, nonce, hash);
+#endif
 
         if (hr == HASH_CHECK && meets_target(hash, work->target)) {
             mining_result_t result;
@@ -322,33 +340,7 @@ bool mine_nonce_range(hash_backend_t *backend,
 
         // Periodic yield + job refresh
         if (((nonce + 1) & params->yield_mask) == 0) {
-            if (((nonce + 1) & params->log_mask) == 0) {
-                int64_t elapsed_us = esp_timer_get_time() - start_us;
-                if (elapsed_us > 0) {
-                    double hashrate = (double)hashes / ((double)elapsed_us / 1000000.0);
-                    uint32_t shares = 0;
-                    if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
-                        mining_stats.hw_hashrate = hashrate;
-                        mining_stats_update_ema(&mining_stats.hw_ema, hashrate, esp_timer_get_time());
-                        mining_stats.session.hashes += hashes;
-                        shares = mining_stats.hw_shares;
-                        xSemaphoreGive(mining_stats.mutex);
-                    }
-                    ESP_LOGI(TAG, "hw: %.1f kH/s | shares: %" PRIu32, hashrate / 1000.0, shares);
-                }
-            }
-
-            {
-                float temp = 0;
-                if (s_temp_handle && temperature_sensor_get_celsius(s_temp_handle, &temp) == ESP_OK) {
-                    if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
-                        mining_stats.temp_c = temp;
-                        xSemaphoreGive(mining_stats.mutex);
-                    }
-                }
-            }
-
-            // Check for new work
+            // Tier 1: lightweight new-work check (every 256K nonces)
             mining_work_t new_work;
             if (xQueuePeek(work_queue, &new_work, 0) == pdTRUE &&
                 new_work.work_seq != work->work_seq) {
@@ -358,24 +350,50 @@ bool mine_nonce_range(hash_backend_t *backend,
                 backend->prepare_job(backend, work, block2);
                 start_us = esp_timer_get_time();
                 hashes = 0;
-                // Reset nonce to start (will increment to nonce_start on next iteration)
                 nonce = params->nonce_start - 1;
                 continue;
             }
 
-            // Release SHA lock so mbedTLS can use HW SHA during TLS/OTA
-            sha256_hw_release();
-            esp_task_wdt_reset();
-            vTaskDelay(pdMS_TO_TICKS(1));
-            bool paused = mining_pause_check();
-            sha256_hw_acquire();
+            // Tier 2: full yield (every 1M nonces)
+            if (((nonce + 1) & params->log_mask) == 0) {
+                int64_t elapsed_us = esp_timer_get_time() - start_us;
+                if (elapsed_us > 0) {
+                    double hashrate = (double)hashes / ((double)elapsed_us / 1000000.0);
+                    uint32_t shares = 0;
+                    if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                        mining_stats.hw_hashrate = hashrate;
+                        mining_stats_update_ema(&mining_stats.hw_ema, hashrate, esp_timer_get_time());
+                        mining_stats.session.hashes += hashes;
+                        shares = mining_stats.hw_shares;
+                        xSemaphoreGive(mining_stats.mutex);
+                    }
+                    ESP_LOGI(TAG, "hw: %.1f kH/s | shares: %" PRIu32, hashrate / 1000.0, shares);
+                }
 
-            if (paused) {
-                backend->prepare_job(backend, work, block2);
-                start_us = esp_timer_get_time();
-                hashes = 0;
-                nonce = params->nonce_start - 1;
-                continue;
+                {
+                    float temp = 0;
+                    if (s_temp_handle && temperature_sensor_get_celsius(s_temp_handle, &temp) == ESP_OK) {
+                        if (xSemaphoreTake(mining_stats.mutex, 0) == pdTRUE) {
+                            mining_stats.temp_c = temp;
+                            xSemaphoreGive(mining_stats.mutex);
+                        }
+                    }
+                }
+
+                // Release SHA lock so mbedTLS can use HW SHA during TLS/OTA
+                sha256_hw_release();
+                esp_task_wdt_reset();
+                vTaskDelay(pdMS_TO_TICKS(1));
+                bool paused = mining_pause_check();
+                sha256_hw_acquire();
+
+                if (paused) {
+                    backend->prepare_job(backend, work, block2);
+                    start_us = esp_timer_get_time();
+                    hashes = 0;
+                    nonce = params->nonce_start - 1;
+                    continue;
+                }
             }
         }
 #endif

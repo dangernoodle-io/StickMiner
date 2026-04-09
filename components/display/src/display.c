@@ -229,45 +229,6 @@ static esp_err_t draw_logo_st7735(int x, int y)
     return ESP_OK;
 }
 
-// 2x scaled text: each font pixel becomes a 2x2 block
-static esp_err_t draw_text_2x_st7735(int x, int y, const char *text,
-                                      uint16_t fg, uint16_t bg)
-{
-    static uint16_t s_char2x[2][FONT_W * 2 * FONT_H * 2];
-    static int s_buf2x_idx;
-    uint16_t fg_s = SWAP16(fg);
-    uint16_t bg_s = SWAP16(bg);
-    int stride = FONT_W * 2;
-
-    for (int ci = 0; text[ci] != '\0'; ci++) {
-        uint8_t ch = (uint8_t)text[ci];
-        if (ch < 0x20 || ch > 0x7E) ch = 0x20;
-        const uint8_t *glyph = g_font8x16[ch - 0x20];
-
-        uint16_t *buf = s_char2x[s_buf2x_idx];
-        for (int row = 0; row < FONT_H; row++) {
-            uint8_t bits = glyph[row];
-            for (int col = 0; col < FONT_W; col++) {
-                uint16_t px = (bits & (0x80 >> col)) ? fg_s : bg_s;
-                buf[(row * 2) * stride + col * 2] = px;
-                buf[(row * 2) * stride + col * 2 + 1] = px;
-                buf[(row * 2 + 1) * stride + col * 2] = px;
-                buf[(row * 2 + 1) * stride + col * 2 + 1] = px;
-            }
-        }
-
-        int cx = x + ci * FONT_W * 2;
-        if (cx + FONT_W * 2 > LCD_WIDTH) break;
-        ESP_RETURN_ON_ERROR(
-            esp_lcd_panel_draw_bitmap(s_panel, cx, y,
-                                      cx + FONT_W * 2, y + FONT_H * 2,
-                                      buf),
-            TAG, "draw char 2x");
-        s_buf2x_idx ^= 1;
-    }
-    return ESP_OK;
-}
-
 static esp_err_t show_splash_st7735(void)
 {
     ESP_RETURN_ON_ERROR(clear_st7735(DISPLAY_COLOR_BLACK), TAG, "clear");
@@ -436,7 +397,9 @@ static esp_err_t show_status_st7735(const display_status_t *status)
 
     case 1:  // Scroll through stats back to splash
         s_offset++;
-        ESP_RETURN_ON_ERROR(render_frame(s_offset, stat_text), TAG, "scroll");
+        if (s_offset % 3 == 0) {
+            ESP_RETURN_ON_ERROR(render_frame(s_offset, stat_text), TAG, "scroll");
+        }
         if (s_offset >= LCD_HEIGHT * 2) { s_state = 0; s_tick = 0; }
         break;
     }
