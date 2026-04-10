@@ -23,6 +23,7 @@
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "driver/temperature_sensor.h"
+#include "esp_task_wdt.h"
 
 #include <string.h>
 #include <inttypes.h>
@@ -169,6 +170,7 @@ esp_err_t asic_init(void)
 void asic_mining_task(void *arg)
 {
     ESP_LOGI(TAG, "ASIC mining task started");
+    esp_task_wdt_add(NULL);
 
     mining_work_t work;
     TickType_t last_temp_tick = 0;
@@ -411,6 +413,8 @@ void asic_mining_task(void *arg)
             nonces_since_log = 0;
             last_hashrate_tick = now;
         }
+
+        esp_task_wdt_reset();
     }
 }
 
