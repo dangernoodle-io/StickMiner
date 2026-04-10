@@ -178,6 +178,12 @@ void test_log_stream_format_null_fmt(void);
 void test_log_stream_format_int(void);
 void test_log_stream_format_size_one(void);
 
+// Forward declarations from test_bm1368.c
+void test_bm1368_pll_fb_range(void);
+void test_bm1368_pll_490mhz(void);
+void test_bm1368_pll_vdo_scale(void);
+void test_asic_ticket_mask_256_bm1368(void);
+
 void setUp(void) {}
 void tearDown(void) {}
 
@@ -363,6 +369,12 @@ int main(void) {
     RUN_TEST(test_log_stream_format_null_fmt);
     RUN_TEST(test_log_stream_format_int);
     RUN_TEST(test_log_stream_format_size_one);
+
+    // BM1368 tests
+    RUN_TEST(test_bm1368_pll_fb_range);
+    RUN_TEST(test_bm1368_pll_490mhz);
+    RUN_TEST(test_bm1368_pll_vdo_scale);
+    RUN_TEST(test_asic_ticket_mask_256_bm1368);
 
     return UNITY_END();
 }

@@ -1,5 +1,5 @@
 #pragma once
-#ifdef ASIC_BM1370
+#if defined(ASIC_BM1370) || defined(ASIC_BM1368)
 
 #include "esp_err.h"
 #include "driver/i2c_master.h"
@@ -13,4 +13,4 @@ esp_err_t emc2101_read_temp(float *temp_c);
 // Set fan PWM duty cycle (0-63).
 esp_err_t emc2101_set_fan_duty(uint8_t duty_0_63);
 
-#endif
+#endif // ASIC_BM1370 || ASIC_BM1368

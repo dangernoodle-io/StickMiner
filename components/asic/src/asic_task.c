@@ -1,4 +1,4 @@
-#ifdef ASIC_BM1370
+#if defined(ASIC_BM1370) || defined(ASIC_BM1368)
 
 #include "asic.h"
 #include "asic_chip.h"
@@ -415,8 +415,13 @@ void asic_mining_task(void *arg)
 }
 
 // --- Miner config ---
-// Note: g_miner_config.roll_interval_ms uses BM1370_JOB_INTERVAL_MS from board.h
-// For future ASIC chips, this can be made chip-ops aware or per-board
+// Note: g_miner_config.roll_interval_ms uses chip-specific JOB_INTERVAL_MS from board.h
+// Both BM1370 and BM1368 boards define their respective intervals
+#ifdef ASIC_BM1370
+#define ASIC_JOB_INTERVAL_MS BM1370_JOB_INTERVAL_MS
+#else
+#define ASIC_JOB_INTERVAL_MS BM1368_JOB_INTERVAL_MS
+#endif
 const miner_config_t g_miner_config = {
     .init = NULL,  // asic_init called separately before WiFi
     .task_fn = asic_mining_task,
@@ -425,7 +430,7 @@ const miner_config_t g_miner_config = {
     .priority = 20,
     .core = 1,
     .extranonce2_roll = true,
-    .roll_interval_ms = BM1370_JOB_INTERVAL_MS,
+    .roll_interval_ms = ASIC_JOB_INTERVAL_MS,
 };
 
 i2c_master_bus_handle_t asic_get_i2c_bus(void)
@@ -438,4 +443,4 @@ void asic_set_i2c_bus(i2c_master_bus_handle_t bus)
     s_i2c_bus = bus;
 }
 
-#endif // ASIC_BM1370
+#endif // ASIC_BM1370 || ASIC_BM1368
