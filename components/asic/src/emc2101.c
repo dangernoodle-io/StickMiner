@@ -1,4 +1,4 @@
-#ifdef ASIC_BM1370
+#if defined(ASIC_BM1370) || defined(ASIC_BM1368)
 
 #include "emc2101.h"
 #include "esp_log.h"
@@ -71,4 +71,4 @@ esp_err_t emc2101_set_fan_duty(uint8_t duty_0_63)
     return reg_write(REG_FAN_SETTING, duty_0_63);
 }
 
-#endif // ASIC_BM1370
+#endif // ASIC_BM1370 || ASIC_BM1368

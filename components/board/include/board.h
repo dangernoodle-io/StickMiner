@@ -4,6 +4,8 @@
 #  include "boards/tdongle_s3.h"
 #elif defined(BOARD_BITAXE_601)
 #  include "boards/bitaxe_601.h"
+#elif defined(BOARD_BITAXE_SUPRA)
+#  include "boards/bitaxe_supra.h"
 #else
 #  error "Unknown board — add -DBOARD_xxx to build_flags"
 #endif

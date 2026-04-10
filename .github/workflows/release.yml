@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        env: [tdongle-s3, bitaxe-601]
+        env: [tdongle-s3, bitaxe-601, bitaxe-supra]
     steps:
       - uses: actions/checkout@v6
         with:

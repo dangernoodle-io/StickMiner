@@ -135,7 +135,7 @@ void mining_resume(void);
 bool mining_pause_check(void);
 
 // Mining task handles
-#ifdef ASIC_BM1370
+#if defined(ASIC_BM1370) || defined(ASIC_BM1368)
 extern TaskHandle_t asic_task_handle;
 #else
 extern TaskHandle_t mining_hw_task_handle;
@@ -146,7 +146,7 @@ typedef struct {
     double              hw_hashrate;
     hashrate_ema_t      hw_ema;
     float               temp_c;          // ESP32-S3 die temperature
-#ifdef ASIC_BM1370
+#if defined(ASIC_BM1370) || defined(ASIC_BM1368)
     double              asic_hashrate;
     hashrate_ema_t      asic_ema;
     uint32_t            asic_shares;
