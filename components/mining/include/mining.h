@@ -129,7 +129,7 @@ extern QueueHandle_t result_queue;
 
 // Cooperative mining pause (for OTA — avoids mid-hash vTaskSuspend)
 void mining_pause_init(void);
-void mining_pause(void);
+bool mining_pause(void);
 void mining_resume(void);
 // Check if a pause has been requested and block until resumed; returns true if paused
 bool mining_pause_check(void);

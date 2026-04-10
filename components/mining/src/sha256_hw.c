@@ -47,6 +47,8 @@ void sha256_hw_init(void)
     sha256_hw_verify_text_preserved();
     sha256_hw_bench_pass2(100000);
 #endif
+
+    sha256_hw_release();
 }
 
 IRAM_ATTR void sha256_hw_transform(uint32_t state[8], const uint8_t block[64])

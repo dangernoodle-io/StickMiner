@@ -341,18 +341,22 @@ bool mine_nonce_range(hash_backend_t *backend,
         // Periodic yield + job refresh
         if (((nonce + 1) & params->yield_mask) == 0) {
             // Tier 1: lightweight new-work check (every 256K nonces)
+            sha256_hw_release();
             mining_work_t new_work;
             if (xQueuePeek(work_queue, &new_work, 0) == pdTRUE &&
                 new_work.work_seq != work->work_seq) {
                 memcpy(work, &new_work, sizeof(*work));
                 ESP_LOGI(TAG, "new job (%s)", work->job_id);
                 build_block2(block2, work->header);
+                sha256_hw_acquire();
                 backend->prepare_job(backend, work, block2);
                 start_us = esp_timer_get_time();
                 hashes = 0;
                 nonce = params->nonce_start - 1;
                 continue;
             }
+
+            sha256_hw_acquire();
 
             // Tier 2: full yield (every 1M nonces)
             if (((nonce + 1) & params->log_mask) == 0) {
@@ -383,7 +387,7 @@ bool mine_nonce_range(hash_backend_t *backend,
                 // Release SHA lock so mbedTLS can use HW SHA during TLS/OTA
                 sha256_hw_release();
                 esp_task_wdt_reset();
-                vTaskDelay(pdMS_TO_TICKS(1));
+                vTaskDelay(pdMS_TO_TICKS(5));
                 bool paused = mining_pause_check();
                 sha256_hw_acquire();
 
@@ -411,19 +415,20 @@ void mining_pause_init(void)
     s_pause_mutex = xSemaphoreCreateMutex();
 }
 
-void mining_pause(void)
+bool mining_pause(void)
 {
     if (xSemaphoreTake(s_pause_mutex, pdMS_TO_TICKS(30000)) != pdTRUE) {
         ESP_LOGW(TAG, "mining pause mutex timeout — another caller holds pause");
-        return;
+        return false;
     }
     s_pause_requested = true;
     if (xSemaphoreTake(s_pause_ack, pdMS_TO_TICKS(5000)) != pdTRUE) {
         ESP_LOGW(TAG, "mining pause acknowledge timeout, resetting state");
         s_pause_requested = false;
         xSemaphoreGive(s_pause_mutex);
-        return;
+        return false;
     }
+    return true;
 }
 
 void mining_resume(void)
@@ -469,9 +474,14 @@ void mining_task(void *arg)
 
     ESP_LOGI(TAG, "mining task started");
 
+    sha256_hw_acquire();
+
     for (;;) {
         mining_work_t work;
-        if (xQueuePeek(work_queue, &work, pdMS_TO_TICKS(5000)) != pdTRUE) {
+        sha256_hw_release();
+        BaseType_t got = xQueuePeek(work_queue, &work, pdMS_TO_TICKS(5000));
+        sha256_hw_acquire();
+        if (got != pdTRUE) {
             esp_task_wdt_reset();
             continue;
         }

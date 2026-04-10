@@ -250,7 +250,7 @@ static void ota_worker_task(void *arg)
     }
 
     // Cooperatively pause mining to free memory for OTA download
-    mining_pause();
+    bool paused = mining_pause();
 
     ESP_LOGI(TAG, "starting OTA update from %s", result.asset_url);
     taskENTER_CRITICAL(&s_ota_status_mux);
@@ -356,7 +356,7 @@ static void ota_worker_task(void *arg)
 
 resume_and_exit:
     s_ota_in_progress = false;
-    mining_resume();
+    if (paused) mining_resume();
 
     vTaskDelete(NULL);
 }
@@ -367,12 +367,12 @@ resume_and_exit:
 static void ota_check_worker_task(void *arg)
 {
     // Cooperatively pause mining to free memory for TLS handshake
-    mining_pause();
+    bool paused = mining_pause();
 
     ota_pull_check_result_t result = {0};
     esp_err_t err = ota_pull_check(&result);
 
-    mining_resume();
+    if (paused) mining_resume();
 
     bool ok = (err == ESP_OK);
     taskENTER_CRITICAL(&s_ota_status_mux);

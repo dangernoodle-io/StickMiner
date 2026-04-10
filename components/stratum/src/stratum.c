@@ -44,6 +44,8 @@ static const char *s_worker_name;
 static uint32_t s_extranonce2 = 0;     // rolling extranonce2 counter
 static uint32_t s_work_seq = 0;        // work sequence counter
 static TickType_t s_last_job_tick = 0; // last job dispatch tick
+static TickType_t s_last_share_tick = 0; // last share submission tick (30-min watchdog)
+static uint32_t s_reconnect_delay_ms = 5000; // exponential backoff for reconnect attempts
 static volatile bool s_stratum_connected = false;
 
 // Line buffer for reading from socket
@@ -375,6 +377,7 @@ static void handle_notify(cJSON *params)
 
     xQueueOverwrite(work_queue, &work);
     s_last_job_tick = xTaskGetTickCount();
+    s_reconnect_delay_ms = 5000;  // reset backoff on successful job receipt
 }
 
 // Handle mining.set_difficulty
@@ -440,7 +443,11 @@ static int submit_share(mining_result_t *result)
     }
 
     ESP_LOGI(TAG, "submit: %s", params);
-    return stratum_request("mining.submit", params) < 0 ? -1 : 0;
+    int rc = stratum_request("mining.submit", params);
+    if (rc >= 0) {
+        s_last_share_tick = xTaskGetTickCount();
+    }
+    return rc < 0 ? -1 : 0;
 }
 
 // Process one JSON message from pool
@@ -552,8 +559,9 @@ void stratum_task(void *arg)
 
         // Connect
         if (stratum_connect(pool_host, pool_port) != 0) {
-            ESP_LOGW(TAG, "reconnecting in 5s");
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            ESP_LOGW(TAG, "reconnecting in %" PRIu32 "ms", s_reconnect_delay_ms);
+            vTaskDelay(pdMS_TO_TICKS(s_reconnect_delay_ms));
+            if (s_reconnect_delay_ms < 60000) s_reconnect_delay_ms *= 2;
             continue;
         }
 
@@ -644,10 +652,17 @@ void stratum_task(void *arg)
                 }
             }
 
-            // Reconnect if no new job received for 10 minutes
+            // Reconnect if no new job received for 5 minutes
             if (s_last_job_tick != 0 &&
-                (xTaskGetTickCount() - s_last_job_tick) >= pdMS_TO_TICKS(600000)) {
-                ESP_LOGW(TAG, "no new job for 10 minutes, reconnecting");
+                (xTaskGetTickCount() - s_last_job_tick) >= pdMS_TO_TICKS(300000)) {
+                ESP_LOGW(TAG, "no new job for 5 minutes, reconnecting");
+                break;
+            }
+
+            // Reconnect if no share submitted in 30 minutes
+            if (s_last_share_tick != 0 &&
+                (xTaskGetTickCount() - s_last_share_tick) >= pdMS_TO_TICKS(1800000)) {
+                ESP_LOGW(TAG, "no share submitted in 30 minutes, reconnecting");
                 break;
             }
 
@@ -679,12 +694,14 @@ reconnect:
         s_configure_id = 0;
         s_version_mask = 0;
         memset(&s_job, 0, sizeof(s_job));
+        s_last_share_tick = 0;
         // Drain stale shares from previous session
         {
             mining_result_t stale;
             while (xQueueReceive(result_queue, &stale, 0) == pdTRUE) {}
         }
-        ESP_LOGW(TAG, "reconnecting in 5s");
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        ESP_LOGW(TAG, "reconnecting in %" PRIu32 "ms", s_reconnect_delay_ms);
+        vTaskDelay(pdMS_TO_TICKS(s_reconnect_delay_ms));
+        if (s_reconnect_delay_ms < 60000) s_reconnect_delay_ms *= 2;
     }
 }
