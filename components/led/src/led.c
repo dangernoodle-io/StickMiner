@@ -8,9 +8,9 @@
 #include "esp_check.h"
 #include <string.h>
 
-static const char *TAG = "led";
-
 #if defined(BOARD_TDONGLE_S3)
+
+static const char *TAG = "led";
 
 // File-scope static variables for GPIO handles
 static gpio_num_t s_clk_pin;
