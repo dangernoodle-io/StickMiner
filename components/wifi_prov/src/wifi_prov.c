@@ -181,6 +181,12 @@ static void event_handler(void *arg, esp_event_base_t event_base,
         }
 #endif
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {
+        esp_netif_ip_info_t ip_info;
+        if (s_sta_netif && esp_netif_get_ip_info(s_sta_netif, &ip_info) == ESP_OK
+            && ip_info.ip.addr != 0) {
+            ESP_LOGD(TAG, "IP_LOST_IP but netif still has IP, ignoring");
+            return;
+        }
         ESP_LOGW(TAG, "IP lost, requesting stratum reconnect");
         stratum_request_reconnect();
     }
