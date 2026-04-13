@@ -39,6 +39,7 @@ static int s_subscribe_id = 0;
 static int s_authorize_id = 0;
 static uint32_t s_version_mask = 0;
 static int s_configure_id = 0;
+static int s_keepalive_id = 0;
 static const char *s_wallet_addr;
 static const char *s_worker_name;
 static uint32_t s_extranonce2 = 0;     // rolling extranonce2 counter
@@ -524,6 +525,8 @@ static void process_message(const char *line)
             } else {
                 ESP_LOGW(TAG, "pool does not support mining.configure, version rolling disabled");
             }
+        } else if (s_keepalive_id != 0 && id == s_keepalive_id) {
+            ESP_LOGD(TAG, "keepalive ack id=%d", id);
         } else {
             // Submit response or other
             if (error_item && !cJSON_IsNull(error_item)) {
@@ -594,6 +597,7 @@ void stratum_task(void *arg)
             continue;
         }
         s_connect_fail_count = 0;
+        s_reconnect_delay_ms = 5000;
 
         // Configure (version rolling) — non-fatal if pool doesn't support it
         s_configure_id = stratum_request("mining.configure",
@@ -731,10 +735,12 @@ void stratum_task(void *arg)
                     ESP_LOGD(TAG, "sending keepalive ping");
                     char params[32];
                     snprintf(params, sizeof(params), "[%.4f]", s_difficulty);
-                    if (stratum_request("mining.suggest_difficulty", params) < 0) {
+                    int kid = stratum_request("mining.suggest_difficulty", params);
+                    if (kid < 0) {
                         ESP_LOGW(TAG, "keepalive send failed, reconnecting");
                         break;
                     }
+                    s_keepalive_id = kid;
                 }
             }
         }
@@ -750,6 +756,7 @@ reconnect:
         s_subscribe_id = 0;
         s_authorize_id = 0;
         s_configure_id = 0;
+        s_keepalive_id = 0;
         s_version_mask = 0;
         memset(&s_job, 0, sizeof(s_job));
         s_last_share_tick = 0;
