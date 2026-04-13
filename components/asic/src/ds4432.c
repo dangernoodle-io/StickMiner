@@ -23,12 +23,6 @@ static const char *TAG = "ds4432";
 
 static i2c_master_dev_handle_t s_dev;
 
-// Read one byte from a register
-static esp_err_t ds4432_read_byte(uint8_t reg, uint8_t *val)
-{
-    return i2c_master_transmit_receive(s_dev, &reg, 1, val, 1, 100);
-}
-
 // Write one byte to a register
 static esp_err_t ds4432_write_byte(uint8_t reg, uint8_t val)
 {

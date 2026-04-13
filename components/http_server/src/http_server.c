@@ -558,7 +558,7 @@ static esp_err_t logs_handler(httpd_req_t *req)
     }
 
     s_sse_client_type = client_type;
-    if (xTaskCreate(s_sse_task, "sse_log", 4096, async_req, 1, &s_sse_task_handle) != pdPASS) {
+    if (xTaskCreate(s_sse_task, "sse_log", 4096, async_req, 1, (TaskHandle_t *)&s_sse_task_handle) != pdPASS) {
         httpd_req_async_handler_complete(async_req);
         s_sse_client_type = 0;
         return ESP_FAIL;
