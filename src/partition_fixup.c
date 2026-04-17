@@ -28,6 +28,11 @@ static uint8_t s_buf[4096];
 
 void partition_fixup_check(void)
 {
+#ifdef TAIPANMINER_BRINGUP_ONLY
+    // bringup mode: skip partition fixup
+    return;
+#endif
+
     // Stub build (first compile before partitions.bin exists): skip
     if (g_partitions_bin_len <= 1) {
         return;

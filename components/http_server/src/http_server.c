@@ -806,6 +806,74 @@ static esp_err_t settings_patch_handler(httpd_req_t *req)
     return apply_settings(req, true);
 }
 
+#ifdef TAIPANMINER_BRINGUP_ONLY
+static esp_err_t flash_dump_handler(httpd_req_t *req)
+{
+    set_common_headers(req);
+
+    // Parse query string
+    char query[64];
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing query params");
+        return ESP_OK;
+    }
+
+    // Get addr (hex)
+    char addr_str[16];
+    if (httpd_query_key_value(query, "addr", addr_str, sizeof(addr_str)) != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing addr parameter");
+        return ESP_OK;
+    }
+    uint32_t addr = strtoul(addr_str, NULL, 16);
+
+    // Get len (decimal), cap at 65536
+    char len_str[16];
+    if (httpd_query_key_value(query, "len", len_str, sizeof(len_str)) != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing len parameter");
+        return ESP_OK;
+    }
+    uint32_t len = strtoul(len_str, NULL, 10);
+    if (len > 65536) len = 65536;
+    if (len == 0) len = 256;
+
+    // Allocate buffer for flash read
+    uint8_t *buf = malloc(len);
+    if (!buf) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Allocation failed");
+        return ESP_OK;
+    }
+
+    // Read from flash
+    esp_err_t err = esp_flash_read(NULL, buf, addr, len);
+    if (err != ESP_OK) {
+        free(buf);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Flash read failed");
+        return ESP_OK;
+    }
+
+    // Convert to hex string
+    // Each byte = 2 hex chars + null terminator
+    size_t hex_len = len * 2 + 1;
+    char *hex = malloc(hex_len);
+    if (!hex) {
+        free(buf);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Allocation failed");
+        return ESP_OK;
+    }
+
+    for (uint32_t i = 0; i < len; i++) {
+        snprintf(&hex[i * 2], 3, "%02x", buf[i]);
+    }
+
+    httpd_resp_set_type(req, "text/plain");
+    httpd_resp_send(req, hex, strlen(hex));
+
+    free(hex);
+    free(buf);
+    return ESP_OK;
+}
+#endif
+
 static esp_err_t scan_handler(httpd_req_t *req)
 {
     set_common_headers(req);
@@ -912,6 +980,11 @@ void http_server_switch_to_mining(void)
     httpd_register_uri_handler(s_server, &settings_get_uri);
     httpd_register_uri_handler(s_server, &settings_post_uri);
     httpd_register_uri_handler(s_server, &settings_patch_uri);
+
+#ifdef TAIPANMINER_BRINGUP_ONLY
+    httpd_uri_t flash_dump_uri = { .uri = "/api/flash-dump", .method = HTTP_GET, .handler = flash_dump_handler };
+    httpd_register_uri_handler(s_server, &flash_dump_uri);
+#endif
 }
 
 esp_err_t http_server_start(void)
@@ -977,6 +1050,11 @@ esp_err_t http_server_start(void)
     httpd_register_uri_handler(s_server, &settings_get_uri);
     httpd_register_uri_handler(s_server, &settings_post_uri);
     httpd_register_uri_handler(s_server, &settings_patch_uri);
+
+#ifdef TAIPANMINER_BRINGUP_ONLY
+    httpd_uri_t flash_dump_uri = { .uri = "/api/flash-dump", .method = HTTP_GET, .handler = flash_dump_handler };
+    httpd_register_uri_handler(s_server, &flash_dump_uri);
+#endif
 
     ESP_LOGI(TAG, "HTTP server started on port %d", 80);
     return ESP_OK;

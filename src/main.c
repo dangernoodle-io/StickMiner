@@ -184,7 +184,9 @@ static void log_reset_reason(void)
 // cppcheck-suppress unusedFunction
 void app_main(void)
 {
+#ifndef TAIPANMINER_BRINGUP_ONLY
     partition_fixup_check();
+#endif
 
     const esp_app_desc_t *app = esp_app_get_description();
     ESP_LOGI(TAG, "%s v%s (%s %s, IDF %s) starting...",
@@ -211,7 +213,10 @@ void app_main(void)
     ESP_ERROR_CHECK(nv_config_init());
     log_reset_reason();
     ota_validator_start();
+
+#ifndef TAIPANMINER_BRINGUP_ONLY
     ESP_ERROR_CHECK(led_init());
+#endif
 
     // Boot failure counter — incremented only on WiFi timeout restart (wifi_prov.c),
     // not on every boot, so flash/power-cycle doesn't trigger AP fallback.
@@ -227,7 +232,7 @@ void app_main(void)
                  boot_cnt, NV_CONFIG_BOOT_FAIL_THRESHOLD - boot_cnt);
     }
 
-#ifdef ASIC_BM1370
+#if defined(ASIC_BM1370) && !defined(TAIPANMINER_BRINGUP_ONLY)
     // Initialize ASIC before WiFi — freq ramp takes ~8s, runs while WiFi isn't needed yet.
     // Skip if not provisioned (will enter AP mode instead).
     if (nv_config_is_provisioned()) {
@@ -235,22 +240,26 @@ void app_main(void)
     }
 #endif
 
+#ifndef TAIPANMINER_BRINGUP_ONLY
     // Initialize display early so splash is visible during boot.
     // On Bitaxe, display creates I2C bus itself if asic_init() hasn't run.
     ESP_ERROR_CHECK(display_init());
     ESP_ERROR_CHECK(display_show_splash());
     vTaskDelay(pdMS_TO_TICKS(2000));
+#endif
 
     if (!nv_config_is_provisioned()) {
         ESP_LOGI(TAG, "entering provisioning mode");
         ESP_ERROR_CHECK(wifi_init_ap());
         ESP_ERROR_CHECK(http_server_start_prov());
 
+#ifndef TAIPANMINER_BRINGUP_ONLY
         // Show provisioning info on display + solid blue LED
         char ap_ssid[32];
         wifi_prov_get_ap_ssid(ap_ssid, sizeof(ap_ssid));
         ESP_ERROR_CHECK(display_show_prov(ap_ssid, "taipanminer"));
         ESP_ERROR_CHECK(led_set_color(0, 0, 38));
+#endif
 
         bool connected = false;
         while (!connected) {
@@ -261,8 +270,10 @@ void app_main(void)
 
             esp_err_t err = wifi_init_sta();
             if (err == ESP_OK) {
+#ifndef TAIPANMINER_BRINGUP_ONLY
                 ESP_ERROR_CHECK(display_off());
                 ESP_ERROR_CHECK(led_off());
+#endif
                 ESP_LOGI(TAG, "provisioning complete");
                 nv_config_set_provisioned();
                 nv_config_reset_boot_count();
@@ -283,9 +294,11 @@ void app_main(void)
     // Sync time via SNTP (UTC)
     sntp_init_time();
 
+#ifndef TAIPANMINER_BRINGUP_ONLY
     // Start mining
     start_mining();
 
     // Start display status task on Core 0
     xTaskCreatePinnedToCore(display_status_task, "display", 4096, NULL, 2, NULL, 0);
+#endif
 }
