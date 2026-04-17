@@ -534,7 +534,7 @@ void mining_task(void *arg)
     }
 }
 
-#if !defined(ASIC_BM1370) && !defined(ASIC_BM1368)
+#if !defined(ASIC_BM1370) && !defined(ASIC_BM1368) && !defined(ASIC_BM1397)
 const miner_config_t g_miner_config = {
     .init = NULL,
     .task_fn = mining_task,

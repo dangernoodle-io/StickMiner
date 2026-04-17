@@ -6,15 +6,16 @@
 #  include "boards/bitaxe_601.h"
 #elif defined(BOARD_BITAXE_403)
 #  include "boards/bitaxe_403.h"
+#elif defined(BOARD_BITDSK_N8T)
+#  include "boards/bitdsk_n8t.h"
 #else
 #  error "Unknown board — add -DBOARD_xxx to build_flags"
 #endif
 
 // I2C feature: enabled for boards with validated I2C pin assignments
-#if defined(BOARD_BITAXE_601) || defined(BOARD_BITAXE_403) || defined(BOARD_TDONGLE_S3)
+#if defined(BOARD_BITAXE_601) || defined(BOARD_BITAXE_403) || defined(BOARD_TDONGLE_S3) || defined(BOARD_BITDSK_N8T)
 #  define HAS_I2C 1
 #endif
-// N8-T intentionally omitted until real I2C pins are confirmed (TA-48)
 
 // Compile-time sanity check: C3 targets must have I2C pins in valid range
 #if CONFIG_IDF_TARGET_ESP32C3 && defined(HAS_I2C)

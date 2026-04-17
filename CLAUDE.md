@@ -42,6 +42,7 @@ For clangd-based C/C++ IntelliSense (e.g. via the `esp-idf-clangd` Claude Code p
 | `tdongle-s3` | LilyGo T-Dongle S3 | none (SW mining) | USB CDC |
 | `bitaxe-601` | Bitaxe 601 Gamma | BM1370 | USB CDC |
 | `bitaxe-403` | Bitaxe 403 | BM1368 | USB CDC |
+| `bitdsk-n8t` | BITDSK N8-T | BM1397 | USB Serial/JTAG (no pins exposed) |
 
 ### Adding a new board
 
@@ -66,7 +67,8 @@ For clangd-based C/C++ IntelliSense (e.g. via the `esp-idf-clangd` Claude Code p
 
 ## Hardware
 
-- All boards use ESP32-S3 dual-core @ 240MHz
+- S3 boards: ESP32-S3 dual-core @ 240MHz
+- C3 boards: ESP32-C3 single-core @ 160MHz (bitdsk-n8t is first C3 target, 4 MB flash)
 - Pin assignments in `components/board/include/boards/<board>.h`
 - Board dispatch via `components/board/include/board.h` (`BOARD_*` defines)
 

@@ -25,6 +25,7 @@ compile-db: ## Generate compile_commands.json for all boards (clangd LSP)
 	$(PIO) run -t compiledb -e bitaxe-601
 	$(PIO) run -t compiledb -e bitaxe-403
 	$(PIO) run -t compiledb -e tdongle-s3
+	$(PIO) run -t compiledb -e bitdsk-n8t
 
 flash-%: ## Flash specific env (e.g. make flash-bitaxe-601)
 	$(PIO) run -e $* -t upload
