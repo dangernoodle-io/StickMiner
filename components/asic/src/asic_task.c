@@ -395,6 +395,19 @@ void asic_mining_task(void *arg)
                     xSemaphoreGive(mining_stats.mutex);
                 }
             }
+
+            {
+                int v = tps546_read_vout_mv();
+                int i = tps546_read_iout_ma();
+                int p = (v >= 0 && i >= 0) ? (int)((int64_t)v * i / 1000) : -1;
+                if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
+                    mining_stats.vcore_mv = v;
+                    mining_stats.icore_ma = i;
+                    mining_stats.pcore_mw = p;
+                    xSemaphoreGive(mining_stats.mutex);
+                }
+            }
+
             last_temp_tick = now;
         }
 

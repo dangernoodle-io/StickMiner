@@ -258,6 +258,52 @@ static esp_err_t stats_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+#ifdef ASIC_CHIP
+static esp_err_t power_handler(httpd_req_t *req)
+{
+    set_common_headers(req);
+    int vcore_mv = -1, icore_ma = -1, pcore_mw = -1;
+    double asic_hashrate = 0;
+
+    if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        vcore_mv = mining_stats.vcore_mv;
+        icore_ma = mining_stats.icore_ma;
+        pcore_mw = mining_stats.pcore_mw;
+        asic_hashrate = mining_stats.asic_hashrate;
+        xSemaphoreGive(mining_stats.mutex);
+    }
+
+    cJSON *root = cJSON_CreateObject();
+    if (vcore_mv >= 0) {
+        cJSON_AddNumberToObject(root, "vcore_mv", vcore_mv);
+    } else {
+        cJSON_AddNullToObject(root, "vcore_mv");
+    }
+    if (icore_ma >= 0) {
+        cJSON_AddNumberToObject(root, "icore_ma", icore_ma);
+    } else {
+        cJSON_AddNullToObject(root, "icore_ma");
+    }
+    if (pcore_mw >= 0) {
+        cJSON_AddNumberToObject(root, "pcore_mw", pcore_mw);
+    } else {
+        cJSON_AddNullToObject(root, "pcore_mw");
+    }
+    if (pcore_mw > 0 && asic_hashrate > 0) {
+        cJSON_AddNumberToObject(root, "efficiency_jth", (pcore_mw / 1000.0) / (asic_hashrate / 1e12));
+    } else {
+        cJSON_AddNullToObject(root, "efficiency_jth");
+    }
+
+    char *json = cJSON_PrintUnformatted(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, json, strlen(json));
+    free(json);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+#endif // ASIC_CHIP
+
 static esp_err_t version_handler(httpd_req_t *req)
 {
     set_common_headers(req);
@@ -912,6 +958,11 @@ void http_server_switch_to_mining(void)
     httpd_register_uri_handler(s_server, &settings_get_uri);
     httpd_register_uri_handler(s_server, &settings_post_uri);
     httpd_register_uri_handler(s_server, &settings_patch_uri);
+
+#ifdef ASIC_CHIP
+    httpd_uri_t power_uri = { .uri = "/api/power", .method = HTTP_GET, .handler = power_handler };
+    httpd_register_uri_handler(s_server, &power_uri);
+#endif
 }
 
 esp_err_t http_server_start(void)
@@ -977,6 +1028,11 @@ esp_err_t http_server_start(void)
     httpd_register_uri_handler(s_server, &settings_get_uri);
     httpd_register_uri_handler(s_server, &settings_post_uri);
     httpd_register_uri_handler(s_server, &settings_patch_uri);
+
+#ifdef ASIC_CHIP
+    httpd_uri_t power_uri = { .uri = "/api/power", .method = HTTP_GET, .handler = power_handler };
+    httpd_register_uri_handler(s_server, &power_uri);
+#endif
 
     ESP_LOGI(TAG, "HTTP server started on port %d", 80);
     return ESP_OK;

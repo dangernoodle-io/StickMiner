@@ -184,6 +184,13 @@ void test_bm1368_pll_490mhz(void);
 void test_bm1368_pll_vdo_scale(void);
 void test_asic_ticket_mask_256_bm1368(void);
 
+// Forward declarations from test_tps546_decode.c
+void test_ulinear16_typical_vout(void);
+void test_ulinear16_zero(void);
+void test_slinear11_positive_exp_neg(void);
+void test_slinear11_negative_mantissa(void);
+void test_slinear11_zero_mantissa(void);
+
 void setUp(void) {}
 void tearDown(void) {}
 
@@ -375,6 +382,13 @@ int main(void) {
     RUN_TEST(test_bm1368_pll_490mhz);
     RUN_TEST(test_bm1368_pll_vdo_scale);
     RUN_TEST(test_asic_ticket_mask_256_bm1368);
+
+    // TPS546 decode tests
+    RUN_TEST(test_ulinear16_typical_vout);
+    RUN_TEST(test_ulinear16_zero);
+    RUN_TEST(test_slinear11_positive_exp_neg);
+    RUN_TEST(test_slinear11_negative_mantissa);
+    RUN_TEST(test_slinear11_zero_mantissa);
 
     return UNITY_END();
 }

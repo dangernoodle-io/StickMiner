@@ -84,6 +84,11 @@ void mining_stats_init(void)
 {
     mining_stats.mutex = xSemaphoreCreateMutex();
     mining_stats.session.start_us = esp_timer_get_time();
+#if defined(ASIC_BM1370) || defined(ASIC_BM1368)
+    mining_stats.vcore_mv = -1;
+    mining_stats.icore_ma = -1;
+    mining_stats.pcore_mw = -1;
+#endif
 
     mining_stats_load_lifetime();
 

@@ -11,4 +11,10 @@ esp_err_t tps546_init(i2c_master_bus_handle_t bus, uint8_t addr, uint16_t target
 // Change output voltage (after init).
 esp_err_t tps546_set_voltage_mv(uint16_t target_mv);
 
+// Read output voltage. Returns mV, or -1 on I2C error.
+int tps546_read_vout_mv(void);
+
+// Read output current. Returns mA, or -1 on I2C error.
+int tps546_read_iout_ma(void);
+
 #endif // ASIC_BM1370 || ASIC_BM1368
