@@ -1,6 +1,7 @@
 #if defined(ASIC_BM1370) || defined(ASIC_BM1368)
 
 #include "tps546.h"
+#include "tps546_decode.h"
 #include "esp_log.h"
 #include "esp_check.h"
 #include <string.h>
@@ -11,6 +12,8 @@ static const char *TAG = "tps546";
 #define PMBUS_OPERATION    0x01
 #define PMBUS_VOUT_MODE    0x20
 #define PMBUS_VOUT_COMMAND 0x21
+#define PMBUS_READ_VOUT    0x8B
+#define PMBUS_READ_IOUT    0x8C
 
 // OPERATION values
 #define OPERATION_ON  0x80
@@ -88,6 +91,34 @@ esp_err_t tps546_set_voltage_mv(uint16_t target_mv)
     ESP_RETURN_ON_ERROR(pmbus_write_word(PMBUS_VOUT_COMMAND, code), TAG, "set VOUT");
     ESP_LOGI(TAG, "VOUT_COMMAND=0x%04X (%u mV)", code, target_mv);
     return ESP_OK;
+}
+
+static esp_err_t pmbus_read_word(uint8_t reg, uint16_t *val)
+{
+    uint8_t buf[2];
+    esp_err_t err = i2c_master_transmit_receive(s_dev, &reg, 1, buf, 2, 100);
+    if (err == ESP_OK) {
+        *val = (uint16_t)(buf[0] | ((uint16_t)buf[1] << 8));
+    }
+    return err;
+}
+
+int tps546_read_vout_mv(void)
+{
+    uint16_t raw;
+    if (pmbus_read_word(PMBUS_READ_VOUT, &raw) != ESP_OK) {
+        return -1;
+    }
+    return tps546_ulinear16_to_mv(raw, s_vout_n);
+}
+
+int tps546_read_iout_ma(void)
+{
+    uint16_t raw;
+    if (pmbus_read_word(PMBUS_READ_IOUT, &raw) != ESP_OK) {
+        return -1;
+    }
+    return tps546_slinear11_to_ma(raw);
 }
 
 #endif // ASIC_BM1370 || ASIC_BM1368

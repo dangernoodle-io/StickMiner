@@ -151,6 +151,9 @@ typedef struct {
     hashrate_ema_t      asic_ema;
     uint32_t            asic_shares;
     float               asic_temp_c;     // ASIC die temperature via EMC2101
+    int                 vcore_mv;
+    int                 icore_ma;
+    int                 pcore_mw;
 #endif
     uint32_t            hw_shares;
     double              pool_difficulty;
