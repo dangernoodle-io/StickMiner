@@ -14,7 +14,6 @@
 #include "esp_heap_caps.h"
 #include "esp_wifi.h"
 #include "esp_system.h"
-#include "nvs.h"
 #include "board.h"
 #include "mining.h"
 #include "bb_nv.h"
@@ -742,13 +741,7 @@ static void init_mining_assets(void)
 bb_err_t taipan_web_register_mining_routes(bb_http_handle_t server)
 {
     // Cache WDT reset count — only changes on boot
-    {
-        nvs_handle_t nvs_h;
-        if (nvs_open("taipanminer", NVS_READONLY, &nvs_h) == ESP_OK) {
-            nvs_get_u32(nvs_h, "wdt_resets", &s_wdt_resets);
-            nvs_close(nvs_h);
-        }
-    }
+    bb_nv_get_u32("taipanminer", "wdt_resets", &s_wdt_resets, 0);
 
     // Initialize and register static assets
     init_mining_assets();
