@@ -3,7 +3,6 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_system.h"
-#include "nvs.h"
 #include "esp_sntp.h"
 #include "bb_wifi.h"
 #include "bb_prov.h"
@@ -248,14 +247,10 @@ static void log_reset_reason(void)
 
     if (reason == ESP_RST_TASK_WDT || reason == ESP_RST_WDT || reason == ESP_RST_PANIC) {
         ESP_LOGW(TAG, "abnormal reset detected (%s)", reason_str);
-        nvs_handle_t h;
-        if (nvs_open("taipanminer", NVS_READWRITE, &h) == ESP_OK) {
-            uint32_t wdt_count = 0;
-            nvs_get_u32(h, "wdt_resets", &wdt_count);
-            wdt_count++;
-            nvs_set_u32(h, "wdt_resets", wdt_count);
-            nvs_commit(h);
-            nvs_close(h);
+        uint32_t wdt_count = 0;
+        bb_nv_get_u32("taipanminer", "wdt_resets", &wdt_count, 0);
+        wdt_count++;
+        if (bb_nv_set_u32("taipanminer", "wdt_resets", wdt_count) == BB_OK) {
             ESP_LOGW(TAG, "abnormal reset count: %" PRIu32, wdt_count);
         }
     }
