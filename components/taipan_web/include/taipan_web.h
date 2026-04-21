@@ -17,4 +17,7 @@ bb_err_t taipan_web_register_mining_routes(bb_http_handle_t server);
 // Register preflight OPTIONS handler (called once at startup)
 bb_err_t taipan_web_register_preflight(bb_http_handle_t server);
 
+// Register TaipanMiner-specific info extender callback (call before HTTP server starts)
+bb_err_t taipan_web_register_info_extender(void);
+
 #endif

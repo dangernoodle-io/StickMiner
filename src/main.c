@@ -297,6 +297,10 @@ void app_main(void)
     // Boot failure counter — incremented only on WiFi timeout restart (wifi_prov.c),
     // not on every boot, so flash/power-cycle doesn't trigger AP fallback.
     uint8_t boot_cnt = bb_nv_config_boot_count();
+
+    // Register TaipanMiner-specific info extender for breadboard's /api/info endpoint
+    ESP_ERROR_CHECK(taipan_web_register_info_extender());
+
     if (boot_cnt >= BB_NV_CONFIG_BOOT_FAIL_THRESHOLD && bb_nv_config_is_provisioned()) {
         ESP_LOGW(TAG, "boot_count=%" PRIu8 " >= %d: clearing provisioning for AP fallback",
                  boot_cnt, BB_NV_CONFIG_BOOT_FAIL_THRESHOLD);

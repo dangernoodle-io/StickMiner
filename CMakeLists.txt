@@ -11,6 +11,8 @@ list(APPEND EXTRA_COMPONENT_DIRS
     "${_BB_COMPONENTS}/bb_mdns"
     "${_BB_COMPONENTS}/bb_http"
     "${_BB_COMPONENTS}/bb_nv"
+    "${_BB_COMPONENTS}/bb_info"
+    "${_BB_COMPONENTS}/bb_board"
 )
 
 # Override breadboard's nv_config namespace to "taipanminer" for on-device compatibility

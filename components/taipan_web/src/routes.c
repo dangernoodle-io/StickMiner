@@ -1,6 +1,7 @@
 #include "taipan_web.h"
 #include "esp_http_server.h"
 #include "bb_http.h"
+#include "bb_info.h"
 #include "esp_ota_ops.h"
 #include "esp_app_desc.h"
 #include "esp_app_format.h"
@@ -34,6 +35,7 @@
 #include "bb_ota_push.h"
 #include "ota_validator.h"
 #include "bb_log.h"
+#include "bb_board.h"
 
 static const char *TAG = "web";
 
@@ -52,9 +54,6 @@ extern const unsigned int prov_save_html_gz_len;
 extern const uint8_t favicon_svg_gz[];
 extern const unsigned int favicon_svg_gz_len;
 
-static volatile int s_sse_client_type = 0;  // 0=none, 1=browser, 2=external
-static volatile bool s_sse_stop = false;
-static volatile TaskHandle_t s_sse_task_handle = NULL;
 static uint32_t s_wdt_resets = 0;
 
 static void set_common_headers(httpd_req_t *req)
@@ -339,119 +338,6 @@ static esp_err_t fan_handler(httpd_req_t *req)
 }
 #endif // ASIC_BM1370 || ASIC_BM1368
 
-static esp_err_t version_handler(httpd_req_t *req)
-{
-    set_common_headers(req);
-    const esp_app_desc_t *app = esp_app_get_description();
-    httpd_resp_set_type(req, "text/plain");
-    httpd_resp_send(req, app->version, strlen(app->version));
-    return ESP_OK;
-}
-
-static esp_err_t info_handler(httpd_req_t *req)
-{
-    set_common_headers(req);
-    const esp_app_desc_t *app = esp_app_get_description();
-    esp_chip_info_t chip;
-    esp_chip_info(&chip);
-    uint8_t mac[6];
-    esp_read_mac(mac, ESP_MAC_WIFI_STA);
-
-    cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "board", BOARD_NAME);
-    cJSON_AddStringToObject(root, "project_name", app->project_name);
-    cJSON_AddStringToObject(root, "version", app->version);
-    cJSON_AddStringToObject(root, "idf_version", app->idf_ver);
-    cJSON_AddStringToObject(root, "build_date", app->date);
-    cJSON_AddStringToObject(root, "build_time", app->time);
-    cJSON_AddNumberToObject(root, "cores", chip.cores);
-
-    char mac_str[18];
-    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    cJSON_AddStringToObject(root, "mac", mac_str);
-    cJSON_AddStringToObject(root, "worker_name", taipan_config_worker_name());
-    cJSON_AddStringToObject(root, "ssid", bb_nv_config_wifi_ssid());
-
-    cJSON_AddNumberToObject(root, "total_heap", (double)heap_caps_get_total_size(MALLOC_CAP_INTERNAL));
-    cJSON_AddNumberToObject(root, "free_heap", (double)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-
-    uint32_t flash_size = 0;
-    esp_flash_get_size(NULL, &flash_size);
-    cJSON_AddNumberToObject(root, "flash_size", (double)flash_size);
-
-    esp_reset_reason_t reason = esp_reset_reason();
-    const char *reason_str;
-    switch (reason) {
-    case ESP_RST_POWERON:   reason_str = "power-on"; break;
-    case ESP_RST_SW:        reason_str = "software"; break;
-    case ESP_RST_PANIC:     reason_str = "panic"; break;
-    case ESP_RST_TASK_WDT:  reason_str = "task_wdt"; break;
-    case ESP_RST_WDT:       reason_str = "wdt"; break;
-    case ESP_RST_DEEPSLEEP: reason_str = "deep_sleep"; break;
-    case ESP_RST_BROWNOUT:  reason_str = "brownout"; break;
-    default:                reason_str = "unknown"; break;
-    }
-    cJSON_AddStringToObject(root, "reset_reason", reason_str);
-
-    cJSON_AddNumberToObject(root, "wdt_resets", (double)s_wdt_resets);
-
-    {
-        time_t now = time(NULL);
-        if (now > 1000000000) {
-            int64_t uptime_s = esp_timer_get_time() / 1000000;
-            cJSON_AddNumberToObject(root, "boot_time", (double)(now - uptime_s));
-        }
-    }
-
-    const esp_partition_t *running = esp_ota_get_running_partition();
-    if (running) {
-        cJSON_AddNumberToObject(root, "app_size", (double)running->size);
-    }
-
-    cJSON_AddBoolToObject(root, "validated", !ota_validator_is_pending());
-
-    cJSON *network = cJSON_CreateObject();
-
-    int8_t rssi = 0;
-    bb_wifi_get_rssi(&rssi);
-    cJSON_AddNumberToObject(network, "rssi", (double)rssi);
-
-    char ip[16] = "0.0.0.0";
-    bb_wifi_get_ip_str(ip, sizeof(ip));
-    cJSON_AddStringToObject(network, "ip", ip);
-
-    uint8_t disc_reason = 0;
-    int64_t disc_age_us = 0;
-    bb_wifi_get_disconnect(&disc_reason, &disc_age_us);
-    cJSON_AddNumberToObject(network, "disc_reason", (double)disc_reason);
-    uint32_t disc_age_s = (uint32_t)(disc_age_us / 1000000);
-    cJSON_AddNumberToObject(network, "disc_age_s", (double)disc_age_s);
-
-    int retry_count = bb_wifi_get_retry_count();
-    cJSON_AddNumberToObject(network, "retry_count", (double)retry_count);
-
-    bool mdns = bb_mdns_started();
-    cJSON_AddBoolToObject(network, "mdns", mdns);
-
-    bool strat = stratum_is_connected();
-    cJSON_AddBoolToObject(network, "stratum", strat);
-
-    uint32_t strat_delay = stratum_get_reconnect_delay_ms();
-    cJSON_AddNumberToObject(network, "stratum_reconnect_ms", (double)strat_delay);
-
-    int strat_fail = stratum_get_connect_fail_count();
-    cJSON_AddNumberToObject(network, "stratum_fail_count", (double)strat_fail);
-
-    cJSON_AddItemToObject(root, "network", network);
-
-    char *json = cJSON_PrintUnformatted(root);
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, json, strlen(json));
-    free(json);
-    cJSON_Delete(root);
-    return ESP_OK;
-}
 
 static esp_err_t ota_mark_valid_handler(httpd_req_t *req)
 {
@@ -515,118 +401,34 @@ static esp_err_t favicon_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-static void s_sse_task(void *arg)
+static void taipan_info_extender(cJSON *root)
 {
-    httpd_req_t *req = (httpd_req_t *)arg;
+    cJSON_AddStringToObject(root, "worker_name", taipan_config_worker_name());
 
-    int fd = httpd_req_to_sockfd(req);
-    struct timeval tv = { .tv_sec = 30, .tv_usec = 0 };
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    const char *ssid = bb_nv_config_wifi_ssid();
+    if (ssid) cJSON_AddStringToObject(root, "ssid", ssid);
 
-    httpd_resp_set_type(req, "text/event-stream");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
-    httpd_resp_set_hdr(req, "Connection", "keep-alive");
-    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-    httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
+    cJSON_AddBoolToObject(root, "validated", !ota_validator_is_pending());
+    cJSON_AddNumberToObject(root, "wdt_resets", s_wdt_resets);
 
-    esp_err_t err = httpd_resp_send_chunk(req, ": connected\n\n", HTTPD_RESP_USE_STRLEN);
-
-    char line[192];
-    char frame[220];
-
-    while (err == ESP_OK && !s_sse_stop) {
-        size_t n = bb_log_stream_drain(line, sizeof(line), 500);
-        if (n == 0) continue;
-        while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r'))
-            line[--n] = '\0';
-        int flen = snprintf(frame, sizeof(frame), "data: %s\n\n", line);
-        err = httpd_resp_send_chunk(req, frame,
-                    (flen > 0 && flen < (int)sizeof(frame)) ? flen : HTTPD_RESP_USE_STRLEN);
+    time_t now = time(NULL);
+    if (now > 1700000000) {
+        int64_t uptime_s = esp_timer_get_time() / 1000000LL;
+        cJSON_AddNumberToObject(root, "boot_time", (double)(now - uptime_s));
     }
 
-    httpd_resp_send_chunk(req, NULL, 0);
-    httpd_req_async_handler_complete(req);
-    s_sse_task_handle = NULL;
-    s_sse_client_type = 0;
-    vTaskDelete(NULL);
+    cJSON *network = cJSON_GetObjectItem(root, "network");
+    if (network) {
+        cJSON_AddBoolToObject(network, "mdns", bb_mdns_started());
+        cJSON_AddBoolToObject(network, "stratum", stratum_is_connected());
+        cJSON_AddNumberToObject(network, "stratum_reconnect_ms", stratum_get_reconnect_delay_ms());
+        cJSON_AddNumberToObject(network, "stratum_fail_count", stratum_get_connect_fail_count());
+    }
 }
 
-static esp_err_t logs_handler(httpd_req_t *req)
+bb_err_t taipan_web_register_info_extender(void)
 {
-    // Determine client type from query string
-    int client_type = 2;  // default: external
-    char query[32];
-    if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
-        char val[16];
-        if (httpd_query_key_value(query, "source", val, sizeof(val)) == ESP_OK
-            && strcmp(val, "browser") == 0) {
-            client_type = 1;
-        }
-    }
-
-    // Only an external client can preempt a browser stream;
-    // all other combinations (browser→external, external→external) get 503
-    if (s_sse_task_handle && !(client_type == 2 && s_sse_client_type == 1)) {
-        set_common_headers(req);
-        httpd_resp_set_status(req, "503 Service Unavailable");
-        httpd_resp_sendstr(req, "Log stream in use");
-        return ESP_OK;
-    }
-
-    // Stop existing browser stream (external client taking over)
-    if (s_sse_task_handle) {
-        s_sse_stop = true;
-        for (int i = 0; i < 10 && s_sse_task_handle; i++)
-            vTaskDelay(pdMS_TO_TICKS(100));
-    }
-    s_sse_stop = false;
-
-    if (client_type == 2) {
-        ESP_LOGI(TAG, "external log client connected");
-    }
-
-    httpd_req_t *async_req = NULL;
-    if (httpd_req_async_handler_begin(req, &async_req) != ESP_OK) {
-        set_common_headers(req);
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Async init failed");
-        return ESP_FAIL;
-    }
-
-    s_sse_client_type = client_type;
-    if (xTaskCreate(s_sse_task, "sse_log", 4096, async_req, 1, (TaskHandle_t *)&s_sse_task_handle) != pdPASS) {
-        httpd_req_async_handler_complete(async_req);
-        s_sse_client_type = 0;
-        return ESP_FAIL;
-    }
-
-    return ESP_OK;
-}
-
-static esp_err_t logs_status_handler(httpd_req_t *req)
-{
-    set_common_headers(req);
-    httpd_resp_set_type(req, "application/json");
-    char buf[96];
-    uint32_t dropped = bb_log_stream_dropped_lines();
-    if (s_sse_client_type == 0) {
-        snprintf(buf, sizeof(buf), "{\"active\":false,\"client\":null,\"dropped\":%" PRIu32 "}", dropped);
-    } else {
-        snprintf(buf, sizeof(buf), "{\"active\":true,\"client\":\"%s\",\"dropped\":%" PRIu32 "}",
-                 s_sse_client_type == 1 ? "browser" : "external", dropped);
-    }
-    httpd_resp_sendstr(req, buf);
-    return ESP_OK;
-}
-
-static esp_err_t reboot_handler(httpd_req_t *req)
-{
-    set_common_headers(req);
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_sendstr(req, "{\"status\":\"rebooting\"}");
-
-    vTaskDelay(pdMS_TO_TICKS(500));
-    esp_restart();
-    return ESP_OK;  // unreachable
+    return bb_info_register_extender(taipan_info_extender);
 }
 
 static esp_err_t settings_get_handler(httpd_req_t *req)
@@ -776,57 +578,23 @@ static esp_err_t settings_patch_handler(httpd_req_t *req)
     return apply_settings(req, true);
 }
 
-static esp_err_t scan_handler(httpd_req_t *req)
-{
-    set_common_headers(req);
-
-    // Trigger a background scan for next request
-    bb_wifi_scan_start_async();
-
-    // Return cached results immediately
-    bb_wifi_ap_t aps[WIFI_SCAN_MAX];
-    memset(aps, 0, sizeof(aps));
-    int count = bb_wifi_scan_get_cached(aps, WIFI_SCAN_MAX);
-
-    cJSON *arr = cJSON_CreateArray();
-    for (int i = 0; i < count; i++) {
-        cJSON *ap = cJSON_CreateObject();
-        cJSON_AddStringToObject(ap, "ssid", aps[i].ssid);
-        cJSON_AddNumberToObject(ap, "rssi", aps[i].rssi);
-        cJSON_AddBoolToObject(ap, "secure", aps[i].secure);
-        cJSON_AddItemToArray(arr, ap);
-    }
-
-    char *json = cJSON_PrintUnformatted(arr);
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, json, strlen(json));
-    free(json);
-    cJSON_Delete(arr);
-    return ESP_OK;
-}
 
 bb_err_t taipan_web_register_prov_routes(bb_http_handle_t server)
 {
     httpd_handle_t h = (httpd_handle_t)server;
     httpd_uri_t prov_form = { .uri = "/", .method = HTTP_GET, .handler = prov_form_handler };
-    httpd_uri_t scan_uri = { .uri = "/api/scan", .method = HTTP_GET, .handler = scan_handler };
-    httpd_uri_t version_uri = { .uri = "/api/version", .method = HTTP_GET, .handler = version_handler };
-    httpd_uri_t info_uri = { .uri = "/api/info", .method = HTTP_GET, .handler = info_handler };
     httpd_uri_t theme_uri = { .uri = "/theme.css", .method = HTTP_GET, .handler = theme_handler };
     httpd_uri_t logo_uri = { .uri = "/logo.svg", .method = HTTP_GET, .handler = logo_handler };
     httpd_uri_t favicon_uri = { .uri = "/favicon.ico", .method = HTTP_GET, .handler = favicon_handler };
 
     bb_prov_set_save_callback(taipan_prov_save_cb);
     httpd_register_uri_handler(h, &prov_form);
-    httpd_register_uri_handler(h, &scan_uri);
-    httpd_register_uri_handler(h, &version_uri);
-    httpd_register_uri_handler(h, &info_uri);
     httpd_register_uri_handler(h, &theme_uri);
     httpd_register_uri_handler(h, &logo_uri);
     httpd_register_uri_handler(h, &favicon_uri);
 
-    // Pre-populate scan cache with initial background scan
-    bb_wifi_scan_start_async();
+    bb_http_register_common_routes(server);
+    bb_info_register_routes(server);
 
     ESP_LOGI(TAG, "provisioning routes registered");
     return BB_OK;
@@ -848,8 +616,6 @@ bb_err_t taipan_web_register_mining_routes(bb_http_handle_t server)
     httpd_uri_t status_uri = { .uri = "/", .method = HTTP_GET, .handler = status_handler };
     httpd_uri_t stats_uri = { .uri = "/api/stats", .method = HTTP_GET, .handler = stats_handler };
     httpd_uri_t mining_js_uri = { .uri = "/mining.js", .method = HTTP_GET, .handler = mining_js_handler };
-    httpd_uri_t version_uri = { .uri = "/api/version", .method = HTTP_GET, .handler = version_handler };
-    httpd_uri_t info_uri = { .uri = "/api/info", .method = HTTP_GET, .handler = info_handler };
     httpd_uri_t theme_uri = { .uri = "/theme.css", .method = HTTP_GET, .handler = theme_handler };
     httpd_uri_t logo_uri = { .uri = "/logo.svg", .method = HTTP_GET, .handler = logo_handler };
     httpd_uri_t favicon_uri = { .uri = "/favicon.ico", .method = HTTP_GET, .handler = favicon_handler };
@@ -857,23 +623,12 @@ bb_err_t taipan_web_register_mining_routes(bb_http_handle_t server)
     httpd_register_uri_handler(h, &status_uri);
     httpd_register_uri_handler(h, &stats_uri);
     httpd_register_uri_handler(h, &mining_js_uri);
-    httpd_register_uri_handler(h, &version_uri);
-    httpd_register_uri_handler(h, &info_uri);
     httpd_register_uri_handler(h, &theme_uri);
     httpd_register_uri_handler(h, &logo_uri);
     httpd_register_uri_handler(h, &favicon_uri);
-    bb_ota_pull_register_handler(server);
-    bb_ota_push_register_handler(server);
 
     httpd_uri_t ota_mark_valid_uri = { .uri = "/api/ota/mark-valid", .method = HTTP_POST, .handler = ota_mark_valid_handler };
     httpd_register_uri_handler(h, &ota_mark_valid_uri);
-
-    httpd_uri_t logs_status_uri = { .uri = "/api/logs/status", .method = HTTP_GET, .handler = logs_status_handler };
-    httpd_uri_t logs_uri = { .uri = "/api/logs", .method = HTTP_GET, .handler = logs_handler };
-    httpd_uri_t reboot_uri = { .uri = "/api/reboot", .method = HTTP_POST, .handler = reboot_handler };
-    httpd_register_uri_handler(h, &logs_status_uri);
-    httpd_register_uri_handler(h, &logs_uri);
-    httpd_register_uri_handler(h, &reboot_uri);
 
     httpd_uri_t settings_get_uri = { .uri = "/api/settings", .method = HTTP_GET, .handler = settings_get_handler };
     httpd_uri_t settings_post_uri = { .uri = "/api/settings", .method = HTTP_POST, .handler = settings_post_handler };
@@ -888,6 +643,15 @@ bb_err_t taipan_web_register_mining_routes(bb_http_handle_t server)
     httpd_uri_t fan_uri = { .uri = "/api/fan", .method = HTTP_GET, .handler = fan_handler };
     httpd_register_uri_handler(h, &fan_uri);
 #endif
+
+    bb_ota_pull_register_handler(server);
+    bb_ota_push_register_handler(server);
+
+    bb_http_register_common_routes(server);
+    bb_info_register_routes(server);
+    bb_wifi_register_routes(server);
+    bb_board_register_routes(server);
+    bb_log_stream_register_routes(server);
 
     ESP_LOGI(TAG, "mining routes registered");
     return BB_OK;
