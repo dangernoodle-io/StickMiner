@@ -26,7 +26,7 @@ void mining_stats_update_ema(hashrate_ema_t *ema, double sample, int64_t now_us)
 #include "esp_timer.h"
 #include "esp_task_wdt.h"
 #include "sha256_hw.h"
-#include "nvs.h"
+#include "bb_nv.h"
 #include "driver/temperature_sensor.h"
 
 static const char *TAG = "mining";
@@ -45,19 +45,13 @@ static SemaphoreHandle_t s_pause_mutex = NULL;
 
 void mining_stats_load_lifetime(void)
 {
-    nvs_handle_t h;
-    if (nvs_open("taipanminer", NVS_READONLY, &h) != ESP_OK) {
-        return;  // no stats saved yet
-    }
-
-    nvs_get_u32(h, "lt_shares", &mining_stats.lifetime.total_shares);
-
     uint32_t lo = 0, hi = 0;
-    nvs_get_u32(h, "lt_hashes_lo", &lo);
-    nvs_get_u32(h, "lt_hashes_hi", &hi);
-    mining_stats.lifetime.total_hashes = ((uint64_t)hi << 32) | lo;
 
-    nvs_close(h);
+    bb_nv_get_u32("taipanminer", "lt_shares", &mining_stats.lifetime.total_shares, 0);
+    bb_nv_get_u32("taipanminer", "lt_hashes_lo", &lo, 0);
+    bb_nv_get_u32("taipanminer", "lt_hashes_hi", &hi, 0);
+
+    mining_stats.lifetime.total_hashes = ((uint64_t)hi << 32) | lo;
 
     bb_log_i(TAG, "loaded lifetime stats: shares=%" PRIu32 " hashes=%" PRIu64,
              mining_stats.lifetime.total_shares, (uint64_t)mining_stats.lifetime.total_hashes);
@@ -65,18 +59,9 @@ void mining_stats_load_lifetime(void)
 
 void mining_stats_save_lifetime(const mining_lifetime_t *snapshot)
 {
-    nvs_handle_t h;
-    if (nvs_open("taipanminer", NVS_READWRITE, &h) != ESP_OK) {
-        bb_log_e(TAG, "failed to open NVS for stats save");
-        return;
-    }
-
-    nvs_set_u32(h, "lt_shares", snapshot->total_shares);
-
-    nvs_set_u32(h, "lt_hashes_lo", (uint32_t)(snapshot->total_hashes & 0xFFFFFFFF));
-    nvs_set_u32(h, "lt_hashes_hi", (uint32_t)(snapshot->total_hashes >> 32));
-    nvs_commit(h);
-    nvs_close(h);
+    bb_nv_set_u32("taipanminer", "lt_shares", snapshot->total_shares);
+    bb_nv_set_u32("taipanminer", "lt_hashes_lo", (uint32_t)(snapshot->total_hashes & 0xFFFFFFFF));
+    bb_nv_set_u32("taipanminer", "lt_hashes_hi", (uint32_t)(snapshot->total_hashes >> 32));
 }
 
 temperature_sensor_handle_t mining_stats_temp_handle(void)
