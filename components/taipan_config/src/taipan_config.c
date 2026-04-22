@@ -48,16 +48,11 @@ bb_err_t taipan_config_init(void)
         return err;
     }
 
-    // Load pool_port (u16 requires custom read since breadboard only has u8/u32)
-    // Note: original implementation stored it as u16 directly in NVS
-    // We need to read it via u32 fallback or implement a custom getter
-    uint32_t port_u32 = 0;
-    err = bb_nv_get_u32(TAIPAN_NS, "pool_port", &port_u32, 0);
+    err = bb_nv_get_u16(TAIPAN_NS, "pool_port", &s_config.pool_port, 0);
     if (err != BB_OK) {
         bb_log_e(TAG, "failed to load pool_port");
         return err;
     }
-    s_config.pool_port = (uint16_t)port_u32;
 
     bb_log_i(TAG, "pool config loaded (pool=%s:%u worker=%s.%s)",
              s_config.pool_host, s_config.pool_port,
@@ -85,7 +80,7 @@ bb_err_t taipan_config_set_pool(const char *pool_host, uint16_t pool_port,
     err = bb_nv_set_str(TAIPAN_NS, "pool_host", pool_host);
     if (err != BB_OK) return err;
 
-    err = bb_nv_set_u32(TAIPAN_NS, "pool_port", (uint32_t)pool_port);
+    err = bb_nv_set_u16(TAIPAN_NS, "pool_port", pool_port);
     if (err != BB_OK) return err;
 
     err = bb_nv_set_str(TAIPAN_NS, "wallet_addr", wallet_addr);
