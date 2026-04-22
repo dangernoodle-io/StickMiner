@@ -15,7 +15,7 @@ static struct {
 
 static const char *TAG = "taipan_config";
 
-taipan_err_t taipan_config_init(void)
+bb_err_t taipan_config_init(void)
 {
 #ifdef ESP_PLATFORM
     bb_err_t err;
@@ -76,7 +76,7 @@ const char *taipan_config_worker_name(void) { return s_config.worker_name; }
 const char *taipan_config_pool_pass(void) { return s_config.pool_pass; }
 
 #ifdef ESP_PLATFORM
-taipan_err_t taipan_config_set_pool(const char *pool_host, uint16_t pool_port,
+bb_err_t taipan_config_set_pool(const char *pool_host, uint16_t pool_port,
                                       const char *wallet_addr, const char *worker_name,
                                       const char *pool_pass)
 {
