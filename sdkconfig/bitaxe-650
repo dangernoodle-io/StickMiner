@@ -1,0 +1,3 @@
+# Bitaxe 650 — delta from sdkconfig.defaults
+CONFIG_UART_ISR_IN_IRAM=y
+CONFIG_VFS_SELECT_IN_RAM=y
