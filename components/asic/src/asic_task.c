@@ -689,6 +689,15 @@ void asic_mining_task(void *arg)
             bb_log_i(TAG, "asic: %.1f GH/s (reported %.1f) | hw_err: %.2f%% | temp: %.1f C | shares: %" PRIu32 " | sha pass/fail: %" PRIu32 "/%" PRIu32,
                      hashrate / 1e9, total_ghs_sum, asic_hw_error_pct,
                      temp, shares, s_sha_pass, s_sha_fail);
+
+            // TA-198: per-chip raw counters for diagnostic (601 vs 650 comparison)
+            for (int c = 0; c < BOARD_ASIC_COUNT; c++) {
+                bb_log_i(TAG, "chip %d: total_raw=%" PRIu32 " error_raw=%" PRIu32
+                              " total_ghs=%.1f error_ghs=%.2f",
+                         c, s_chip_meas[c].total_val, s_chip_meas[c].error_val,
+                         s_chip_meas[c].total_ghs, s_chip_meas[c].error_ghs);
+            }
+
             nonces_since_log = 0;
             last_hashrate_tick = now;
         }
