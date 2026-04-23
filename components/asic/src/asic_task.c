@@ -68,6 +68,11 @@ static struct {
     float    error_ghs;
     bool     total_init;
     bool     error_init;
+    // Per-domain (BM1370 has 4 hash domains per chip)
+    uint32_t domain_val[4];
+    uint64_t domain_time_us[4];
+    float    domain_ghs[4];
+    bool     domain_init[4];
 } s_chip_meas[BOARD_ASIC_COUNT];
 
 // TA-196: rolling-window averages mirroring ESP-Miner's hashrate_monitor_task.c
@@ -420,6 +425,20 @@ void asic_mining_task(void *arg)
                     }
                     s_chip_meas[chip_idx].error_val = value;
                     s_chip_meas[chip_idx].error_time_us = now_us;
+                } else if (reg_addr >= BM1370_REG_DOMAIN_0_COUNT && reg_addr <= BM1370_REG_DOMAIN_3_COUNT) {
+                    int d = reg_addr - BM1370_REG_DOMAIN_0_COUNT;
+                    if (s_chip_meas[chip_idx].domain_init[d]) {
+                        uint32_t delta = value - s_chip_meas[chip_idx].domain_val[d];
+                        float seconds = (float)(now_us - s_chip_meas[chip_idx].domain_time_us[d]) / 1e6f;
+                        if (seconds > 0.001f) {
+                            s_chip_meas[chip_idx].domain_ghs[d] =
+                                (float)delta * (float)HASH_CNT_LSB / seconds / 1e9f;
+                        }
+                    } else {
+                        s_chip_meas[chip_idx].domain_init[d] = true;
+                    }
+                    s_chip_meas[chip_idx].domain_val[d] = value;
+                    s_chip_meas[chip_idx].domain_time_us[d] = now_us;
                 }
                 continue;
             }
@@ -579,6 +598,14 @@ void asic_mining_task(void *arg)
             read_reg(BM1370_REG_TOTAL_COUNT);
             vTaskDelay(pdMS_TO_TICKS(10));
             read_reg(BM1370_REG_ERROR_COUNT);
+            vTaskDelay(pdMS_TO_TICKS(10));
+            read_reg(BM1370_REG_DOMAIN_0_COUNT);
+            vTaskDelay(pdMS_TO_TICKS(10));
+            read_reg(BM1370_REG_DOMAIN_1_COUNT);
+            vTaskDelay(pdMS_TO_TICKS(10));
+            read_reg(BM1370_REG_DOMAIN_2_COUNT);
+            vTaskDelay(pdMS_TO_TICKS(10));
+            read_reg(BM1370_REG_DOMAIN_3_COUNT);
             // Let responses settle before aggregating.
             vTaskDelay(pdMS_TO_TICKS(100));
 
@@ -697,6 +724,20 @@ i2c_master_bus_handle_t asic_get_i2c_bus(void)
 void asic_set_i2c_bus(i2c_master_bus_handle_t bus)
 {
     s_i2c_bus = bus;
+}
+
+// TA-192 phase 2: Per-chip telemetry snapshot for /api/stats
+int asic_task_get_chip_telemetry(asic_chip_telemetry_t *out, int max_chips)
+{
+    int n = (max_chips < BOARD_ASIC_COUNT) ? max_chips : BOARD_ASIC_COUNT;
+    for (int c = 0; c < n; c++) {
+        out[c].total_ghs = s_chip_meas[c].total_ghs;
+        out[c].error_ghs = s_chip_meas[c].error_ghs;
+        for (int d = 0; d < 4; d++) {
+            out[c].domain_ghs[d] = s_chip_meas[c].domain_ghs[d];
+        }
+    }
+    return n;
 }
 
 #endif // ASIC_BM1370 || ASIC_BM1368

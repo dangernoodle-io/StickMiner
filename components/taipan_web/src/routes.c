@@ -231,6 +231,27 @@ static bb_err_t stats_handler(bb_http_request_t *req)
         bb_json_obj_set_null(root, "asic_hw_error_pct_10m");
         bb_json_obj_set_null(root, "asic_hw_error_pct_1h");
     }
+
+    // Per-chip telemetry (TA-192 phase 2)
+    asic_chip_telemetry_t chip_tel[BOARD_ASIC_COUNT];
+    int n_chips = asic_task_get_chip_telemetry(chip_tel, BOARD_ASIC_COUNT);
+
+    bb_json_t chips_arr = bb_json_arr_new();
+    for (int c = 0; c < n_chips; c++) {
+        bb_json_t chip_obj = bb_json_obj_new();
+        bb_json_obj_set_number(chip_obj, "idx", c);
+        bb_json_obj_set_number(chip_obj, "total_ghs", (double)chip_tel[c].total_ghs);
+        bb_json_obj_set_number(chip_obj, "error_ghs", (double)chip_tel[c].error_ghs);
+
+        bb_json_t domains_arr = bb_json_arr_new();
+        for (int d = 0; d < 4; d++) {
+            bb_json_arr_append_number(domains_arr, (double)chip_tel[c].domain_ghs[d]);
+        }
+        bb_json_obj_set_arr(chip_obj, "domain_ghs", domains_arr);
+
+        bb_json_arr_append_obj(chips_arr, chip_obj);
+    }
+    bb_json_obj_set_arr(root, "asic_chips", chips_arr);
 #endif
 
     char *json = bb_json_serialize(root);

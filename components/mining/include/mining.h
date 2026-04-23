@@ -192,3 +192,17 @@ temperature_sensor_handle_t mining_stats_temp_handle(void);
 // Mining task — runs on Core 1, priority 20
 void mining_task(void *arg);
 #endif
+
+#ifdef ASIC_CHIP
+// Per-chip telemetry snapshot for /api/stats (TA-192 phase 2).
+// Callers provide a buffer dimensioned by BOARD_ASIC_COUNT chips × 4 domains.
+typedef struct {
+    float total_ghs;
+    float error_ghs;
+    float domain_ghs[4];
+} asic_chip_telemetry_t;
+
+// Fill `out[]` with current per-chip snapshot (BOARD_ASIC_COUNT entries).
+// Returns number of entries filled.
+int asic_task_get_chip_telemetry(asic_chip_telemetry_t *out, int max_chips);
+#endif
