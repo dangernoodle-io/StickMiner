@@ -4,6 +4,15 @@
 #include <stdint.h>
 #include <stddef.h>
 
+// Telemetry register map — shared by BM1368 and BM1370 (identical offsets per AxeOS).
+// Counters increment by 1 per 2^32 hashes (HASH_CNT_LSB).
+#define ASIC_REG_ERROR_COUNT     0x4C
+#define ASIC_REG_DOMAIN_0_COUNT  0x88
+#define ASIC_REG_DOMAIN_1_COUNT  0x89
+#define ASIC_REG_DOMAIN_2_COUNT  0x8A
+#define ASIC_REG_DOMAIN_3_COUNT  0x8B
+#define ASIC_REG_TOTAL_COUNT     0x8C
+
 // UART helpers (defined in asic_task.c)
 int  asic_uart_read(uint8_t *buf, size_t len, uint32_t timeout_ms);
 void asic_uart_write(const uint8_t *buf, size_t len);

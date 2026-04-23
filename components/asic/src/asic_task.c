@@ -402,7 +402,7 @@ void asic_mining_task(void *arg)
                 uint64_t now_us = esp_timer_get_time();
                 static const uint64_t HASH_CNT_LSB = 1ULL << 32;
 
-                if (reg_addr == BM1370_REG_TOTAL_COUNT) {
+                if (reg_addr == ASIC_REG_TOTAL_COUNT) {
                     if (s_chip_meas[chip_idx].total_init) {
                         uint32_t delta = value - s_chip_meas[chip_idx].total_val;
                         float seconds = (float)(now_us - s_chip_meas[chip_idx].total_time_us) / 1e6f;
@@ -416,7 +416,7 @@ void asic_mining_task(void *arg)
                     }
                     s_chip_meas[chip_idx].total_val = value;
                     s_chip_meas[chip_idx].total_time_us = now_us;
-                } else if (reg_addr == BM1370_REG_ERROR_COUNT) {
+                } else if (reg_addr == ASIC_REG_ERROR_COUNT) {
                     if (s_chip_meas[chip_idx].error_init) {
                         uint32_t delta = value - s_chip_meas[chip_idx].error_val;
                         float seconds = (float)(now_us - s_chip_meas[chip_idx].error_time_us) / 1e6f;
@@ -430,8 +430,8 @@ void asic_mining_task(void *arg)
                     }
                     s_chip_meas[chip_idx].error_val = value;
                     s_chip_meas[chip_idx].error_time_us = now_us;
-                } else if (reg_addr >= BM1370_REG_DOMAIN_0_COUNT && reg_addr <= BM1370_REG_DOMAIN_3_COUNT) {
-                    int d = reg_addr - BM1370_REG_DOMAIN_0_COUNT;
+                } else if (reg_addr >= ASIC_REG_DOMAIN_0_COUNT && reg_addr <= ASIC_REG_DOMAIN_3_COUNT) {
+                    int d = reg_addr - ASIC_REG_DOMAIN_0_COUNT;
                     if (s_chip_meas[chip_idx].domain_init[d]) {
                         uint32_t delta = value - s_chip_meas[chip_idx].domain_val[d];
                         float seconds = (float)(now_us - s_chip_meas[chip_idx].domain_time_us[d]) / 1e6f;
@@ -600,17 +600,17 @@ void asic_mining_task(void *arg)
 
         // Every 5s: poll total + error counters for per-chip HW telemetry (TA-192) and compute rolling averages (TA-196)
         if (now - last_reg_poll >= pdMS_TO_TICKS(ASIC_POLL_PERIOD_MS)) {
-            read_reg(BM1370_REG_TOTAL_COUNT);
+            read_reg(ASIC_REG_TOTAL_COUNT);
             vTaskDelay(pdMS_TO_TICKS(10));
-            read_reg(BM1370_REG_ERROR_COUNT);
+            read_reg(ASIC_REG_ERROR_COUNT);
             vTaskDelay(pdMS_TO_TICKS(10));
-            read_reg(BM1370_REG_DOMAIN_0_COUNT);
+            read_reg(ASIC_REG_DOMAIN_0_COUNT);
             vTaskDelay(pdMS_TO_TICKS(10));
-            read_reg(BM1370_REG_DOMAIN_1_COUNT);
+            read_reg(ASIC_REG_DOMAIN_1_COUNT);
             vTaskDelay(pdMS_TO_TICKS(10));
-            read_reg(BM1370_REG_DOMAIN_2_COUNT);
+            read_reg(ASIC_REG_DOMAIN_2_COUNT);
             vTaskDelay(pdMS_TO_TICKS(10));
-            read_reg(BM1370_REG_DOMAIN_3_COUNT);
+            read_reg(ASIC_REG_DOMAIN_3_COUNT);
             // Let responses settle before aggregating.
             vTaskDelay(pdMS_TO_TICKS(100));
 
