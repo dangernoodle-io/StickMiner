@@ -18,6 +18,9 @@ static void timer_callback(void *arg)
 
 void ota_validator_on_stratum_authorized(void)
 {
+    if (!bb_ota_is_pending()) {
+        return;  // Not a freshly-pushed OTA image; nothing to validate.
+    }
     if (s_timer != NULL) {
         return;  // Timer already running
     }
@@ -37,7 +40,10 @@ void ota_validator_on_stratum_authorized(void)
 
 void ota_validator_on_share_accepted(void)
 {
-    // Cancel timer if running
+    if (!bb_ota_is_pending()) {
+        return;
+    }
+
     if (s_timer != NULL) {
         esp_timer_stop(s_timer);
         esp_timer_delete(s_timer);
