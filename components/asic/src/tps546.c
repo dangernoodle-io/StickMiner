@@ -58,6 +58,17 @@ static esp_err_t pmbus_write_word(uint8_t reg, uint16_t val)
     return i2c_master_transmit(s_dev, buf, 3, 100);
 }
 
+// Read two bytes (word) from a PMBus register (little-endian)
+static esp_err_t pmbus_read_word(uint8_t reg, uint16_t *val)
+{
+    uint8_t buf[2];
+    esp_err_t err = i2c_master_transmit_receive(s_dev, &reg, 1, buf, 2, 100);
+    if (err == ESP_OK) {
+        *val = (uint16_t)(buf[0] | ((uint16_t)buf[1] << 8));
+    }
+    return err;
+}
+
 // PMBus send-byte (command only, no data payload). Used for CLEAR_FAULTS.
 static esp_err_t pmbus_send_byte(uint8_t reg)
 {
@@ -135,6 +146,18 @@ bb_err_t tps546_init(i2c_master_bus_handle_t bus, uint8_t addr, uint16_t target_
     ESP_RETURN_ON_ERROR(pmbus_write_byte(PMBUS_OPERATION, OPERATION_ON), TAG, "power on");
     bb_log_i(TAG, "powered on at %u mV", target_mv);
 
+    // Readback the registers we just programmed — confirms the TPS546 accepted
+    // the write. If OTP already had different values and our write was rejected,
+    // the readback shows the OTP value rather than what we tried to set.
+    uint16_t fsw_raw = 0, oc_raw = 0;
+    if (pmbus_read_word(PMBUS_FREQUENCY_SWITCH, &fsw_raw) == ESP_OK) {
+        int mantissa = fsw_raw & 0x07FFu;
+        bb_log_i(TAG, "FREQUENCY_SWITCH readback=0x%04X (~%d kHz)", fsw_raw, mantissa);
+    }
+    if (pmbus_read_word(PMBUS_IOUT_OC_FAULT_LIMIT, &oc_raw) == ESP_OK) {
+        bb_log_i(TAG, "IOUT_OC_FAULT_LIMIT readback=0x%04X", oc_raw);
+    }
+
     return BB_OK;
 }
 
@@ -144,16 +167,6 @@ bb_err_t tps546_set_voltage_mv(uint16_t target_mv)
     ESP_RETURN_ON_ERROR(pmbus_write_word(PMBUS_VOUT_COMMAND, code), TAG, "set VOUT");
     bb_log_i(TAG, "VOUT_COMMAND=0x%04X (%u mV)", code, target_mv);
     return BB_OK;
-}
-
-static esp_err_t pmbus_read_word(uint8_t reg, uint16_t *val)
-{
-    uint8_t buf[2];
-    esp_err_t err = i2c_master_transmit_receive(s_dev, &reg, 1, buf, 2, 100);
-    if (err == ESP_OK) {
-        *val = (uint16_t)(buf[0] | ((uint16_t)buf[1] << 8));
-    }
-    return err;
 }
 
 int tps546_read_vout_mv(void)
