@@ -1,8 +1,10 @@
 #pragma once
 
-#define BOARD_NAME "bitaxe-601"
+// Pins inherited from bitaxe-601; verify against Gamma Duo schematic before first flash.
 
-// BM1370 ASIC (UART1)
+#define BOARD_NAME "bitaxe-650"
+
+// BM1370 ASIC (UART1) — dual chip in daisy chain
 #define PIN_ASIC_TX        17
 #define PIN_ASIC_RX        18
 #define ASIC_UART_NUM      1       // UART_NUM_1
@@ -36,7 +38,7 @@
 // ASIC operating parameters
 #define BM1370_DEFAULT_MV       1100   // TPS546 VOUT target (mV)
 #define BM1370_DEFAULT_FREQ_MHZ 490    // initial PLL target frequency (MHz)
-#define BM1370_CHIP_COUNT       1      // number of BM1370 chips in chain
+#define BM1370_CHIP_COUNT       2      // number of BM1370 chips in chain
 #define BM1370_JOB_INTERVAL_MS  500    // job dispatch interval (ms) — keeps ASIC fed
 #define I2C_BUS_NUM             0      // I2C master bus number
 
@@ -49,4 +51,4 @@
 
 // ASIC small cores and chip count for frequency tracking
 #define BOARD_SMALL_CORES       2040
-#define BOARD_ASIC_COUNT        1
+#define BOARD_ASIC_COUNT        2

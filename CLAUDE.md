@@ -44,6 +44,7 @@ For clangd-based C/C++ IntelliSense (via the `espidf-clangd-lsp` Claude Code plu
 | `tdongle-s3` | LilyGo T-Dongle S3 | none (SW mining) | USB CDC |
 | `bitaxe-601` | Bitaxe 601 Gamma | BM1370 | USB CDC |
 | `bitaxe-403` | Bitaxe 403 | BM1368 | USB CDC |
+| `bitaxe-650` | Bitaxe Gamma Duo | 2x BM1370 | USB CDC |
 
 ### Platform policy
 

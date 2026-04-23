@@ -2,7 +2,7 @@
 
 #include "bb_hw.h"
 
-#if defined(BOARD_TDONGLE_S3) || defined(BOARD_BITAXE_601) || defined(BOARD_BITAXE_403)
+#if defined(BOARD_TDONGLE_S3) || defined(BOARD_BITAXE_601) || defined(BOARD_BITAXE_403) || defined(BOARD_BITAXE_650)
 #  define HAS_I2C 1
 #endif
 

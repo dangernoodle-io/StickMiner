@@ -24,6 +24,7 @@ build-%: ## Build specific env (e.g. make build-tdongle-s3)
 compile-db: ## Generate compile_commands.json for all boards (clangd LSP)
 	$(PIO) run -t compiledb -e bitaxe-601
 	$(PIO) run -t compiledb -e bitaxe-403
+	$(PIO) run -t compiledb -e bitaxe-650
 	$(PIO) run -t compiledb -e tdongle-s3
 
 lsp-%: ## Switch clangd to <env> (e.g. make lsp-bitaxe-601) — generates DB and updates symlink
