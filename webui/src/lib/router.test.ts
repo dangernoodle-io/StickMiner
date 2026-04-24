@@ -68,7 +68,7 @@ describe('router', () => {
 
     it('navigates to different routes', async () => {
       const { goto } = await import('./router')
-      const routes = ['system', 'diagnostics', 'update']
+      const routes = ['system', 'diagnostics', 'update'] as const
       for (const r of routes) {
         goto(r)
         expect(window.location.hash).toBe(`#/${r}`)
