@@ -146,6 +146,25 @@ export async function postReboot(): Promise<void> {
   if (!res.ok) throw new Error(`reboot failed: ${res.status}`)
 }
 
+export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'verbose' | 'none'
+
+export interface LogLevelList {
+  levels: LogLevel[]
+  tags: { tag: string; level: LogLevel }[]
+}
+
+export const fetchLogLevels = () => getJson<LogLevelList>('/api/log/level')
+
+export async function setLogLevel(tag: string, level: LogLevel): Promise<void> {
+  const body = `tag=${encodeURIComponent(tag)}&level=${encodeURIComponent(level)}`
+  const res = await fetch(`${baseUrl}/api/log/level`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body
+  })
+  if (!res.ok) throw new Error(`set log level failed: ${res.status}`)
+}
+
 // OTA check — returns 202 while in progress; result on 200.
 export interface OtaCheckResult {
   update_available: boolean
