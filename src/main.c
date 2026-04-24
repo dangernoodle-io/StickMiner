@@ -324,6 +324,15 @@ void app_main(void)
     bb_ota_pull_set_firmware_board("taipanminer-" FIRMWARE_BOARD);
     bb_ota_pull_set_hooks(mining_pause, mining_resume);
     bb_ota_pull_set_skip_check_cb(bb_nv_config_ota_skip_check);
+    // Per-board OTA worker core. Bitaxe (ASIC_CHIP): Core 1 is quiesced by
+    // TA-216 during OTA, so pinning there frees Core 0 for httpd/stratum.
+    // Tdongle (no ASIC): Core 1 runs idle task; pinning there hits an esp-idf
+    // DVFS race (esp_cpu_unstall during flash-op stall) — let scheduler pick.
+#ifdef ASIC_CHIP
+    bb_ota_pull_set_task_core(1);
+#else
+    bb_ota_pull_set_task_core(tskNO_AFFINITY);
+#endif
 
     // Initialize OTA push with breadboard component
     bb_ota_push_set_hooks(mining_pause, mining_resume);
