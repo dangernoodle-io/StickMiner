@@ -10,6 +10,7 @@
   import System from './pages/System.svelte'
   import Pool from './pages/Pool.svelte'
   import Update from './pages/Update.svelte'
+  import Diagnostics from './pages/Diagnostics.svelte'
   import './lib/theme.css'
   import './App.css'
 
@@ -32,6 +33,8 @@
     <Pool />
   {:else if $route === 'update'}
     <Update />
+  {:else if $route === 'diagnostics'}
+    <Diagnostics />
   {:else}
     <Dashboard />
   {/if}
