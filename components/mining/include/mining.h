@@ -206,6 +206,10 @@ typedef struct {
     // Raw BM1370 register values at last poll (diagnostic — see TA-198).
     uint32_t total_raw;
     uint32_t error_raw;
+    // TA-223: drop counters for sanity-fail diagnostics
+    uint32_t total_drops;
+    uint32_t error_drops;
+    uint32_t domain_drops[4];
 } asic_chip_telemetry_t;
 
 // Fill `out[]` with current per-chip snapshot (BOARD_ASIC_COUNT entries).
