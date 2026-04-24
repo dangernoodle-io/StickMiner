@@ -46,11 +46,28 @@ Requires [PlatformIO](https://platformio.org/).
 
 TaipanMiner consumes shared infrastructure (WiFi, provisioning, HTTP server, OTA, logging, NVS) from the [breadboard](https://github.com/dangernoodle-io/breadboard) library. The CMakeLists.txt uses `EXTRA_COMPONENT_DIRS` to include breadboard components at build time.
 
+### Firmware build
+
+The firmware embeds a web UI (Svelte + TypeScript SPA). Build the web UI before the firmware:
+
 ```bash
+make webui              # build web UI into webui/dist/
 make build              # build all boards
 make test               # run host unit tests
 make flash-<board>      # flash specific board (e.g. make flash-tdongle-s3)
 ```
+
+### Web UI development
+
+The web UI can be developed standalone without reflashing:
+
+```bash
+cd webui
+npm ci                  # install dependencies
+npm run dev             # start dev server (proxies /api/* to a miner on the network)
+```
+
+Set `VITE_MINER_URL=http://<miner-ip>` in `webui/.env` to target a live device. Run tests with `npm test -- --run`.
 
 ## License
 

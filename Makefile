@@ -1,10 +1,13 @@
 PIO ?= pio
 
-.PHONY: help check test coverage build clean monitor compile-db lsp-%
+.PHONY: help check test coverage build clean monitor compile-db lsp-% webui
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_%-]+:.*##' $(MAKEFILE_LIST) | sort | \
 		awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+webui: ## Build web UI (Svelte SPA) into webui/dist/
+	cd webui && npm ci && npm run build
 
 check: ## Static analysis (cppcheck)
 	$(PIO) check --skip-packages

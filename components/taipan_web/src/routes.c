@@ -41,14 +41,16 @@ extern const uint8_t prov_form_html_gz[];
 extern const size_t prov_form_html_gz_len;
 extern const uint8_t theme_css_gz[];
 extern const size_t theme_css_gz_len;
-extern const uint8_t logo_svg_gz[];
-extern const size_t logo_svg_gz_len;
-extern const uint8_t mining_html_gz[];
-extern const size_t mining_html_gz_len;
-extern const uint8_t mining_js_gz[];
-extern const size_t mining_js_gz_len;
+extern const uint8_t index_html_gz[];
+extern const size_t index_html_gz_len;
+extern const uint8_t index_js_gz[];
+extern const size_t index_js_gz_len;
+extern const uint8_t index_css_gz[];
+extern const size_t index_css_gz_len;
 extern const uint8_t prov_save_html_gz[];
 extern const size_t prov_save_html_gz_len;
+extern const uint8_t logo_svg_gz[];
+extern const size_t logo_svg_gz_len;
 extern const uint8_t favicon_svg_gz[];
 extern const size_t favicon_svg_gz_len;
 
@@ -715,23 +717,23 @@ const bb_http_asset_t *taipan_web_prov_assets(size_t *n)
 }
 
 static bb_http_asset_t s_mining_assets[] = {
-    { "/",            "text/html",       "gzip", NULL, 0    },
-    { "/mining.js",   "application/javascript", "gzip", NULL, 0    },
-    { "/theme.css",   "text/css",        "gzip", NULL, 0      },
-    { "/logo.svg",    "image/svg+xml",   "gzip", NULL, 0       },
-    { "/favicon.ico", "image/svg+xml",   "gzip", NULL, 0    },
+    { "/",                  "text/html",              "gzip", NULL, 0 },
+    { "/assets/index.js",   "application/javascript", "gzip", NULL, 0 },
+    { "/assets/index.css",  "text/css",               "gzip", NULL, 0 },
+    { "/logo.svg",          "image/svg+xml",          "gzip", NULL, 0 },
+    { "/favicon.svg",       "image/svg+xml",          "gzip", NULL, 0 },
 };
 
 static void init_mining_assets(void)
 {
     static bool initialized = false;
     if (!initialized) {
-        s_mining_assets[0].data = mining_html_gz;
-        s_mining_assets[0].len = mining_html_gz_len;
-        s_mining_assets[1].data = mining_js_gz;
-        s_mining_assets[1].len = mining_js_gz_len;
-        s_mining_assets[2].data = theme_css_gz;
-        s_mining_assets[2].len = theme_css_gz_len;
+        s_mining_assets[0].data = index_html_gz;
+        s_mining_assets[0].len = index_html_gz_len;
+        s_mining_assets[1].data = index_js_gz;
+        s_mining_assets[1].len = index_js_gz_len;
+        s_mining_assets[2].data = index_css_gz;
+        s_mining_assets[2].len = index_css_gz_len;
         s_mining_assets[3].data = logo_svg_gz;
         s_mining_assets[3].len = logo_svg_gz_len;
         s_mining_assets[4].data = favicon_svg_gz;
