@@ -286,13 +286,15 @@ void app_main(void)
             esp_err_t err = bb_wifi_init_sta();
             if (err == ESP_OK) {
                 ESP_ERROR_CHECK(led_off());
-                bb_log_i(TAG, "provisioning complete");
+                bb_log_i(TAG, "provisioning complete; restarting into mining mode");
                 bb_nv_config_set_provisioned();
                 bb_nv_config_reset_boot_count();
-                connected = true;
-                // Stop provisioning and switch to mining mode
-                bb_prov_stop();
-                ESP_ERROR_CHECK(taipan_web_register_mining_routes(bb_http_server_get_handle()));
+                // Reboot so mining init follows the same path as every subsequent boot:
+                // asic_init() runs before tasks start. In-process transition skipped
+                // asic_init, leaving UART/I2C drivers uninstalled and the ASIC task
+                // spinning on ESP_ERR_INVALID_STATE until a manual reboot. (TA-225)
+                vTaskDelay(pdMS_TO_TICKS(100));  // let the log flush
+                esp_restart();
             } else {
                 bb_log_w(TAG, "STA connect failed, re-entering provisioning");
                 // Reinitialize AP for retry
