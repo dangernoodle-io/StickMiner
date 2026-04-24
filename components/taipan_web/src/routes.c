@@ -247,12 +247,20 @@ static bb_err_t stats_handler(bb_http_request_t *req)
         bb_json_obj_set_number(chip_obj, "hw_err_pct", (double)chip_tel[c].hw_err_pct);
         bb_json_obj_set_number(chip_obj, "total_raw", (double)chip_tel[c].total_raw);
         bb_json_obj_set_number(chip_obj, "error_raw", (double)chip_tel[c].error_raw);
+        bb_json_obj_set_number(chip_obj, "total_drops", chip_tel[c].total_drops);
+        bb_json_obj_set_number(chip_obj, "error_drops", chip_tel[c].error_drops);
 
         bb_json_t domains_arr = bb_json_arr_new();
         for (int d = 0; d < 4; d++) {
             bb_json_arr_append_number(domains_arr, (double)chip_tel[c].domain_ghs[d]);
         }
         bb_json_obj_set_arr(chip_obj, "domain_ghs", domains_arr);
+
+        bb_json_t domains_drops_arr = bb_json_arr_new();
+        for (int d = 0; d < 4; d++) {
+            bb_json_arr_append_number(domains_drops_arr, chip_tel[c].domain_drops[d]);
+        }
+        bb_json_obj_set_arr(chip_obj, "domain_drops", domains_drops_arr);
 
         bb_json_arr_append_obj(chips_arr, chip_obj);
     }

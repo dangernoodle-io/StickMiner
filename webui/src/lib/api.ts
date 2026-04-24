@@ -6,6 +6,9 @@ export interface Chip {
   total_raw: number
   error_raw: number
   domain_ghs: number[]
+  total_drops: number
+  error_drops: number
+  domain_drops: number[]
 }
 
 export interface Stats {

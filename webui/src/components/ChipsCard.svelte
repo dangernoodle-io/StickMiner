@@ -12,27 +12,39 @@
     if (ratio < 0.85) return 'var(--accent-dim)'
     return 'var(--accent)'
   }
+
+  function getChipState(chip: Chip): 'corrupt' | 'inactive' | 'healthy' {
+    if (chip.total_drops > 0) return 'corrupt'
+    if (chip.total_ghs < 1) return 'inactive'
+    return 'healthy'
+  }
 </script>
 
 <section class="card">
   <header>
     <h3>Chips</h3>
     <span class="legend">
-      <span class="swatch" style="background: var(--danger)"></span> dead
-      <span class="swatch" style="background: var(--warning)"></span> low
+      <span class="swatch" style="background: var(--danger)"></span> telem corrupt
+      <span class="swatch" style="background: var(--warning)"></span> inactive
       <span class="swatch" style="background: var(--accent)"></span> healthy
     </span>
   </header>
 
   <div class="chips">
     {#each chips as chip (chip.idx)}
-      <div class="chip">
+      {@const state = getChipState(chip)}
+      <div class="chip" class:corrupt={state === 'corrupt'} class:inactive={state === 'inactive'}>
         <div class="chip-head">
           <span class="chip-id">chip {chip.idx}</span>
           <span class="chip-rate">{chip.total_ghs.toFixed(1)} <small>GH/s</small></span>
           <span class="chip-err" class:bad={chip.hw_err_pct > 1}>
             {chip.hw_err_pct.toFixed(2)}% err
           </span>
+          {#if state === 'corrupt'}
+            <span class="chip-warning" title="Dropped {chip.total_drops} telemetry reads — chip is still hashing but register readback is corrupt">
+              telem corrupt ({chip.total_drops} drops)
+            </span>
+          {/if}
         </div>
         <div class="domains">
           {#each chip.domain_ghs as d, i}
@@ -102,9 +114,22 @@
     padding-top: 10px;
   }
 
+  .chip {
+    transition: opacity 0.2s;
+  }
+
+  .chip.inactive {
+    opacity: 0.6;
+  }
+
+  .chip.corrupt {
+    border-left: 3px solid var(--danger);
+    padding-left: 12px;
+  }
+
   .chip-head {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto 1fr auto auto;
     align-items: baseline;
     gap: 12px;
     margin-bottom: 6px;
@@ -137,6 +162,14 @@
 
   .chip-err.bad {
     color: var(--warning);
+  }
+
+  .chip-warning {
+    font-size: 10px;
+    color: var(--danger);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
   }
 
   .domains {

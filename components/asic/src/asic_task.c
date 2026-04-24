@@ -64,6 +64,15 @@ static uint32_t s_sha_fail;
 #define ASIC_CHIP_GHS_SANITY_MAX   2000.0f  // per-chip cap
 #define ASIC_DOMAIN_GHS_SANITY_MAX  500.0f  // per-domain cap (1/4 of chip)
 
+// TA-223: warning rate-limit cooldown (per chip, per metric)
+#define WARN_COOLDOWN_US (30ULL * 1000 * 1000)
+
+static struct {
+    uint64_t total_last_warn_us;
+    uint64_t error_last_warn_us;
+    uint64_t domain_last_warn_us[4];
+} s_chip_warn[BOARD_ASIC_COUNT];
+
 // TA-192: per-chip register-derived telemetry (polled every 5s)
 static struct {
     uint32_t total_val;        // last REG_TOTAL_COUNT read
@@ -81,6 +90,10 @@ static struct {
     uint64_t domain_time_us[4];
     float    domain_ghs[4];
     uint8_t  domain_samples[4];
+    // TA-223: drop counters for sanity-fail telemetry
+    uint32_t total_drops;
+    uint32_t error_drops;
+    uint32_t domain_drops[4];
 } s_chip_meas[BOARD_ASIC_COUNT];
 
 // TA-196: rolling-window averages mirroring ESP-Miner's hashrate_monitor_task.c
@@ -431,7 +444,16 @@ void asic_mining_task(void *arg)
                             if (ghs < ASIC_CHIP_GHS_SANITY_MAX) {
                                 s_chip_meas[chip_idx].total_ghs = ghs;
                             } else {
-                                bb_log_w(TAG, "chip %d total_ghs sanity fail: %.1f — dropped", chip_idx, ghs);
+                                s_chip_meas[chip_idx].total_drops++;
+                                uint64_t now = esp_timer_get_time();
+                                if ((now - s_chip_warn[chip_idx].total_last_warn_us) >= WARN_COOLDOWN_US) {
+                                    float elapsed_s = (float)seconds;
+                                    bb_log_w(TAG, "chip %d total sanity fail: ghs=%.1f delta=0x%08" PRIx32
+                                                  " elapsed=%.3fs addr=0x%02X drops=%" PRIu32 " — dropped",
+                                             chip_idx, ghs, delta, elapsed_s, asic_addr,
+                                             s_chip_meas[chip_idx].total_drops);
+                                    s_chip_warn[chip_idx].total_last_warn_us = now;
+                                }
                             }
                         }
                     } else if (s_chip_meas[chip_idx].total_samples == 0) {
@@ -449,7 +471,16 @@ void asic_mining_task(void *arg)
                             if (ghs < ASIC_CHIP_GHS_SANITY_MAX) {
                                 s_chip_meas[chip_idx].error_ghs = ghs;
                             } else {
-                                bb_log_w(TAG, "chip %d error_ghs sanity fail: %.1f — dropped", chip_idx, ghs);
+                                s_chip_meas[chip_idx].error_drops++;
+                                uint64_t now = esp_timer_get_time();
+                                if ((now - s_chip_warn[chip_idx].error_last_warn_us) >= WARN_COOLDOWN_US) {
+                                    float elapsed_s = (float)seconds;
+                                    bb_log_w(TAG, "chip %d error sanity fail: ghs=%.1f delta=0x%08" PRIx32
+                                                  " elapsed=%.3fs addr=0x%02X drops=%" PRIu32 " — dropped",
+                                             chip_idx, ghs, delta, elapsed_s, asic_addr,
+                                             s_chip_meas[chip_idx].error_drops);
+                                    s_chip_warn[chip_idx].error_last_warn_us = now;
+                                }
                             }
                         }
                     } else if (s_chip_meas[chip_idx].error_samples == 0) {
@@ -468,7 +499,16 @@ void asic_mining_task(void *arg)
                             if (ghs < ASIC_DOMAIN_GHS_SANITY_MAX) {
                                 s_chip_meas[chip_idx].domain_ghs[d] = ghs;
                             } else {
-                                bb_log_w(TAG, "chip %d domain %d ghs sanity fail: %.1f — dropped", chip_idx, d, ghs);
+                                s_chip_meas[chip_idx].domain_drops[d]++;
+                                uint64_t now = esp_timer_get_time();
+                                if ((now - s_chip_warn[chip_idx].domain_last_warn_us[d]) >= WARN_COOLDOWN_US) {
+                                    float elapsed_s = (float)seconds;
+                                    bb_log_w(TAG, "chip %d domain %d sanity fail: ghs=%.1f delta=0x%08" PRIx32
+                                                  " elapsed=%.3fs addr=0x%02X drops=%" PRIu32 " — dropped",
+                                             chip_idx, d, ghs, delta, elapsed_s, asic_addr,
+                                             s_chip_meas[chip_idx].domain_drops[d]);
+                                    s_chip_warn[chip_idx].domain_last_warn_us[d] = now;
+                                }
                             }
                         }
                     }
@@ -783,6 +823,12 @@ int asic_task_get_chip_telemetry(asic_chip_telemetry_t *out, int max_chips)
         // Baseline-subtracted: excludes counter activity from PLL ramp.
         out[c].total_raw = s_chip_meas[c].total_val - s_chip_meas[c].total_val_base;
         out[c].error_raw = s_chip_meas[c].error_val - s_chip_meas[c].error_val_base;
+        // TA-223: drop counters
+        out[c].total_drops = s_chip_meas[c].total_drops;
+        out[c].error_drops = s_chip_meas[c].error_drops;
+        for (int d = 0; d < 4; d++) {
+            out[c].domain_drops[d] = s_chip_meas[c].domain_drops[d];
+        }
     }
     return n;
 }
