@@ -21,7 +21,18 @@ export default defineConfig(({ mode }) => {
         mangle: { toplevel: true },
         format: { comments: false }
       },
-      cssMinify: 'lightningcss'
+      cssMinify: 'lightningcss',
+      rollupOptions: {
+        output: {
+          entryFileNames: 'assets/index.js',
+          chunkFileNames: 'assets/index.js',
+          assetFileNames: (info) => {
+            const name = info.name ?? ''
+            if (name.endsWith('.css')) return 'assets/index.css'
+            return 'assets/[name][extname]'
+          },
+        },
+      },
     },
     server: {
       port: 5173,

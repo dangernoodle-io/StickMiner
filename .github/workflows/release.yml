@@ -6,7 +6,36 @@ on:
       - 'v*'
 
 jobs:
+  webui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: webui/package-lock.json
+      - name: Install deps
+        working-directory: webui
+        run: npm ci
+      - name: Typecheck
+        working-directory: webui
+        run: npm run check --if-present
+      - name: Unit tests
+        working-directory: webui
+        run: npm test -- --run
+      - name: Build
+        working-directory: webui
+        run: npm run build
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webui-dist
+          path: webui/dist
+          retention-days: 7
+
   build:
+    needs: webui
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -15,6 +44,10 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: webui-dist
+          path: webui/dist
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'

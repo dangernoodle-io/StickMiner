@@ -43,3 +43,11 @@ export function fmtBytes(b: number | null | undefined): string {
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
+
+export function fmtHashGhs(ghs: number | null | undefined): string {
+  if (ghs === null || ghs === undefined || isNaN(ghs)) return '—'
+  if (ghs >= 1000) return (ghs / 1000).toFixed(2) + ' TH/s'
+  if (ghs >= 1) return ghs.toFixed(1) + ' GH/s'
+  if (ghs >= 0.001) return (ghs * 1000).toFixed(1) + ' MH/s'
+  return (ghs * 1e6).toFixed(1) + ' kH/s'
+}

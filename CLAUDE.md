@@ -6,6 +6,7 @@ Bitcoin mining firmware for ESP32-S3 boards with optional ASIC support.
 
 - Framework: ESP-IDF via PlatformIO
 - `make help` — show all targets
+- `make webui` — build web UI (Svelte SPA) into `webui/dist/`
 - `make build` — build all boards (tdongle-s3, bitaxe-601, bitaxe-403)
 - `make build-<env>` — build specific board (e.g. `make build-bitaxe-403`)
 - `make flash-<env>` — flash specific board
@@ -135,14 +136,25 @@ TaipanMiner consumes shared infrastructure components from the breadboard librar
 
 ### Web UI
 
-- Mining-mode SPA: `mining.html` + `mining.js` at `/`, five tabs: Diagnostics, Info, Settings, Status, Health (bitaxe-only), Update
-- Provisioning-mode: `prov_form.html` at `/`, `prov_save.html` at `/save`
-- `theme.css` shared between both modes (dark navy/gold design system)
-- Web assets: embedded in `components/taipan_web/` via breadboard's `bb_embed_assets()` CMake helper (gzip-compression + C source generation)
-- To add a web asset: add file to `components/taipan_web/`, add a `<file>:<symbol>` pair to the ASSETS list in `components/taipan_web/CMakeLists.txt`, register handler in `components/taipan_web/src/routes.c`
-- HTTP routes dispatched via `bb_http_server` (breadboard) with TaipanMiner-specific handlers in `taipan_web`
-- API: `/api/stats` (polled every 5s), `/api/info` (device details), `/api/version`, `/api/ota/check`, `/api/ota/upload`, `/api/ota/update`, `/api/power` (bitaxe-only — 404 on tdongle), `/api/fan` (bitaxe-only — 404 on tdongle; `duty_pct` reflects actual curve-controlled setting, null until first 5s telemetry tick), `/api/logs/status`, `/api/logs`
-- OTA check suspends mining task to free heap for TLS handshake (~29 KB stack)
+**Mining-mode SPA**: Svelte + TypeScript + Vite SPA in `webui/`. Hash-based routing. Tabs: Dashboard, Diagnostics, History, Pool, Settings, System, Update.
+
+**Build**: `cd webui && npm ci && npm run build` generates `webui/dist/index.html` + `assets/index.js` + `assets/index.css` + `favicon.svg` + `logo.svg` (stable filenames — no content hashes, as firmware version is the cache-buster).
+
+**Embed**: `components/taipan_web/CMakeLists.txt` references `webui/dist/*` via `bb_embed_assets`. Firmware build assumes `webui/dist/` exists — run `make webui` before `make build-<env>` if stale.
+
+**Provisioning-mode**: `prov_form.html` + `prov_save.html` in `components/taipan_web/` (hand-authored, unchanged).
+
+**Theme**: `theme.css` in `components/taipan_web/` is provisioning-only now; SPA has its own theme baked in.
+
+**Dev loop**: `cd webui && npm run dev` with `VITE_MINER_URL=http://<miner-host>` in `webui/.env` — dev server proxies `/api/*` to the miner. Run against any tdongle/bitaxe on the network without reflashing. Works side-by-side with `--port 5174` for multi-device compare.
+
+**Tests**: `cd webui && npm test -- --run` (vitest).
+
+**To add a web asset to the SPA**: edit the Svelte source. Assets bundled by Vite are included automatically in `dist/`. Only provisioning-mode static files need manual `bb_embed_assets` entries.
+
+**API routes**: unchanged. `/api/stats` (polled every 5s), `/api/info` (device details), `/api/version`, `/api/ota/check`, `/api/ota/upload`, `/api/ota/update`, `/api/power` (bitaxe-only — 404 on tdongle), `/api/fan` (bitaxe-only — 404 on tdongle; `duty_pct` reflects actual curve-controlled setting, null until first 5s telemetry tick), `/api/logs/status`, `/api/logs`.
+
+**OTA check** suspends mining task to free heap for TLS handshake (~29 KB stack).
 
 ## Conventions
 

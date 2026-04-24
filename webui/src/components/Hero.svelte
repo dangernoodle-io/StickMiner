@@ -1,15 +1,7 @@
 <script lang="ts">
   import { stats, connected, hasAsic } from '../lib/stores'
   import Sparkline from './Sparkline.svelte'
-  import { fmtDuration, fmtRelative } from '../lib/fmt'
-
-  function fmtHashGhs(ghs: number | null): string {
-    if (ghs === null || ghs === undefined || isNaN(ghs)) return '—'
-    if (ghs >= 1000) return (ghs / 1000).toFixed(2) + ' TH/s'
-    if (ghs >= 1) return ghs.toFixed(1) + ' GH/s'
-    if (ghs >= 0.001) return (ghs * 1000).toFixed(1) + ' MH/s'
-    return (ghs * 1e6).toFixed(1) + ' kH/s'
-  }
+  import { fmtDuration, fmtRelative, fmtHashGhs } from '../lib/fmt'
 
   function fmtDiff(d: number): string {
     if (d >= 1e9) return (d / 1e9).toFixed(2) + 'G'
