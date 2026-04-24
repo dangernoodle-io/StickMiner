@@ -3,7 +3,7 @@
 
   const links: { id: Route; label: string; disabled?: boolean }[] = [
     { id: 'dashboard',   label: 'Dashboard' },
-    { id: 'diagnostics', label: 'Diagnostics', disabled: true },
+    { id: 'diagnostics', label: 'Diagnostics' },
     { id: 'history',     label: 'History',     disabled: true },
     { id: 'pool',        label: 'Pool' },
     { id: 'settings',    label: 'Settings',    disabled: true },
