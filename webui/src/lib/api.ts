@@ -30,8 +30,7 @@ export interface Stats {
   temp_c: number
   hashrate: number
   hashrate_avg: number
-  hw_hashrate: number
-  hw_shares: number
+  shares: number | null
   asic_hashrate: number | null
   asic_hashrate_avg: number | null
   asic_shares: number | null
@@ -144,6 +143,22 @@ export async function patchSettings(patch: Partial<Settings>): Promise<{ status:
 export async function postReboot(): Promise<void> {
   const res = await fetch(`${baseUrl}/api/reboot`, { method: 'POST' })
   if (!res.ok) throw new Error(`reboot failed: ${res.status}`)
+}
+
+// Lightweight liveness probe. Uses /api/version since it's the cheapest
+// existing endpoint (plain text, no heavy JSON). Swap to /api/ping when
+// TA-214 lands.
+export async function ping(timeoutMs = 2000): Promise<boolean> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${baseUrl}/api/version`, { signal: ctrl.signal })
+    return res.ok
+  } catch {
+    return false
+  } finally {
+    clearTimeout(t)
+  }
 }
 
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'verbose' | 'none'

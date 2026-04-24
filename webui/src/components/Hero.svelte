@@ -1,13 +1,14 @@
 <script lang="ts">
-  import { stats, connected } from '../lib/stores'
+  import { stats, connected, hasAsic } from '../lib/stores'
   import Sparkline from './Sparkline.svelte'
   import { fmtDuration, fmtRelative } from '../lib/fmt'
 
   function fmtHashGhs(ghs: number | null): string {
-    if (ghs === null) return '—'
+    if (ghs === null || ghs === undefined || isNaN(ghs)) return '—'
     if (ghs >= 1000) return (ghs / 1000).toFixed(2) + ' TH/s'
     if (ghs >= 1) return ghs.toFixed(1) + ' GH/s'
-    return (ghs * 1000).toFixed(1) + ' MH/s'
+    if (ghs >= 0.001) return (ghs * 1000).toFixed(1) + ' MH/s'
+    return (ghs * 1e6).toFixed(1) + ' kH/s'
   }
 
   function fmtDiff(d: number): string {
@@ -17,7 +18,7 @@
     return d.toFixed(0)
   }
 
-  $: ghs = $stats?.asic_total_ghs ?? ($stats ? $stats.hw_hashrate / 1e9 : null)
+  $: ghs = $stats?.asic_total_ghs ?? ($stats?.hashrate ? $stats.hashrate / 1e9 : null)
   $: ghs1m = $stats?.asic_total_ghs_1m ?? null
   $: ghs10m = $stats?.asic_total_ghs_10m ?? null
   $: ghs1h = $stats?.asic_total_ghs_1h ?? null
@@ -51,7 +52,11 @@
         <div class="sub-metrics">
           <div class="kv"><span class="k">Avg</span><span class="v">{fmtHashGhs(emaGhs)}</span></div>
           <div class="kv"><span class="k">Expected</span><span class="v">{fmtHashGhs(expectedGhs)}</span></div>
-          <div class="kv"><span class="k">err</span><span class="v" class:bad={err != null && err > 1}>{fmtPct(err)}</span></div>
+          {#if $hasAsic}
+            <div class="kv"><span class="k">err</span><span class="v" class:bad={err != null && err > 1}>{fmtPct(err)}</span></div>
+          {:else}
+            <div class="kv"><span class="k">Die Temp</span><span class="v" class:bad={$stats?.temp_c != null && $stats.temp_c > 75}>{$stats?.temp_c != null ? $stats.temp_c.toFixed(1) + '°C' : '—'}</span></div>
+          {/if}
         </div>
       </div>
 

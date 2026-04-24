@@ -42,8 +42,8 @@
     <section class="card">
       <h3>Fan</h3>
       <div class="tile-grid">
-        <StatTile label="RPM"  value={$fan?.rpm ?? null}      unit="rpm" />
-        <StatTile label="Duty" value={$fan?.duty_pct ?? null} unit="%"   />
+        <StatTile label="Fan Speed" value={$fan?.duty_pct ?? null} unit="%"   />
+        <StatTile label="RPM"       value={$fan?.rpm ?? null}      unit="rpm" />
       </div>
       {#if $fan?.duty_pct != null}
         <div class="duty-bar"><div class="duty-fill" style="width: {$fan.duty_pct}%"></div></div>
@@ -53,11 +53,11 @@
     <section class="card">
       <h3>Power</h3>
       <div class="tile-grid">
-        <StatTile label="Core"       value={pcoreW}                                                           unit="W"   warn={25} danger={35} />
-        <StatTile label="Vcore"      value={$power?.vcore_mv != null ? $power.vcore_mv / 1000 : null}         unit="V"   />
-        <StatTile label="Icore"      value={$power?.icore_ma != null ? $power.icore_ma / 1000 : null}         unit="A"   />
-        <StatTile label="Efficiency" value={$power?.efficiency_jth ?? null}                                   unit="J/TH"/>
-        <StatTile label="Input"      value={$power?.vin_mv != null ? $power.vin_mv / 1000 : null}             unit="V"   />
+        <StatTile label="Power Draw"    value={pcoreW}                                                           unit="W"    warn={25} danger={35} />
+        <StatTile label="Efficiency"    value={$power?.efficiency_jth ?? null}                                   unit="J/TH" />
+        <StatTile label="ASIC Voltage"  value={$power?.vcore_mv != null ? $power.vcore_mv / 1000 : null}         unit="V"    />
+        <StatTile label="ASIC Current"  value={$power?.icore_ma != null ? $power.icore_ma / 1000 : null}         unit="A"    />
+        <StatTile label="Input Voltage" value={$power?.vin_mv != null ? $power.vin_mv / 1000 : null}             unit="V"    />
       </div>
     </section>
 
@@ -73,16 +73,6 @@
     </section>
   {/if}
 
-  {#if !$hasAsic && $stats}
-    <section class="card">
-      <h3>Device</h3>
-      <div class="tile-grid">
-        <StatTile label="Die temp" value={$stats.temp_c}             unit="°C"    warn={75} danger={85} />
-        <StatTile label="Rate"     value={$stats.hw_hashrate / 1000} unit="kH/s"  />
-        <StatTile label="Shares"   value={$stats.hw_shares}                       />
-      </div>
-    </section>
-  {/if}
 </div>
 
 <style>

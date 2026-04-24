@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { stats, info, otaCheck, otaInstall } from '../lib/stores'
+  import { stats, info, otaCheck, otaInstall, startRebootRecovery } from '../lib/stores'
   import { fetchOtaCheck, triggerOtaUpdate, fetchOtaStatus, uploadOta } from '../lib/api'
   import { fmtBuildTime } from '../lib/fmt'
 
@@ -54,6 +54,7 @@
           if (!s.in_progress && s.progress_pct >= 100) {
             otaInstall.set({ installing: false, pct: 100, state: s.state, msg: 'Install complete. Miner is rebooting.', kind: 'ok' })
             otaCheck.set({ checking: false, result: null, msg: '', kind: '' })
+            startRebootRecovery('Applying firmware update')
             return
           }
           if (!s.in_progress && s.state !== 'idle') {
@@ -109,6 +110,7 @@
       uploadMsg = 'Upload complete. Miner is rebooting to apply the firmware.'
       selectedFile = null
       if (fileInput) fileInput.value = ''
+      startRebootRecovery('Applying uploaded firmware')
     } catch (e) {
       uploadKind = 'err'
       uploadMsg = `Upload failed: ${(e as Error).message}`
@@ -135,11 +137,11 @@
     <div class="info-row"><span class="k">Build</span><span>{fmtBuildTime($info?.build_date, $info?.build_time)}</span></div>
 
     <div class="row-actions">
-      <button class="btn primary" on:click={handleCheck} disabled={$otaCheck.checking || $otaInstall.installing}>
+      <button class="ota-btn" on:click={handleCheck} disabled={$otaCheck.checking || $otaInstall.installing}>
         {$otaCheck.checking ? 'Checking…' : 'Check for Updates'}
       </button>
       {#if $otaCheck.result?.update_available}
-        <button class="btn primary" on:click={handleInstall} disabled={$otaInstall.installing}>
+        <button class="ota-btn" on:click={handleInstall} disabled={$otaInstall.installing}>
           {$otaInstall.installing ? 'Installing…' : `Install ${$otaCheck.result.latest_version}`}
         </button>
       {/if}
@@ -185,7 +187,7 @@
 
     {#if selectedFile}
       <div class="row-actions">
-        <button class="btn primary" on:click={handleUpload} disabled={uploading}>
+        <button class="ota-btn" on:click={handleUpload} disabled={uploading}>
           {uploading ? `Uploading ${uploadPct.toFixed(0)}%` : 'Flash firmware'}
         </button>
         <button class="btn outline" on:click={() => { selectedFile = null; if (fileInput) fileInput.value = '' }} disabled={uploading}>
@@ -247,7 +249,24 @@
     gap: 10px;
     flex-wrap: wrap;
     margin-top: 16px;
+    align-items: center;
   }
+
+  .ota-btn {
+    background: var(--input);
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 24px;
+    font-size: 14px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: border-color 0.2s;
+  }
+
+  .ota-btn:hover:not(:disabled) { border-color: var(--accent); }
+  .ota-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .btn {
     border: 1px solid var(--border);

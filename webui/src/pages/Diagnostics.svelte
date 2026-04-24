@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte'
   import { postReboot, setLogLevel, fetchLogLevels, type LogLevel } from '../lib/api'
   import ConfirmDialog from '../components/ConfirmDialog.svelte'
+  import { startRebootRecovery } from '../lib/stores'
 
   const REBOOT_SKIP_KEY = 'taipanminer.skipRebootConfirm'
 
@@ -148,7 +149,7 @@
     rebootMsg = ''
     try {
       await postReboot()
-      rebootMsg = 'Reboot requested. Device returns in ~15 seconds.'
+      startRebootRecovery('Rebooting miner')
     } catch (e) {
       rebootMsg = `Reboot failed: ${(e as Error).message}`
     } finally {
