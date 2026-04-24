@@ -699,6 +699,16 @@ void stratum_task(void *arg)
 
         // Main loop: read messages and submit shares
         for (;;) {
+            // While mining is paused (e.g. OTA on Core 0), don't drain the
+            // stratum socket — it contends with esp_https_ota for Core 0 and
+            // TLS buffer bandwidth on the tdongle, causing WDT resets mid-OTA.
+            // TCP keepalive (60s idle) holds the session; pool messages queue
+            // up in the socket buffer and get processed on resume.
+            if (mining_pause_pending()) {
+                vTaskDelay(pdMS_TO_TICKS(500));
+                continue;
+            }
+
             // Try to read a message (100ms timeout to check results)
             int n = stratum_readline(line, sizeof(line), 100);
             if (n > 0) {
