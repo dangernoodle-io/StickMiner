@@ -45,9 +45,54 @@ export const otaInstall = writable<{
   kind: OtaKind
 }>({ installing: false, pct: 0, state: '', msg: '', kind: '' })
 
+// Reboot overlay — UI enters this state after a user-initiated reboot or
+// firmware flash, exits once the device responds to a liveness probe.
+export const rebooting = writable<{
+  active: boolean
+  reason: string
+  elapsed: number
+  timedOut: boolean
+}>({ active: false, reason: '', elapsed: 0, timedOut: false })
+
+import { ping as apiPing } from './api'
+
+let rebootPollId: ReturnType<typeof setInterval> | null = null
+let rebootStartTs = 0
+
+/**
+ * Signal that the miner is restarting (after a reboot or flash). The UI
+ * renders an overlay; this function polls /api/version every second and
+ * resolves it once the device responds, or times out after 90s.
+ */
+export function startRebootRecovery(reason: string) {
+  if (rebootPollId) return
+  rebootStartTs = Date.now()
+  rebooting.set({ active: true, reason, elapsed: 0, timedOut: false })
+  // Wait 3s before polling — the device usually hasn't even stopped yet.
+  setTimeout(() => {
+    rebootPollId = setInterval(async () => {
+      const elapsed = Math.floor((Date.now() - rebootStartTs) / 1000)
+      if (elapsed > 90) {
+        rebooting.update((s) => ({ ...s, elapsed, timedOut: true }))
+        return
+      }
+      const alive = await apiPing(1500)
+      if (alive) {
+        clearInterval(rebootPollId!)
+        rebootPollId = null
+        rebooting.set({ active: false, reason: '', elapsed: 0, timedOut: false })
+        return
+      }
+      rebooting.update((s) => ({ ...s, elapsed }))
+    }, 1000)
+  }, 3000)
+}
+
 let pollInterval: ReturnType<typeof setInterval> | null = null
 let failCount = 0
 let infoLoaded = false
+let asicProbed = false
+let asicAvailable = false
 
 async function poll() {
   try {
@@ -56,18 +101,32 @@ async function poll() {
     failCount = 0
     connected.set(true)
 
-    const [powerData, fanData] = await Promise.all([
-      fetchPower().catch(() => null),
-      fetchFan().catch(() => null)
-    ])
+    // Probe /api/power once to detect ASIC capability. Subsequent polls only
+    // hit /api/power and /api/fan on ASIC boards — keeps tdongle firmware
+    // logs clean of 405 warnings from missing handlers.
+    let powerData: Power | null = null
+    let fanData: Fan | null = null
+    if (!asicProbed) {
+      powerData = await fetchPower().catch(() => null)
+      asicAvailable = powerData !== null
+      asicProbed = true
+      hasAsic.set(asicAvailable)
+      if (asicAvailable) {
+        fanData = await fetchFan().catch(() => null)
+      }
+    } else if (asicAvailable) {
+      [powerData, fanData] = await Promise.all([
+        fetchPower().catch(() => null),
+        fetchFan().catch(() => null)
+      ])
+    }
     power.set(powerData)
     fan.set(fanData)
-    hasAsic.set(powerData !== null)
 
     // Append to rolling history buffer (session-local).
     const sample: HistorySample = {
       ts: Math.floor(Date.now() / 1000),
-      total_ghs: statsData.asic_total_ghs ?? (statsData.hw_hashrate ? statsData.hw_hashrate / 1e9 : null),
+      total_ghs: statsData.asic_total_ghs ?? (statsData.hashrate ? statsData.hashrate / 1e9 : null),
       hw_err_pct: statsData.asic_hw_error_pct ?? null,
       temp_c: statsData.asic_temp_c ?? statsData.temp_c ?? null,
       vr_temp_c: powerData?.vr_temp_c ?? null,
@@ -108,4 +167,6 @@ export function stop() {
     pollInterval = null
   }
   infoLoaded = false
+  asicProbed = false
+  asicAvailable = false
 }
