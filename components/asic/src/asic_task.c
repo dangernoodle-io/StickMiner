@@ -58,6 +58,12 @@ static uint8_t s_dedup_idx;
 static uint32_t s_sha_pass;
 static uint32_t s_sha_fail;
 
+// TA-221: sanity clamps for register-derived GHS. BM1370 theoretical max at 650 MHz
+// is ~1300 GH/s; BM1368 similar. Any computed hashrate above these thresholds is
+// a register-read glitch (boot-phase corruption or data path issue), not real silicon.
+#define ASIC_CHIP_GHS_SANITY_MAX   2000.0f  // per-chip cap
+#define ASIC_DOMAIN_GHS_SANITY_MAX  500.0f  // per-domain cap (1/4 of chip)
+
 // TA-192: per-chip register-derived telemetry (polled every 5s)
 static struct {
     uint32_t total_val;        // last REG_TOTAL_COUNT read
@@ -68,13 +74,13 @@ static struct {
     uint64_t error_time_us;
     float    total_ghs;
     float    error_ghs;
-    bool     total_init;
-    bool     error_init;
+    uint8_t  total_samples;    // incremented on each read; GHS computed only when >= 2 (TA-221)
+    uint8_t  error_samples;
     // Per-domain (BM1370 has 4 hash domains per chip)
     uint32_t domain_val[4];
     uint64_t domain_time_us[4];
     float    domain_ghs[4];
-    bool     domain_init[4];
+    uint8_t  domain_samples[4];
 } s_chip_meas[BOARD_ASIC_COUNT];
 
 // TA-196: rolling-window averages mirroring ESP-Miner's hashrate_monitor_task.c
@@ -417,45 +423,56 @@ void asic_mining_task(void *arg)
                 static const uint64_t HASH_CNT_LSB = 1ULL << 32;
 
                 if (reg_addr == ASIC_REG_TOTAL_COUNT) {
-                    if (s_chip_meas[chip_idx].total_init) {
+                    if (s_chip_meas[chip_idx].total_samples >= 2) {
                         uint32_t delta = value - s_chip_meas[chip_idx].total_val;
                         float seconds = (float)(now_us - s_chip_meas[chip_idx].total_time_us) / 1e6f;
                         if (seconds > 0.001f) {
-                            s_chip_meas[chip_idx].total_ghs =
-                                (float)delta * (float)HASH_CNT_LSB / seconds / 1e9f;
+                            float ghs = (float)delta * (float)HASH_CNT_LSB / seconds / 1e9f;
+                            if (ghs < ASIC_CHIP_GHS_SANITY_MAX) {
+                                s_chip_meas[chip_idx].total_ghs = ghs;
+                            } else {
+                                bb_log_w(TAG, "chip %d total_ghs sanity fail: %.1f — dropped", chip_idx, ghs);
+                            }
                         }
-                    } else {
-                        s_chip_meas[chip_idx].total_init = true;
+                    } else if (s_chip_meas[chip_idx].total_samples == 0) {
                         s_chip_meas[chip_idx].total_val_base = value;  // warmup baseline
                     }
+                    if (s_chip_meas[chip_idx].total_samples < 3) s_chip_meas[chip_idx].total_samples++;
                     s_chip_meas[chip_idx].total_val = value;
                     s_chip_meas[chip_idx].total_time_us = now_us;
                 } else if (reg_addr == ASIC_REG_ERROR_COUNT) {
-                    if (s_chip_meas[chip_idx].error_init) {
+                    if (s_chip_meas[chip_idx].error_samples >= 2) {
                         uint32_t delta = value - s_chip_meas[chip_idx].error_val;
                         float seconds = (float)(now_us - s_chip_meas[chip_idx].error_time_us) / 1e6f;
                         if (seconds > 0.001f) {
-                            s_chip_meas[chip_idx].error_ghs =
-                                (float)delta * (float)HASH_CNT_LSB / seconds / 1e9f;
+                            float ghs = (float)delta * (float)HASH_CNT_LSB / seconds / 1e9f;
+                            if (ghs < ASIC_CHIP_GHS_SANITY_MAX) {
+                                s_chip_meas[chip_idx].error_ghs = ghs;
+                            } else {
+                                bb_log_w(TAG, "chip %d error_ghs sanity fail: %.1f — dropped", chip_idx, ghs);
+                            }
                         }
-                    } else {
-                        s_chip_meas[chip_idx].error_init = true;
+                    } else if (s_chip_meas[chip_idx].error_samples == 0) {
                         s_chip_meas[chip_idx].error_val_base = value;  // warmup baseline
                     }
+                    if (s_chip_meas[chip_idx].error_samples < 3) s_chip_meas[chip_idx].error_samples++;
                     s_chip_meas[chip_idx].error_val = value;
                     s_chip_meas[chip_idx].error_time_us = now_us;
                 } else if (reg_addr >= ASIC_REG_DOMAIN_0_COUNT && reg_addr <= ASIC_REG_DOMAIN_3_COUNT) {
                     int d = reg_addr - ASIC_REG_DOMAIN_0_COUNT;
-                    if (s_chip_meas[chip_idx].domain_init[d]) {
+                    if (s_chip_meas[chip_idx].domain_samples[d] >= 2) {
                         uint32_t delta = value - s_chip_meas[chip_idx].domain_val[d];
                         float seconds = (float)(now_us - s_chip_meas[chip_idx].domain_time_us[d]) / 1e6f;
                         if (seconds > 0.001f) {
-                            s_chip_meas[chip_idx].domain_ghs[d] =
-                                (float)delta * (float)HASH_CNT_LSB / seconds / 1e9f;
+                            float ghs = (float)delta * (float)HASH_CNT_LSB / seconds / 1e9f;
+                            if (ghs < ASIC_DOMAIN_GHS_SANITY_MAX) {
+                                s_chip_meas[chip_idx].domain_ghs[d] = ghs;
+                            } else {
+                                bb_log_w(TAG, "chip %d domain %d ghs sanity fail: %.1f — dropped", chip_idx, d, ghs);
+                            }
                         }
-                    } else {
-                        s_chip_meas[chip_idx].domain_init[d] = true;
                     }
+                    if (s_chip_meas[chip_idx].domain_samples[d] < 3) s_chip_meas[chip_idx].domain_samples[d]++;
                     s_chip_meas[chip_idx].domain_val[d] = value;
                     s_chip_meas[chip_idx].domain_time_us[d] = now_us;
                 }
