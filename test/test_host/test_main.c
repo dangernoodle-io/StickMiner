@@ -233,6 +233,18 @@ void test_drop_detect_warn_after_cooldown_elapsed(void);
 void test_drop_detect_domain_smaller_cap(void);
 void test_drop_detect_zero_cooldown_always_warns(void);
 
+// TA-234: asic_chip_routing
+void test_chip_routing_single_chip_addr_zero(void);
+void test_chip_routing_single_chip_any_addr_returns_zero(void);
+void test_chip_routing_two_chip_addr_zero(void);
+void test_chip_routing_two_chip_addr_below_boundary(void);
+void test_chip_routing_two_chip_addr_at_boundary(void);
+void test_chip_routing_two_chip_addr_top(void);
+void test_chip_routing_four_chips(void);
+void test_chip_routing_invalid_chip_count_zero(void);
+void test_chip_routing_invalid_chip_count_negative(void);
+void test_chip_routing_invalid_chip_count_too_large(void);
+
 // TA-234: stratum_watchdogs
 void test_stratum_watchdog_job_drought_never_observed(void);
 void test_stratum_watchdog_job_drought_below_threshold(void);
@@ -492,6 +504,18 @@ int main(void) {
     RUN_TEST(test_drop_detect_warn_after_cooldown_elapsed);
     RUN_TEST(test_drop_detect_domain_smaller_cap);
     RUN_TEST(test_drop_detect_zero_cooldown_always_warns);
+
+    // TA-234: asic_chip_routing tests
+    RUN_TEST(test_chip_routing_single_chip_addr_zero);
+    RUN_TEST(test_chip_routing_single_chip_any_addr_returns_zero);
+    RUN_TEST(test_chip_routing_two_chip_addr_zero);
+    RUN_TEST(test_chip_routing_two_chip_addr_below_boundary);
+    RUN_TEST(test_chip_routing_two_chip_addr_at_boundary);
+    RUN_TEST(test_chip_routing_two_chip_addr_top);
+    RUN_TEST(test_chip_routing_four_chips);
+    RUN_TEST(test_chip_routing_invalid_chip_count_zero);
+    RUN_TEST(test_chip_routing_invalid_chip_count_negative);
+    RUN_TEST(test_chip_routing_invalid_chip_count_too_large);
 
     // TA-234: stratum_watchdogs tests
     RUN_TEST(test_stratum_watchdog_job_drought_never_observed);
