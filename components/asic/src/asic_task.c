@@ -7,6 +7,7 @@
 #include "asic_pause_coalesce.h"
 #include "asic_metric_avg.h"
 #include "asic_drop_detect.h"
+#include "asic_chip_routing.h"
 #include "crc.h"
 #include "tps546.h"
 #include "emc2101.h"
@@ -396,10 +397,8 @@ void asic_mining_task(void *arg)
                 uint8_t asic_addr = rx[6];
                 uint8_t reg_addr  = rx[7];
 
-                // Use uint16_t — 256/1=256 overflows uint8_t to 0 and divides by zero.
-                uint16_t addr_interval = 256 / BOARD_ASIC_COUNT;
-                int chip_idx = asic_addr / addr_interval;
-                if (chip_idx < 0 || chip_idx >= BOARD_ASIC_COUNT) {
+                int chip_idx = asic_chip_routing_index(asic_addr, BOARD_ASIC_COUNT);
+                if (chip_idx < 0) {
                     continue;
                 }
 
