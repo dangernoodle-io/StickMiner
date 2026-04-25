@@ -38,8 +38,6 @@ jobs:
           restore-keys: ${{ runner.os }}-pio-
       - name: Install tools
         run: pip install platformio gcovr
-      - name: Static analysis
-        run: make check
       - name: Test and coverage
         run: make coverage
       - name: Upload to Coveralls
@@ -107,6 +105,8 @@ jobs:
         run: |
           sudo apt-get install -y ccache
           pip install platformio
+      - name: Static analysis
+        run: make check-${{ matrix.env }}
       - name: Build firmware
         run: make build-${{ matrix.env }}
 
@@ -140,6 +140,8 @@ jobs:
         run: |
           sudo apt-get install -y ccache
           pip install platformio
+      - name: Static analysis
+        run: make check-${{ matrix.env }}
       - name: Build debug firmware
         run: make build-${{ matrix.env }}
 
