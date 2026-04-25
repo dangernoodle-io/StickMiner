@@ -34,8 +34,26 @@ jobs:
           path: webui/dist
           retention-days: 7
 
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Cache PlatformIO
+        uses: actions/cache@v5
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: ${{ runner.os }}-pio-
+      - name: Install tools
+        run: pip install platformio
+      - name: Test
+        run: make test
+
   build:
-    needs: webui
+    needs: [webui, test]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -52,6 +70,11 @@ jobs:
         with:
           python-version: '3.11'
           # no pip cache — no requirements.txt in repo
+      - name: Cache cppcheck tool (shared across matrix shards)
+        uses: actions/cache@v5
+        with:
+          path: ~/.platformio/packages/tool-cppcheck
+          key: ${{ runner.os }}-pio-tool-cppcheck-1.21100
       - name: Cache PlatformIO
         uses: actions/cache@v5
         with:
@@ -65,9 +88,7 @@ jobs:
           sudo apt-get install -y ccache
           pip install platformio
       - name: Static analysis
-        run: make check
-      - name: Test
-        run: make test
+        run: make check-${{ matrix.env }}
       - name: Build firmware
         run: make build-${{ matrix.env }}
       - name: Stage release binaries

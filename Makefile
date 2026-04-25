@@ -9,8 +9,11 @@ help: ## Show available targets
 webui: ## Build web UI (Svelte SPA) into webui/dist/
 	cd webui && npm ci && npm run build
 
-check: ## Static analysis (cppcheck)
+check: ## Static analysis (cppcheck) for all default envs
 	$(PIO) check --skip-packages
+
+check-%: ## Static analysis for one env (e.g. make check-bitaxe-601)
+	$(PIO) check --skip-packages -e $*
 
 test: ## Run host unit tests
 	$(PIO) test -e native
