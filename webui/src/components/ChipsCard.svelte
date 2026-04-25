@@ -1,5 +1,6 @@
 <script lang="ts">
   import { type Chip } from '../lib/api'
+  import { getChipState } from '../lib/chipState'
 
   export let chips: Chip[]
   export let expected_per_domain: number | undefined = undefined
@@ -11,12 +12,6 @@
     if (ratio < 0.5) return 'var(--warning)'
     if (ratio < 0.85) return 'var(--accent-dim)'
     return 'var(--accent)'
-  }
-
-  function getChipState(chip: Chip): 'corrupt' | 'inactive' | 'healthy' {
-    if (chip.total_drops > 0) return 'corrupt'
-    if (chip.total_ghs < 1) return 'inactive'
-    return 'healthy'
   }
 </script>
 
@@ -41,8 +36,12 @@
             {chip.hw_err_pct.toFixed(2)}% err
           </span>
           {#if state === 'corrupt'}
-            <span class="chip-warning" title="Dropped {chip.total_drops} telemetry reads — chip is still hashing but register readback is corrupt">
-              telem corrupt ({chip.total_drops} drops)
+            <span class="chip-warning" title="Telemetry read failed {chip.last_drop_ago_s}s ago — chip is still hashing but register readback was corrupt">
+              telem corrupt ({chip.last_drop_ago_s}s ago)
+            </span>
+          {:else if chip.total_drops > 0}
+            <span class="chip-lifetime-drops" title="Lifetime telemetry-drop count since boot">
+              {chip.total_drops} drops
             </span>
           {/if}
         </div>
@@ -170,6 +169,12 @@
     font-weight: 600;
     letter-spacing: 0.5px;
     text-transform: uppercase;
+  }
+
+  .chip-lifetime-drops {
+    font-size: 10px;
+    color: var(--text-dim);
+    opacity: 0.6;
   }
 
   .domains {

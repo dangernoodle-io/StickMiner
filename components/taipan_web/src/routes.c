@@ -14,6 +14,7 @@
 #include "esp_system.h"
 #include "board.h"
 #include "mining.h"
+#include "asic_drop_log.h"
 #include "bb_nv.h"
 #include "taipan_config.h"
 #include "bb_wifi.h"
@@ -236,6 +237,7 @@ static bb_err_t stats_handler(bb_http_request_t *req)
     // Per-chip telemetry (TA-192 phase 2)
     asic_chip_telemetry_t chip_tel[BOARD_ASIC_COUNT];
     int n_chips = asic_task_get_chip_telemetry(chip_tel, BOARD_ASIC_COUNT);
+    uint64_t now_us_for_drops = (uint64_t)esp_timer_get_time();
 
     bb_json_t chips_arr = bb_json_arr_new();
     for (int c = 0; c < n_chips; c++) {
@@ -248,6 +250,14 @@ static bb_err_t stats_handler(bb_http_request_t *req)
         bb_json_obj_set_number(chip_obj, "error_raw", (double)chip_tel[c].error_raw);
         bb_json_obj_set_number(chip_obj, "total_drops", chip_tel[c].total_drops);
         bb_json_obj_set_number(chip_obj, "error_drops", chip_tel[c].error_drops);
+
+        // TA-237: time since most-recent drop, drives UI self-heal of corrupt badge.
+        if (chip_tel[c].last_drop_us == 0 || now_us_for_drops < chip_tel[c].last_drop_us) {
+            bb_json_obj_set_null(chip_obj, "last_drop_ago_s");
+        } else {
+            uint64_t ago_us = now_us_for_drops - chip_tel[c].last_drop_us;
+            bb_json_obj_set_number(chip_obj, "last_drop_ago_s", (double)(ago_us / 1000000ULL));
+        }
 
         bb_json_t domains_arr = bb_json_arr_new();
         for (int d = 0; d < 4; d++) {
@@ -264,6 +274,29 @@ static bb_err_t stats_handler(bb_http_request_t *req)
         bb_json_arr_append_obj(chips_arr, chip_obj);
     }
     bb_json_obj_set_arr(root, "asic_chips", chips_arr);
+
+    // TA-238: ring of recent telemetry-drop events for forensic readback.
+    asic_drop_event_t drops[ASIC_DROP_LOG_CAP];
+    size_t n_drops = asic_task_get_drop_log(drops, ASIC_DROP_LOG_CAP);
+    bb_json_t drops_arr = bb_json_arr_new();
+    for (size_t i = 0; i < n_drops; i++) {
+        bb_json_t d_obj = bb_json_obj_new();
+        uint64_t ago_us = (now_us_for_drops > drops[i].ts_us)
+            ? (now_us_for_drops - drops[i].ts_us) : 0;
+        bb_json_obj_set_number(d_obj, "ts_ago_s", (double)(ago_us / 1000000ULL));
+        bb_json_obj_set_number(d_obj, "chip", drops[i].chip_idx);
+        const char *kind_str = (drops[i].kind == ASIC_DROP_KIND_TOTAL)  ? "total"
+                             : (drops[i].kind == ASIC_DROP_KIND_ERROR)  ? "error"
+                                                                        : "domain";
+        bb_json_obj_set_string(d_obj, "kind", kind_str);
+        bb_json_obj_set_number(d_obj, "domain", drops[i].domain_idx);
+        bb_json_obj_set_number(d_obj, "addr", drops[i].asic_addr);
+        bb_json_obj_set_number(d_obj, "ghs", (double)drops[i].ghs);
+        bb_json_obj_set_number(d_obj, "delta", drops[i].delta);
+        bb_json_obj_set_number(d_obj, "elapsed_s", (double)drops[i].elapsed_s);
+        bb_json_arr_append_obj(drops_arr, d_obj);
+    }
+    bb_json_obj_set_arr(root, "recent_drops", drops_arr);
 #endif
 
     char *json = bb_json_serialize(root);

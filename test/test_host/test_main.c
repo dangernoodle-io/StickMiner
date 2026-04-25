@@ -244,6 +244,14 @@ void test_drop_detect_warn_after_cooldown_elapsed(void);
 void test_drop_detect_domain_smaller_cap(void);
 void test_drop_detect_zero_cooldown_always_warns(void);
 
+// TA-238: asic_drop_log
+void test_drop_log_empty_snapshot(void);
+void test_drop_log_single_push_readback(void);
+void test_drop_log_fill_to_cap_newest_first(void);
+void test_drop_log_wrap_drops_oldest(void);
+void test_drop_log_total_written_monotonic(void);
+void test_drop_log_max_out_smaller_than_cap(void);
+
 // TA-234: asic_chip_routing
 void test_chip_routing_single_chip_addr_zero(void);
 void test_chip_routing_single_chip_any_addr_returns_zero(void);
@@ -535,6 +543,14 @@ int main(void) {
     RUN_TEST(test_drop_detect_warn_after_cooldown_elapsed);
     RUN_TEST(test_drop_detect_domain_smaller_cap);
     RUN_TEST(test_drop_detect_zero_cooldown_always_warns);
+
+    // TA-238: asic_drop_log tests
+    RUN_TEST(test_drop_log_empty_snapshot);
+    RUN_TEST(test_drop_log_single_push_readback);
+    RUN_TEST(test_drop_log_fill_to_cap_newest_first);
+    RUN_TEST(test_drop_log_wrap_drops_oldest);
+    RUN_TEST(test_drop_log_total_written_monotonic);
+    RUN_TEST(test_drop_log_max_out_smaller_than_cap);
 
     // TA-234: asic_chip_routing tests
     RUN_TEST(test_chip_routing_single_chip_addr_zero);

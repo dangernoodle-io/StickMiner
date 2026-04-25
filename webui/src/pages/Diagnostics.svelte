@@ -2,7 +2,9 @@
   import { onMount, onDestroy } from 'svelte'
   import { postReboot, setLogLevel, fetchLogLevels, type LogLevel } from '../lib/api'
   import ConfirmDialog from '../components/ConfirmDialog.svelte'
-  import { startRebootRecovery } from '../lib/stores'
+  import { startRebootRecovery, stats } from '../lib/stores'
+
+  $: recentDrops = $stats?.recent_drops ?? []
 
   const REBOOT_SKIP_KEY = 'taipanminer.skipRebootConfirm'
 
@@ -163,6 +165,40 @@
 
 <div class="page">
   <div class="section">
+    <h2>Recent telemetry drops</h2>
+    {#if recentDrops.length === 0}
+      <p class="muted">No recent drops.</p>
+    {:else}
+      <table class="drops">
+        <thead>
+          <tr>
+            <th>Age</th>
+            <th>Chip</th>
+            <th>Kind</th>
+            <th>Addr</th>
+            <th>GH/s</th>
+            <th>Δ</th>
+            <th>Elapsed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each recentDrops as d}
+            <tr>
+              <td>{d.ts_ago_s}s</td>
+              <td>{d.chip}</td>
+              <td>{d.kind}{d.kind === 'domain' ? ` ${d.domain}` : ''}</td>
+              <td>0x{d.addr.toString(16).padStart(2, '0')}</td>
+              <td>{d.ghs.toFixed(1)}</td>
+              <td>0x{d.delta.toString(16).padStart(8, '0')}</td>
+              <td>{d.elapsed_s.toFixed(3)}s</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+  </div>
+
+  <div class="section">
     <div class="log-head">
       <h2>Live Logs
         <span class="status" data-state={status}>
@@ -254,6 +290,28 @@
     flex-direction: column;
     gap: 32px;
     padding-top: 12px;
+  }
+
+  .muted {
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  table.drops {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+  }
+  table.drops th,
+  table.drops td {
+    text-align: left;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  }
+  table.drops th {
+    color: var(--text-dim);
+    font-weight: 600;
   }
 
   h2 {
