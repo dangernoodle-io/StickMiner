@@ -210,9 +210,14 @@ typedef struct {
     uint32_t total_drops;
     uint32_t error_drops;
     uint32_t domain_drops[4];
+    // TA-237: timestamp of most-recent drop (any kind); 0 if never. Drives UI
+    // self-heal: corrupt badge clears when last_drop_ago_s exceeds threshold.
+    uint64_t last_drop_us;
 } asic_chip_telemetry_t;
 
 // Fill `out[]` with current per-chip snapshot (BOARD_ASIC_COUNT entries).
 // Returns number of entries filled.
 int asic_task_get_chip_telemetry(asic_chip_telemetry_t *out, int max_chips);
+
+// TA-238: snapshot of recent telemetry-drop events declared in asic_drop_log.h.
 #endif

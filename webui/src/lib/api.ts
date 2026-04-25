@@ -9,6 +9,19 @@ export interface Chip {
   total_drops: number
   error_drops: number
   domain_drops: number[]
+  // TA-237: seconds since most-recent telemetry drop on this chip; null if never
+  last_drop_ago_s: number | null
+}
+
+export interface RecentDrop {
+  ts_ago_s: number
+  chip: number
+  kind: 'total' | 'error' | 'domain'
+  domain: number
+  addr: number
+  ghs: number
+  delta: number
+  elapsed_s: number
 }
 
 export interface Stats {
@@ -51,6 +64,7 @@ export interface Stats {
   asic_hw_error_pct_10m: number | null
   asic_hw_error_pct_1h: number | null
   asic_chips?: Chip[]
+  recent_drops?: RecentDrop[]
 }
 
 export interface InfoNetwork {

@@ -7,6 +7,7 @@
 #include "asic_pause_coalesce.h"
 #include "asic_metric_avg.h"
 #include "asic_drop_detect.h"
+#include "asic_drop_log.h"
 #include "asic_chip_routing.h"
 #include "asic_nonce_dedup.h"
 #include "crc.h"
@@ -97,7 +98,13 @@ static struct {
     uint32_t total_drops;
     uint32_t error_drops;
     uint32_t domain_drops[4];
+    // TA-237: timestamp of most-recent drop, any kind. 0 if never.
+    uint64_t last_drop_us;
 } s_chip_meas[BOARD_ASIC_COUNT];
+
+// TA-238: ring buffer of recent telemetry-drop events for forensic readback
+// without needing a live log subscriber.
+static asic_drop_log_t s_drop_log;
 
 // TA-196: rolling-window averages mirroring ESP-Miner's hashrate_monitor_task.c
 #define ASIC_POLL_PERIOD_MS 5000
@@ -286,6 +293,7 @@ void asic_mining_task(void *arg)
 {
     bb_log_i(TAG, "ASIC mining task started");
     esp_task_wdt_add(NULL);
+    asic_drop_log_reset(&s_drop_log);
 
     mining_work_t work;
     TickType_t last_temp_tick = 0;
@@ -418,6 +426,14 @@ void asic_mining_task(void *arg)
                                 s_chip_meas[chip_idx].total_ghs = ghs;
                             } else {
                                 s_chip_meas[chip_idx].total_drops++;
+                                s_chip_meas[chip_idx].last_drop_us = now_us;
+                                asic_drop_event_t ev = {
+                                    .ts_us = now_us, .chip_idx = (uint8_t)chip_idx,
+                                    .kind = ASIC_DROP_KIND_TOTAL, .domain_idx = 0,
+                                    .asic_addr = asic_addr, .ghs = ghs,
+                                    .delta = delta, .elapsed_s = (float)seconds,
+                                };
+                                asic_drop_log_push(&s_drop_log, &ev);
                                 if (step.should_warn) {
                                     bb_log_w(TAG, "chip %d total sanity fail: ghs=%.1f delta=0x%08" PRIx32
                                                   " elapsed=%.3fs addr=0x%02X drops=%" PRIu32 " — dropped",
@@ -448,6 +464,14 @@ void asic_mining_task(void *arg)
                                 s_chip_meas[chip_idx].error_ghs = ghs;
                             } else {
                                 s_chip_meas[chip_idx].error_drops++;
+                                s_chip_meas[chip_idx].last_drop_us = now_us;
+                                asic_drop_event_t ev = {
+                                    .ts_us = now_us, .chip_idx = (uint8_t)chip_idx,
+                                    .kind = ASIC_DROP_KIND_ERROR, .domain_idx = 0,
+                                    .asic_addr = asic_addr, .ghs = ghs,
+                                    .delta = delta, .elapsed_s = (float)seconds,
+                                };
+                                asic_drop_log_push(&s_drop_log, &ev);
                                 if (step.should_warn) {
                                     bb_log_w(TAG, "chip %d error sanity fail: ghs=%.1f delta=0x%08" PRIx32
                                                   " elapsed=%.3fs addr=0x%02X drops=%" PRIu32 " — dropped",
@@ -479,6 +503,14 @@ void asic_mining_task(void *arg)
                                 s_chip_meas[chip_idx].domain_ghs[d] = ghs;
                             } else {
                                 s_chip_meas[chip_idx].domain_drops[d]++;
+                                s_chip_meas[chip_idx].last_drop_us = now_us;
+                                asic_drop_event_t ev = {
+                                    .ts_us = now_us, .chip_idx = (uint8_t)chip_idx,
+                                    .kind = ASIC_DROP_KIND_DOMAIN, .domain_idx = (uint8_t)d,
+                                    .asic_addr = asic_addr, .ghs = ghs,
+                                    .delta = delta, .elapsed_s = (float)seconds,
+                                };
+                                asic_drop_log_push(&s_drop_log, &ev);
                                 if (step.should_warn) {
                                     bb_log_w(TAG, "chip %d domain %d sanity fail: ghs=%.1f delta=0x%08" PRIx32
                                                   " elapsed=%.3fs addr=0x%02X drops=%" PRIu32 " — dropped",
@@ -797,8 +829,15 @@ int asic_task_get_chip_telemetry(asic_chip_telemetry_t *out, int max_chips)
         for (int d = 0; d < 4; d++) {
             out[c].domain_drops[d] = s_chip_meas[c].domain_drops[d];
         }
+        // TA-237
+        out[c].last_drop_us = s_chip_meas[c].last_drop_us;
     }
     return n;
+}
+
+size_t asic_task_get_drop_log(asic_drop_event_t *out, size_t max_out)
+{
+    return asic_drop_log_snapshot(&s_drop_log, out, max_out);
 }
 
 #endif // ASIC_BM1370 || ASIC_BM1368
