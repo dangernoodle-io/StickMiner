@@ -70,6 +70,11 @@ jobs:
         with:
           python-version: '3.11'
           # no pip cache — no requirements.txt in repo
+      - name: Cache cppcheck tool (shared across matrix shards)
+        uses: actions/cache@v5
+        with:
+          path: ~/.platformio/packages/tool-cppcheck
+          key: ${{ runner.os }}-pio-tool-cppcheck-1.21100
       - name: Cache PlatformIO
         uses: actions/cache@v5
         with:
