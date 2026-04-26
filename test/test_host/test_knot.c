@@ -51,6 +51,23 @@ void test_knot_table_upsert_table_full(void) {
     TEST_ASSERT_EQUAL_INT(-1, slot3);
 }
 
+void test_knot_table_upsert_evicts_same_hostname(void) {
+    // Same physical device announcing under an old + new instance_name
+    // (e.g. across a firmware update). Newer instance wins; old entry evicted.
+    knot_peer_t table[4] = {0};
+    knot_peer_t old_inst = make_peer("TaipanMiner-9895", "tdongles3-1", "172.16.1.215");
+    knot_peer_t new_inst = make_peer("tdongles3-1-7cd8", "tdongles3-1", "172.16.1.215");
+
+    knot_table_upsert(table, 4, &old_inst);
+    knot_table_upsert(table, 4, &new_inst);
+
+    // Snapshot should contain only the new instance — old was evicted
+    knot_peer_t out[4] = {0};
+    size_t count = knot_table_snapshot(table, 4, out, 4);
+    TEST_ASSERT_EQUAL_INT(1, count);
+    TEST_ASSERT_EQUAL_STRING("tdongles3-1-7cd8", out[0].instance_name);
+}
+
 void test_knot_table_remove_existing(void) {
     knot_peer_t table[4] = {0};
     knot_peer_t peer = make_peer("miner1", "miner1.local", "192.168.1.1");

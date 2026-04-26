@@ -351,6 +351,24 @@ void app_main(void)
         bb_mdns_set_txt("state", "mining");
         ESP_ERROR_CHECK(bb_wifi_init());
         ESP_ERROR_CHECK(knot_init());
+        {
+            /* Inject self into the peer table — mdns_browse never reports the
+             * local device, so without this the device wouldn't show in its
+             * own /api/knot. Use the same identity we just announced. */
+            char hn[64];
+            const char *hostname = taipan_config_hostname();
+            if (hostname && hostname[0]) {
+                strncpy(hn, hostname, sizeof(hn) - 1);
+                hn[sizeof(hn) - 1] = '\0';
+            } else {
+                bb_mdns_build_hostname(taipan_config_worker_name(), NULL, hn, sizeof(hn));
+            }
+            knot_set_self(hn, hn, NULL,
+                          taipan_config_worker_name(),
+                          FIRMWARE_BOARD,
+                          esp_app_get_description()->version,
+                          "mining");
+        }
         ESP_ERROR_CHECK(bb_http_server_ensure_started());
         ESP_ERROR_CHECK(taipan_web_register_mining_routes(bb_http_server_get_handle()));
     }
