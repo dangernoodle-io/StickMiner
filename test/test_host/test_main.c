@@ -301,6 +301,7 @@ void test_pfd_running_addr_zero_treated_as_wrong(void);
 void test_knot_table_upsert_empty_slot(void);
 void test_knot_table_upsert_update_existing(void);
 void test_knot_table_upsert_table_full(void);
+void test_knot_table_upsert_evicts_same_hostname(void);
 void test_knot_table_remove_existing(void);
 void test_knot_table_remove_missing(void);
 void test_knot_table_prune_stale_entries(void);
@@ -637,6 +638,7 @@ int main(void) {
     RUN_TEST(test_knot_table_upsert_empty_slot);
     RUN_TEST(test_knot_table_upsert_update_existing);
     RUN_TEST(test_knot_table_upsert_table_full);
+    RUN_TEST(test_knot_table_upsert_evicts_same_hostname);
     RUN_TEST(test_knot_table_remove_existing);
     RUN_TEST(test_knot_table_remove_missing);
     RUN_TEST(test_knot_table_prune_stale_entries);

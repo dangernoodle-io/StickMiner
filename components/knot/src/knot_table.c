@@ -16,7 +16,22 @@ int knot_table_upsert(knot_peer_t *table, size_t cap, const knot_peer_t *peer) {
         return -1;
     }
 
-    // Search for existing entry by instance_name
+    // First pass: evict stale entries with the same hostname but a different
+    // instance_name. After a firmware update the device announces a new
+    // instance label (e.g. "TaipanMiner-XXXX" -> "<hostname>-XXXX") while
+    // IDF's cache still holds the old advertisement until its TTL expires;
+    // dedupe-by-hostname collapses both into the fresher instance.
+    if (peer->hostname[0]) {
+        for (size_t i = 0; i < cap; i++) {
+            if (table[i].instance_name[0] != '\0' &&
+                strcmp(table[i].instance_name, peer->instance_name) != 0 &&
+                strcmp(table[i].hostname, peer->hostname) == 0) {
+                table[i].instance_name[0] = '\0';
+            }
+        }
+    }
+
+    // Second pass: upsert by instance_name; track first empty slot for insert.
     int empty_slot = -1;
     for (size_t i = 0; i < cap; i++) {
         if (table[i].instance_name[0] == '\0') {
@@ -24,19 +39,16 @@ int knot_table_upsert(knot_peer_t *table, size_t cap, const knot_peer_t *peer) {
                 empty_slot = i;
             }
         } else if (strcmp(table[i].instance_name, peer->instance_name) == 0) {
-            // Found existing entry, update it
             table[i] = *peer;
             return i;
         }
     }
 
-    // No existing entry found; use empty slot if available
     if (empty_slot != -1) {
         table[empty_slot] = *peer;
         return empty_slot;
     }
 
-    // Table full, no empty slot
     return -1;
 }
 

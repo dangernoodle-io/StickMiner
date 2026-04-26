@@ -252,6 +252,24 @@ static bb_err_t stats_handler(bb_http_request_t *req)
     bb_json_obj_set_string(root, "build_time", app->time);
     bb_json_obj_set_string(root, "board", BOARD_NAME);
     bb_json_obj_set_bool(root, "display_en", bb_nv_config_display_enabled());
+
+    /* expected_ghs: theoretical max hashrate for the running platform, in GH/s.
+     * Uniform across boards so the UI doesn't need per-board fallbacks (TA-211).
+     * - ASIC: freq_cfg(MHz) * small_cores * chip_count / 1000
+     * - tdongle: 0.000223 GH/s (=223 kH/s) — ESP32-S3 HW-SHA peripheral ceiling,
+     *   MMIO-bound on the 80 MHz APB bus. */
+#ifdef ASIC_CHIP
+    if (asic_freq_cfg > 0) {
+        double expected_ghs = (double)asic_freq_cfg
+                              * (double)BOARD_SMALL_CORES
+                              * (double)BOARD_ASIC_COUNT / 1000.0;
+        bb_json_obj_set_number(root, "expected_ghs", expected_ghs);
+    } else {
+        bb_json_obj_set_null(root, "expected_ghs");
+    }
+#else
+    bb_json_obj_set_number(root, "expected_ghs", 0.000223);
+#endif
 #ifdef ASIC_CHIP
     bb_json_obj_set_number(root, "asic_hashrate", asic_rate);
     bb_json_obj_set_number(root, "asic_hashrate_avg", asic_ema);

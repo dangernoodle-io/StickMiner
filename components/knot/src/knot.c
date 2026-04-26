@@ -90,6 +90,34 @@ int knot_init(void) {
     return 0;
 }
 
+void knot_set_self(const char *instance_name,
+                   const char *hostname,
+                   const char *ip4,
+                   const char *worker,
+                   const char *board,
+                   const char *version,
+                   const char *state) {
+    if (!instance_name || !instance_name[0]) {
+        return;
+    }
+
+    knot_peer_t self = {0};
+    strncpy(self.instance_name, instance_name, sizeof(self.instance_name) - 1);
+    if (hostname) strncpy(self.hostname, hostname, sizeof(self.hostname) - 1);
+    if (ip4)      strncpy(self.ip4,      ip4,      sizeof(self.ip4) - 1);
+    self.port = 80;
+    if (worker)  strncpy(self.worker,  worker,  sizeof(self.worker) - 1);
+    if (board)   strncpy(self.board,   board,   sizeof(self.board) - 1);
+    if (version) strncpy(self.version, version, sizeof(self.version) - 1);
+    if (state)   strncpy(self.state,   state,   sizeof(self.state) - 1);
+    self.last_seen_us = esp_timer_get_time();
+
+    if (xSemaphoreTake(g_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        knot_table_upsert(g_peer_table, KNOT_PEER_COUNT, &self);
+        xSemaphoreGive(g_mutex);
+    }
+}
+
 size_t knot_snapshot(knot_peer_t *out, size_t cap) {
     if (!out || cap == 0) {
         return 0;

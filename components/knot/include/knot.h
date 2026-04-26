@@ -47,6 +47,18 @@ int knot_init(void);
 /// Safe to call concurrently from any task.
 size_t knot_snapshot(knot_peer_t *out, size_t cap);
 
+/// Insert/refresh the local device's own entry in the peer table.
+/// mdns_browse doesn't return self, so consumers must inject their own
+/// identity for it to appear in the snapshot. Safe to call repeatedly to
+/// refresh state (e.g. when transitioning to "ota").
+void knot_set_self(const char *instance_name,
+                   const char *hostname,
+                   const char *ip4,
+                   const char *worker,
+                   const char *board,
+                   const char *version,
+                   const char *state);
+
 #ifdef __cplusplus
 }
 #endif
