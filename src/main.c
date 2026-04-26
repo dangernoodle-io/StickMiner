@@ -270,6 +270,7 @@ void app_main(void)
                 bb_mdns_build_hostname(taipan_config_worker_name(), NULL, hn, sizeof(hn));
             }
             bb_mdns_set_hostname(hn);
+            bb_wifi_set_hostname(hn);
         }
 
         ESP_ERROR_CHECK(bb_prov_start_ap());
@@ -327,6 +328,7 @@ void app_main(void)
                 bb_mdns_build_hostname(taipan_config_worker_name(), NULL, hn, sizeof(hn));
             }
             bb_mdns_set_hostname(hn);
+            bb_wifi_set_hostname(hn);
         }
         bb_mdns_init();
         ESP_ERROR_CHECK(bb_wifi_init());
