@@ -288,6 +288,11 @@ void app_main(void)
         ESP_ERROR_CHECK(led_set_color(0, 0, 38));
 
         bool connected = false;
+        // cppcheck-suppress knownConditionTrueFalse
+        // Loop exits via esp_restart() in the success branch; the failure
+        // branch re-enters provisioning indefinitely. `connected` stays false
+        // by design — terminating the loop normally would skip the reboot
+        // that TA-225 documented as required for clean asic_init.
         while (!connected) {
             bb_prov_wait_done(UINT32_MAX);
 
