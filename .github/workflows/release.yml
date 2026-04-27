@@ -45,7 +45,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.platformio
-          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+          key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini', 'scripts/fetch_breadboard.py', 'dependencies.lock', 'sdkconfig.defaults', 'sdkconfig/**') }}
           restore-keys: ${{ runner.os }}-pio-
       - name: Install tools
         run: pip install platformio
@@ -75,14 +75,17 @@ jobs:
         with:
           path: ~/.platformio/packages/tool-cppcheck
           key: ${{ runner.os }}-pio-tool-cppcheck-1.21100
-      - name: Cache PlatformIO
+      - name: Cache PlatformIO toolchain
         uses: actions/cache@v5
         with:
-          path: |
-            ~/.platformio
-            ~/.cache/ccache
-          key: ${{ runner.os }}-pio-build-${{ matrix.env }}-${{ hashFiles('**/platformio.ini') }}
-          restore-keys: ${{ runner.os }}-pio-build-${{ matrix.env }}-
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-toolchain-${{ hashFiles('platformio.ini') }}
+          restore-keys: ${{ runner.os }}-pio-toolchain-
+      - name: Cache ccache (deterministic; no restore-keys)
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ccache
+          key: ${{ runner.os }}-ccache-${{ matrix.env }}-${{ hashFiles('platformio.ini', 'scripts/fetch_breadboard.py', 'dependencies.lock', 'sdkconfig.defaults', 'sdkconfig/**') }}
       - name: Install tools
         run: |
           sudo apt-get install -y ccache
