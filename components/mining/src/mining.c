@@ -28,6 +28,7 @@ void mining_stats_update_ema(hashrate_ema_t *ema, double sample, int64_t now_us)
 #include "esp_task_wdt.h"
 #include "sha256_hw.h"
 #include "bb_nv.h"
+#include "bb_system.h"
 #include "driver/temperature_sensor.h"
 
 static const char *TAG = "mining";
@@ -93,8 +94,8 @@ void mining_stats_init(void)
     mining_stats_load_lifetime();
 
     temperature_sensor_config_t cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
-    ESP_ERROR_CHECK(temperature_sensor_install(&cfg, &s_temp_handle));
-    ESP_ERROR_CHECK(temperature_sensor_enable(s_temp_handle));
+    BB_ERROR_CHECK(temperature_sensor_install(&cfg, &s_temp_handle));
+    BB_ERROR_CHECK(temperature_sensor_enable(s_temp_handle));
 }
 #endif
 

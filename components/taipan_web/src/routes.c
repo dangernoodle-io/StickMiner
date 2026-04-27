@@ -3,7 +3,6 @@
 #include "bb_info.h"
 #include "bb_json.h"
 #include "esp_ota_ops.h"
-#include "esp_app_desc.h"
 #include "esp_app_format.h"
 #include "esp_timer.h"
 #include "esp_log.h"
@@ -11,7 +10,7 @@
 #include "esp_mac.h"
 #include "esp_flash.h"
 #include "esp_heap_caps.h"
-#include "esp_system.h"
+#include "bb_system.h"
 #include "board.h"
 #include "mining.h"
 #include "asic_drop_log.h"
@@ -46,7 +45,7 @@ static void deferred_restart_task(void *arg)
 {
     (void)arg;
     vTaskDelay(pdMS_TO_TICKS(500));
-    esp_restart();
+    bb_system_restart();
     vTaskDelete(NULL);
 }
 
@@ -209,7 +208,6 @@ static bb_err_t stats_handler(bb_http_request_t *req)
         xSemaphoreGive(mining_stats.mutex);
     }
 
-    const esp_app_desc_t *app = esp_app_get_description();
     int64_t now_us = esp_timer_get_time();
     int64_t uptime_s = (session_start_us > 0) ? (now_us - session_start_us) / 1000000 : 0;
     int64_t last_share_ago_s = (last_share_us > 0) ? (now_us - last_share_us) / 1000000 : -1;
@@ -247,9 +245,9 @@ static bb_err_t stats_handler(bb_http_request_t *req)
     } else {
         bb_json_obj_set_null(root, "rssi_dbm");
     }
-    bb_json_obj_set_string(root, "version", app->version);
-    bb_json_obj_set_string(root, "build_date", app->date);
-    bb_json_obj_set_string(root, "build_time", app->time);
+    bb_json_obj_set_string(root, "version", bb_system_get_version());
+    bb_json_obj_set_string(root, "build_date", bb_system_get_build_date());
+    bb_json_obj_set_string(root, "build_time", bb_system_get_build_time());
     bb_json_obj_set_string(root, "board", BOARD_NAME);
     bb_json_obj_set_bool(root, "display_en", bb_nv_config_display_enabled());
 

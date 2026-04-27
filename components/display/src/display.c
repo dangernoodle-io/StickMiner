@@ -11,6 +11,7 @@
 #include "font8x16.h"
 #include "bb_nv.h"
 #include "bb_log.h"
+#include "bb_system.h"
 
 #include <string.h>
 #include <stdbool.h>
@@ -142,17 +143,17 @@ static esp_err_t init_st7735(void)
     ESP_RETURN_ON_ERROR(esp_lcd_new_panel_st7789(s_panel_io, &panel_cfg, &s_panel),
                         TAG, "st7789 panel init");
 
-    ESP_ERROR_CHECK(esp_lcd_panel_reset(s_panel));
-    ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel));
+    BB_ERROR_CHECK(esp_lcd_panel_reset(s_panel));
+    BB_ERROR_CHECK(esp_lcd_panel_init(s_panel));
 
     // Send ST7735-specific vendor commands (gamma, power, frame rate)
-    ESP_ERROR_CHECK(st7735_vendor_init());
+    BB_ERROR_CHECK(st7735_vendor_init());
 
-    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(s_panel, true));
-    ESP_ERROR_CHECK(esp_lcd_panel_set_gap(s_panel, LCD_OFFSET_X, LCD_OFFSET_Y));
-    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(s_panel, true));
-    ESP_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, false, true));
-    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));
+    BB_ERROR_CHECK(esp_lcd_panel_invert_color(s_panel, true));
+    BB_ERROR_CHECK(esp_lcd_panel_set_gap(s_panel, LCD_OFFSET_X, LCD_OFFSET_Y));
+    BB_ERROR_CHECK(esp_lcd_panel_swap_xy(s_panel, true));
+    BB_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, false, true));
+    BB_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));
 
     gpio_set_level(PIN_LCD_BL, 0);  // active-low: 0 = on
     bb_log_i(TAG, "ST7735 ready (%dx%d)", LCD_WIDTH, LCD_HEIGHT);
@@ -515,9 +516,9 @@ static esp_err_t init_ssd1306(void)
     ESP_RETURN_ON_ERROR(esp_lcd_new_panel_ssd1306(io, &panel_cfg, &s_panel),
                         TAG, "ssd1306 panel init");
 
-    ESP_ERROR_CHECK(esp_lcd_panel_reset(s_panel));
-    ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel));
-    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));
+    BB_ERROR_CHECK(esp_lcd_panel_reset(s_panel));
+    BB_ERROR_CHECK(esp_lcd_panel_init(s_panel));
+    BB_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));
 
     bb_log_i(TAG, "SSD1306 ready (%dx%d)", OLED_WIDTH, OLED_HEIGHT);
     return ESP_OK;

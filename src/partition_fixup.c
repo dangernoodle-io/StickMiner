@@ -5,7 +5,7 @@
 #include <string.h>
 #include "esp_flash.h"
 #include "esp_ota_ops.h"
-#include "esp_system.h"
+#include "bb_system.h"
 #include "bb_log.h"
 
 static const char *TAG = "partition_fixup";
@@ -159,7 +159,7 @@ void partition_fixup_check(void)
         }
 
         bb_log_w(TAG, "partition fixup complete — rebooting");
-        esp_restart();
+        bb_system_restart();
         break;
     }
 }

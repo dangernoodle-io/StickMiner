@@ -10,6 +10,7 @@
 #include "mining.h"
 #include "esp_log.h"
 #include "bb_log.h"
+#include "bb_system.h"
 #include "driver/uart.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -139,7 +140,7 @@ static esp_err_t bm1370_chip_init(void)
     // Baud switch to 1 Mbps — only after PLL is stable at target.
     write_reg(BM1370_REG_FAST_UART, 0x11, 0x30, 0x02, 0x00);
     uart_wait_tx_done(ASIC_UART_NUM, pdMS_TO_TICKS(100));
-    ESP_ERROR_CHECK(uart_set_baudrate(ASIC_UART_NUM, ASIC_BAUD_FAST));
+    BB_ERROR_CHECK(uart_set_baudrate(ASIC_UART_NUM, ASIC_BAUD_FAST));
     uart_flush(ASIC_UART_NUM);
     bb_log_i(TAG, "baud switched to %d", ASIC_BAUD_FAST);
     vTaskDelay(pdMS_TO_TICKS(10));

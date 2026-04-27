@@ -83,8 +83,8 @@ static void start_mining(void)
         .callback = stats_save_timer_cb,
         .name = "stats_save",
     };
-    ESP_ERROR_CHECK(esp_timer_create(&timer_args, &s_stats_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(s_stats_timer, 10ULL * 60 * 1000000));
+    BB_ERROR_CHECK(esp_timer_create(&timer_args, &s_stats_timer));
+    BB_ERROR_CHECK(esp_timer_start_periodic(s_stats_timer, 10ULL * 60 * 1000000));
 
     // Register WiFi kick callback for zombie-state recovery
     stratum_set_wifi_kick_cb(bb_wifi_force_reassociate);
@@ -170,9 +170,10 @@ void app_main(void)
 {
     partition_fixup_check();
 
-    const esp_app_desc_t *app = esp_app_get_description();
     bb_log_i(TAG, "%s v%s (%s %s, IDF %s) starting...",
-             app->project_name, app->version, app->date, app->time, app->idf_ver);
+             bb_system_get_project_name(), bb_system_get_version(),
+             bb_system_get_build_date(), bb_system_get_build_time(),
+             bb_system_get_idf_version());
 
     // Suppress noisy framework log tags (before wifi_init)
     bb_log_level_set("wifi", BB_LOG_LEVEL_WARN);
@@ -207,25 +208,25 @@ void app_main(void)
     bb_log_tag_register("bm1368", BB_LOG_LEVEL_INFO);
 #endif
 
-    ESP_ERROR_CHECK(bb_log_stream_init());
+    BB_ERROR_CHECK(bb_log_stream_init());
 
     // Initialize NVS (required by WiFi)
-    ESP_ERROR_CHECK(bb_nv_flash_init());
+    BB_ERROR_CHECK(bb_nv_flash_init());
 
     // Load config from NVS (falls back to defaults)
-    ESP_ERROR_CHECK(bb_nv_config_init());
-    ESP_ERROR_CHECK(taipan_config_init());
+    BB_ERROR_CHECK(bb_nv_config_init());
+    BB_ERROR_CHECK(taipan_config_init());
     // Register manifest so /api/manifest exposes the NVS keyspace
-    ESP_ERROR_CHECK(taipan_config_register_manifest());
+    BB_ERROR_CHECK(taipan_config_register_manifest());
     log_reset_reason();
-    ESP_ERROR_CHECK(led_init());
+    BB_ERROR_CHECK(led_init());
 
     // Boot failure counter — incremented only on WiFi timeout restart (wifi_prov.c),
     // not on every boot, so flash/power-cycle doesn't trigger AP fallback.
     uint8_t boot_cnt = bb_nv_config_boot_count();
 
     // Register TaipanMiner-specific info extender for breadboard's /api/info endpoint
-    ESP_ERROR_CHECK(taipan_web_register_info_extender());
+    BB_ERROR_CHECK(taipan_web_register_info_extender());
 
     if (boot_cnt >= BB_NV_CONFIG_BOOT_FAIL_THRESHOLD && bb_nv_config_is_provisioned()) {
         bb_log_w(TAG, "boot_count=%" PRIu8 " >= %d: clearing provisioning for AP fallback",
@@ -242,14 +243,14 @@ void app_main(void)
     // Initialize ASIC before WiFi — freq ramp takes ~8s, runs while WiFi isn't needed yet.
     // Skip if not provisioned (will enter AP mode instead).
     if (bb_nv_config_is_provisioned()) {
-        ESP_ERROR_CHECK(asic_init());
+        BB_ERROR_CHECK(asic_init());
     }
 #endif
 
     // Initialize display early so splash is visible during boot.
     // On Bitaxe, display creates I2C bus itself if asic_init() hasn't run.
-    ESP_ERROR_CHECK(display_init());
-    ESP_ERROR_CHECK(display_show_splash());
+    BB_ERROR_CHECK(display_init());
+    BB_ERROR_CHECK(display_show_splash());
     vTaskDelay(pdMS_TO_TICKS(2000));
 
     // Set CORS methods before HTTP server starts (required for PATCH support)
@@ -285,19 +286,19 @@ void app_main(void)
         bb_mdns_set_txt("board", FIRMWARE_BOARD);
         bb_mdns_set_txt("version", bb_system_get_version());
         bb_mdns_set_txt("state", "provisioning");
-        ESP_ERROR_CHECK(bb_prov_start_ap());
+        BB_ERROR_CHECK(bb_prov_start_ap());
         taipan_web_install_prov_save_cb();
         {
             size_t n;
             const bb_http_asset_t *assets = taipan_web_prov_assets(&n);
-            ESP_ERROR_CHECK(bb_prov_start(assets, n, NULL));
+            BB_ERROR_CHECK(bb_prov_start(assets, n, NULL));
         }
 
         // Show provisioning info on display + solid blue LED
         char ap_ssid[32];
         bb_prov_get_ap_ssid(ap_ssid, sizeof(ap_ssid));
-        ESP_ERROR_CHECK(display_show_prov(ap_ssid, "taipanminer"));
-        ESP_ERROR_CHECK(led_set_color(0, 0, 38));
+        BB_ERROR_CHECK(display_show_prov(ap_ssid, "taipanminer"));
+        BB_ERROR_CHECK(led_set_color(0, 0, 38));
 
         bool connected = false;
         // cppcheck-suppress knownConditionTrueFalse
@@ -312,7 +313,7 @@ void app_main(void)
 
             esp_err_t err = bb_wifi_init_sta();
             if (err == ESP_OK) {
-                ESP_ERROR_CHECK(led_off());
+                BB_ERROR_CHECK(led_off());
                 bb_log_i(TAG, "provisioning complete; restarting into mining mode");
                 bb_nv_config_set_provisioned();
                 bb_nv_config_reset_boot_count();
@@ -321,11 +322,11 @@ void app_main(void)
                 // asic_init, leaving UART/I2C drivers uninstalled and the ASIC task
                 // spinning on ESP_ERR_INVALID_STATE until a manual reboot. (TA-225)
                 vTaskDelay(pdMS_TO_TICKS(100));  // let the log flush
-                esp_restart();
+                bb_system_restart();
             } else {
                 bb_log_w(TAG, "STA connect failed, re-entering provisioning");
                 // Reinitialize AP for retry
-                ESP_ERROR_CHECK(bb_prov_start_ap());
+                BB_ERROR_CHECK(bb_prov_start_ap());
             }
         }
     } else {
@@ -353,8 +354,8 @@ void app_main(void)
         bb_mdns_set_txt("board", FIRMWARE_BOARD);
         bb_mdns_set_txt("version", bb_system_get_version());
         bb_mdns_set_txt("state", "mining");
-        ESP_ERROR_CHECK(bb_wifi_init());
-        ESP_ERROR_CHECK(knot_init());
+        BB_ERROR_CHECK(bb_wifi_init());
+        BB_ERROR_CHECK(knot_init());
         {
             /* Inject self into the peer table — mdns_browse never reports the
              * local device, so without this the device wouldn't show in its
@@ -373,7 +374,7 @@ void app_main(void)
                           bb_system_get_version(),
                           "mining");
         }
-        ESP_ERROR_CHECK(bb_http_server_ensure_started());
+        BB_ERROR_CHECK(bb_http_server_ensure_started());
         {
             // Register OpenAPI endpoint (version sourced from bb_system_get_version when NULL)
             static const bb_openapi_meta_t openapi_meta = {
@@ -381,10 +382,10 @@ void app_main(void)
                 .version = NULL,
                 .description = "Bitcoin mining firmware API for ESP32-S3 boards",
             };
-            ESP_ERROR_CHECK(bb_openapi_register(bb_http_server_get_handle(), &openapi_meta));
+            BB_ERROR_CHECK(bb_openapi_register(bb_http_server_get_handle(), &openapi_meta));
         }
         // Register manifest endpoint and mDNS keys
-        ESP_ERROR_CHECK(bb_manifest_register_route(bb_http_server_get_handle()));
+        BB_ERROR_CHECK(bb_manifest_register_route(bb_http_server_get_handle()));
         {
             static const bb_manifest_mdns_t taipan_mdns_keys[] = {
                 {.key = "worker", .desc = "stratum worker name"},
@@ -392,9 +393,9 @@ void app_main(void)
                 {.key = "version", .desc = "firmware semver"},
                 {.key = "state", .desc = "device lifecycle state", .values = "provisioning|mining|ota"},
             };
-            ESP_ERROR_CHECK(bb_manifest_register_mdns("_taipanminer._tcp", taipan_mdns_keys, sizeof(taipan_mdns_keys) / sizeof(taipan_mdns_keys[0])));
+            BB_ERROR_CHECK(bb_manifest_register_mdns("_taipanminer._tcp", taipan_mdns_keys, sizeof(taipan_mdns_keys) / sizeof(taipan_mdns_keys[0])));
         }
-        ESP_ERROR_CHECK(taipan_web_register_mining_routes(bb_http_server_get_handle()));
+        BB_ERROR_CHECK(taipan_web_register_mining_routes(bb_http_server_get_handle()));
     }
 
     // Sync time via SNTP (UTC)
