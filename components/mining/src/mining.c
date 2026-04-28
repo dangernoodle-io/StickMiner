@@ -490,10 +490,18 @@ bool mining_pause_check(void)
     if (!mining_pause_state_on_check(&s_pause_state)) return false;
     bb_log_i(TAG, "mining paused for maintenance");
     xSemaphoreGive(s_pause_ack);
-    if (xSemaphoreTake(s_pause_done, pdMS_TO_TICKS(30000)) != pdTRUE) {
+    // 5 min covers OTA pull worst case (firmware download over weak WiFi).
+    // The prior 30s budget timed out mid-download on slow links, and because
+    // on_resumed() only cleared pause_active the task re-paused on the next
+    // Tier-1 hop and cycled until OTA finally called mining_resume(). See
+    // TA-277. on_done_timeout clears both flags as belt-and-suspenders so a
+    // future watchdog event does not regress to cycling.
+    if (xSemaphoreTake(s_pause_done, pdMS_TO_TICKS(300000)) != pdTRUE) {
         bb_log_e(TAG, "mining resume timeout, resuming anyway");
+        mining_pause_state_on_done_timeout(&s_pause_state);
+    } else {
+        mining_pause_state_on_resumed(&s_pause_state);
     }
-    mining_pause_state_on_resumed(&s_pause_state);
     bb_log_i(TAG, "mining resumed (stack high water: %" PRIu32 ")",
              (uint32_t)uxTaskGetStackHighWaterMark(NULL));
     return true;

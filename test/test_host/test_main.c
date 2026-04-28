@@ -229,6 +229,7 @@ void test_mining_pause_state_on_resume_when_active(void);
 void test_mining_pause_state_on_resume_when_not_active(void);
 void test_mining_pause_state_on_resumed(void);
 void test_mining_pause_state_on_ack_timeout(void);
+void test_mining_pause_state_on_done_timeout(void);
 void test_mining_pause_state_full_happy_path(void);
 void test_mining_pause_state_resume_before_check(void);
 
@@ -571,6 +572,7 @@ int main(void) {
     RUN_TEST(test_mining_pause_state_on_resume_when_not_active);
     RUN_TEST(test_mining_pause_state_on_resumed);
     RUN_TEST(test_mining_pause_state_on_ack_timeout);
+    RUN_TEST(test_mining_pause_state_on_done_timeout);
     RUN_TEST(test_mining_pause_state_full_happy_path);
     RUN_TEST(test_mining_pause_state_resume_before_check);
 

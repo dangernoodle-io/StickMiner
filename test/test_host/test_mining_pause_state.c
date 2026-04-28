@@ -93,6 +93,23 @@ void test_mining_pause_state_on_ack_timeout(void)
     TEST_ASSERT_FALSE(state.pause_active);
 }
 
+// Test 8b: on_done_timeout clears BOTH flags so the next on_check() does not
+// re-pause on the still-set pause_requested. Regression guard for TA-277.
+void test_mining_pause_state_on_done_timeout(void)
+{
+    mining_pause_state_t state;
+    mining_pause_state_init(&state);
+    mining_pause_state_request(&state);
+    mining_pause_state_on_check(&state);
+    // pause_requested=true, pause_active=true (caller never called resume)
+    mining_pause_state_on_done_timeout(&state);
+    TEST_ASSERT_FALSE(state.pause_requested);
+    TEST_ASSERT_FALSE(state.pause_active);
+    // Next on_check must not re-park.
+    bool should_park = mining_pause_state_on_check(&state);
+    TEST_ASSERT_FALSE(should_park);
+}
+
 // Test 9: full happy path: request → on_check → on_resume → on_resumed
 void test_mining_pause_state_full_happy_path(void)
 {
