@@ -34,3 +34,9 @@ void mining_pause_state_on_ack_timeout(mining_pause_state_t *s)
 {
     s->pause_requested = false;
 }
+
+void mining_pause_state_on_done_timeout(mining_pause_state_t *s)
+{
+    s->pause_requested = false;
+    s->pause_active = false;
+}

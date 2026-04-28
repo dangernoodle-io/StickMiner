@@ -40,3 +40,9 @@ void mining_pause_state_on_resumed(mining_pause_state_t *s);
 // External caller: ack-timeout path. Pause request never observed by the
 // task; abort the pause and clear pause_requested.
 void mining_pause_state_on_ack_timeout(mining_pause_state_t *s);
+
+// Mining task: resume signal never arrived within the timeout. Resume anyway
+// and clear BOTH flags so the next on_check() does not re-pause on the still-
+// set pause_requested. Without this, the task would re-enter park 1 Tier-1
+// hop later and cycle on every timeout window (TA-277).
+void mining_pause_state_on_done_timeout(mining_pause_state_t *s);
