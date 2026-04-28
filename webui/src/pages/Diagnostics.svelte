@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
-  import { postReboot, setLogLevel, fetchLogLevels, type LogLevel } from '../lib/api'
+  import { postReboot, setLogLevel, fetchLogLevels, type LogLevel, type RecentDrop } from '../lib/api'
   import ConfirmDialog from '../components/ConfirmDialog.svelte'
-  import { startRebootRecovery, stats } from '../lib/stores'
+  import { startRebootRecovery } from '../lib/stores'
 
-  $: recentDrops = $stats?.recent_drops ?? []
+  // TODO(TA-282/TA-287): fetch from /api/diag/asic once that endpoint ships
+  const recentDrops: RecentDrop[] = []
 
   const REBOOT_SKIP_KEY = 'taipanminer.skipRebootConfirm'
 
