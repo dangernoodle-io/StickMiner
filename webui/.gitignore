@@ -1,9 +1,7 @@
 node_modules
 dist
-.env
-.env.development
-.env.local
-.env.*.local
-*.pem
-.DS_Store
 .vite
+.env
+.env.local
+.env.development
+.env.production

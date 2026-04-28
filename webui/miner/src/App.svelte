@@ -15,8 +15,8 @@
   import Settings from './pages/Settings.svelte'
   import History from './pages/History.svelte'
   import Knot from './pages/Knot.svelte'
-  import './lib/theme.css'
-  import './App.css'
+  import 'ui-kit/theme.css'
+  import 'ui-kit/utilities.css'
 
   onMount(() => {
     start()
