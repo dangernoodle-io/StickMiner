@@ -10,28 +10,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: webui/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: webui/pnpm-lock.yaml
       - name: Install deps
         working-directory: webui
-        run: npm ci --no-audit --no-fund
+        run: pnpm install --frozen-lockfile
       - name: Typecheck
         working-directory: webui
-        run: npm run check --if-present
+        run: pnpm --filter miner run check
       - name: Unit tests
         working-directory: webui
-        run: npm test -- --run
+        run: pnpm --filter miner run test -- --run
       - name: Build
         working-directory: webui
-        run: npm run build
+        run: pnpm --filter miner run build
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
           name: webui-dist
-          path: webui/dist
+          path: webui/miner/dist
           retention-days: 7
 
   test:
@@ -65,7 +68,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: webui-dist
-          path: webui/dist
+          path: webui/miner/dist
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
