@@ -1,3 +1,4 @@
 packages:
   - "miner"
+  - "prov"
   - "ui-kit"

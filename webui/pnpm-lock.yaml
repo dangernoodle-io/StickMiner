@@ -60,6 +60,40 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@vitest/ui@4.1.5)(jsdom@29.1.0)(vite@8.0.10(terser@5.46.2))
 
+  prov:
+    dependencies:
+      tslib:
+        specifier: ^2.6.2
+        version: 2.8.1
+      ui-kit:
+        specifier: workspace:*
+        version: link:../ui-kit
+    devDependencies:
+      '@sveltejs/vite-plugin-svelte':
+        specifier: ^7.0.0
+        version: 7.0.0(svelte@5.55.5)(vite@8.0.10(terser@5.46.2))
+      '@tsconfig/svelte':
+        specifier: ^5.0.4
+        version: 5.0.8
+      lightningcss:
+        specifier: ^1.32.0
+        version: 1.32.0
+      svelte:
+        specifier: ^5.55.5
+        version: 5.55.5
+      svelte-check:
+        specifier: ^4.4.6
+        version: 4.4.6(picomatch@4.0.4)(svelte@5.55.5)(typescript@5.9.3)
+      terser:
+        specifier: ^5.46.2
+        version: 5.46.2
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+      vite:
+        specifier: ^8.0.10
+        version: 8.0.10(terser@5.46.2)
+
   ui-kit: {}
 
 packages:
