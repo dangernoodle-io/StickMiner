@@ -55,18 +55,18 @@ static void schedule_deferred_restart(void)
     xTaskCreate(deferred_restart_task, "deferred_restart", 2048, NULL, 5, NULL);
 }
 
-extern const uint8_t prov_form_html_gz[];
-extern const size_t prov_form_html_gz_len;
-extern const uint8_t theme_css_gz[];
-extern const size_t theme_css_gz_len;
 extern const uint8_t index_html_gz[];
 extern const size_t index_html_gz_len;
 extern const uint8_t index_js_gz[];
 extern const size_t index_js_gz_len;
 extern const uint8_t index_css_gz[];
 extern const size_t index_css_gz_len;
-extern const uint8_t prov_save_html_gz[];
-extern const size_t prov_save_html_gz_len;
+extern const uint8_t prov_index_html_gz[];
+extern const size_t prov_index_html_gz_len;
+extern const uint8_t prov_index_js_gz[];
+extern const size_t prov_index_js_gz_len;
+extern const uint8_t prov_index_css_gz[];
+extern const size_t prov_index_css_gz_len;
 extern const uint8_t logo_svg_gz[];
 extern const size_t logo_svg_gz_len;
 extern const uint8_t favicon_svg_gz[];
@@ -129,9 +129,7 @@ static bb_err_t taipan_prov_save_cb(bb_http_request_t *req, const char *body, in
     bb_http_resp_set_header(req, "Connection", "close");
     bb_http_resp_set_header(req, "Access-Control-Allow-Origin", "*");
     bb_http_resp_set_header(req, "Access-Control-Allow-Private-Network", "true");
-    bb_http_resp_set_header(req, "Content-Encoding", "gzip");
-    bb_http_resp_set_header(req, "Content-Type", "text/html");
-    bb_http_resp_send(req, (const char *)prov_save_html_gz, prov_save_html_gz_len);
+    bb_http_resp_send(req, "", 0);
 
     // schedule deferred restart so config changes apply
     schedule_deferred_restart();
@@ -1154,10 +1152,11 @@ void taipan_web_install_prov_save_cb(void)
 }
 
 static bb_http_asset_t s_prov_assets[] = {
-    { "/",            "text/html",     "gzip", NULL, 0  },
-    { "/theme.css",   "text/css",      "gzip", NULL, 0  },
-    { "/logo.svg",    "image/svg+xml", "gzip", NULL, 0  },
-    { "/favicon.ico", "image/svg+xml", "gzip", NULL, 0  },
+    { "/",                  "text/html",              "gzip", NULL, 0 },
+    { "/assets/index.js",   "application/javascript", "gzip", NULL, 0 },
+    { "/assets/index.css",  "text/css",               "gzip", NULL, 0 },
+    { "/logo.svg",          "image/svg+xml",          "gzip", NULL, 0 },
+    { "/favicon.svg",       "image/svg+xml",          "gzip", NULL, 0 },
 };
 
 const bb_http_asset_t *taipan_web_prov_assets(size_t *n)
@@ -1165,14 +1164,16 @@ const bb_http_asset_t *taipan_web_prov_assets(size_t *n)
     // Initialize asset data on first call
     static bool initialized = false;
     if (!initialized) {
-        s_prov_assets[0].data = prov_form_html_gz;
-        s_prov_assets[0].len = prov_form_html_gz_len;
-        s_prov_assets[1].data = theme_css_gz;
-        s_prov_assets[1].len = theme_css_gz_len;
-        s_prov_assets[2].data = logo_svg_gz;
-        s_prov_assets[2].len = logo_svg_gz_len;
-        s_prov_assets[3].data = favicon_svg_gz;
-        s_prov_assets[3].len = favicon_svg_gz_len;
+        s_prov_assets[0].data = prov_index_html_gz;
+        s_prov_assets[0].len = prov_index_html_gz_len;
+        s_prov_assets[1].data = prov_index_js_gz;
+        s_prov_assets[1].len = prov_index_js_gz_len;
+        s_prov_assets[2].data = prov_index_css_gz;
+        s_prov_assets[2].len = prov_index_css_gz_len;
+        s_prov_assets[3].data = logo_svg_gz;
+        s_prov_assets[3].len = logo_svg_gz_len;
+        s_prov_assets[4].data = favicon_svg_gz;
+        s_prov_assets[4].len = favicon_svg_gz_len;
         initialized = true;
     }
     *n = sizeof(s_prov_assets) / sizeof(s_prov_assets[0]);
