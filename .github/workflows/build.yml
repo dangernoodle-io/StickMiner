@@ -66,20 +66,28 @@ jobs:
       - name: Install deps
         working-directory: webui
         run: pnpm install --frozen-lockfile
-      - name: Typecheck
+      - name: Typecheck miner
         working-directory: webui
         run: pnpm --filter miner run check
+      - name: Typecheck prov
+        working-directory: webui
+        run: pnpm --filter prov run check
       - name: Unit tests
         working-directory: webui
         run: pnpm --filter miner run test -- --run
-      - name: Build
+      - name: Build miner
         working-directory: webui
         run: pnpm --filter miner run build
+      - name: Build prov
+        working-directory: webui
+        run: pnpm --filter prov run build
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
           name: webui-dist
-          path: webui/miner/dist
+          path: |
+            webui/miner/dist
+            webui/prov/dist
           retention-days: 7
 
   build:
@@ -95,7 +103,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: webui-dist
-          path: webui/miner/dist
+          path: webui
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
@@ -138,7 +146,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: webui-dist
-          path: webui/miner/dist
+          path: webui
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
