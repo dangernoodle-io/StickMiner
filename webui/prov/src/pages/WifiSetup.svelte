@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import Select from 'ui-kit/Select.svelte'
+  import WifiSelect from 'ui-kit/WifiSelect.svelte'
   import { fetchScan, postSave, type AccessPoint } from '../lib/api'
 
   let { onSaved }: { onSaved: () => void } = $props()
@@ -20,23 +20,6 @@
   let errors = $state<Record<string, string>>({})
   let submitting = $state(false)
   let submitError = $state<string | null>(null)
-
-  function getSignalStrength(rssi: number): string {
-    if (rssi >= -50) return '▁▃▅█'
-    if (rssi >= -67) return '▁▃▅'
-    if (rssi >= -80) return '▁▃'
-    return '?'
-  }
-
-  function buildSelectOptions(): Array<{ label: string; value: string }> {
-    const opts = networks.map(ap => {
-      const lock = ap.secure ? ' 🔒' : ''
-      const signal = getSignalStrength(ap.rssi)
-      return { label: `${ap.ssid}${lock} ${signal}`, value: ap.ssid }
-    })
-    opts.push({ label: 'Enter manually...', value: '__manual__' })
-    return opts
-  }
 
   async function scan() {
     scanning = true
@@ -114,12 +97,6 @@
   onMount(() => {
     scan()
   })
-
-  $effect(() => {
-    if (selectedSsid === '__manual__') {
-      manualSsid = ''
-    }
-  })
 </script>
 
 <div class="setup-form">
@@ -133,20 +110,28 @@
     <section>
       <h2>WiFi</h2>
       <div class="form-group">
-        <label>Network</label>
+        <span class="label">Network</span>
         <div class="scan-controls">
-          <Select
-            bind:value={selectedSsid}
-            options={buildSelectOptions()}
-            disabled={scanning || submitting}
+          <WifiSelect
+            networks={networks}
+            bind:selected={selectedSsid}
+            scanning={scanning}
+            error={scanError}
+            disabled={submitting}
           />
           <button
             type="button"
             class="rescan-btn"
             onclick={() => scan()}
             disabled={scanning || submitting}
+            aria-label="Rescan networks"
           >
-            ↻
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M23 4v6h-6"/>
+              <path d="M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10"/>
+              <path d="M20.49 15a9 9 0 01-14.85 3.36L1 14"/>
+            </svg>
           </button>
         </div>
         {#if scanError}
@@ -184,8 +169,19 @@
             class="toggle-pass"
             onclick={(e) => { e.preventDefault(); showPass = !showPass }}
             disabled={submitting}
+            aria-label={showPass ? 'Hide password' : 'Show password'}
           >
-            {showPass ? '👁' : '👁‍🗨'}
+            {#if showPass}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            {:else}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            {/if}
           </button>
         </div>
       </div>
@@ -284,9 +280,9 @@
   }
 
   .error-banner {
-    background: #fee;
-    border: 1px solid #fcc;
-    color: #c00;
+    background: color-mix(in srgb, var(--danger) 15%, transparent);
+    border: 1px solid var(--danger);
+    color: var(--danger);
     padding: 0.75rem;
     border-radius: 4px;
     font-size: 13px;
@@ -305,10 +301,12 @@
   }
 
   h2 {
-    font-size: 16px;
+    font-size: 14px;
     margin: 0;
-    color: var(--text);
+    color: var(--accent);
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
   }
 
   .form-group {
@@ -317,20 +315,24 @@
     gap: 0.5rem;
   }
 
-  label {
-    font-size: 13px;
+  label,
+  .label {
+    font-size: 12px;
     color: var(--label);
-    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   input {
-    padding: 0.75rem;
+    padding: 12px;
     background: var(--input);
     border: 1px solid var(--border);
     border-radius: 4px;
     color: var(--text);
     font-size: 14px;
     font-family: inherit;
+    box-sizing: border-box;
+    width: 100%;
   }
 
   input:focus {
@@ -345,7 +347,7 @@
 
   .scan-controls {
     display: flex;
-    gap: 0.5rem;
+    gap: 8px;
     align-items: stretch;
   }
 
@@ -353,13 +355,16 @@
     background: var(--input);
     border: 1px solid var(--border);
     color: var(--accent);
-    padding: 0.75rem;
+    padding: 12px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 16px;
+    min-height: 44px;
     min-width: 44px;
     flex-shrink: 0;
     transition: border-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .rescan-btn:hover:not(:disabled) {
@@ -372,7 +377,7 @@
   }
 
   .inline-error {
-    color: #c00;
+    color: var(--danger);
     font-size: 12px;
     margin-top: 0.25rem;
   }
@@ -407,7 +412,6 @@
     border: none;
     color: var(--accent);
     cursor: pointer;
-    font-size: 14px;
     padding: 0;
     display: flex;
     align-items: center;
@@ -416,33 +420,39 @@
     height: 24px;
   }
 
+  .toggle-pass:hover:not(:disabled) {
+    color: var(--accent-hover);
+  }
+
   .toggle-pass:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
 
   .field-error {
-    color: #c00;
+    color: var(--danger);
     font-size: 12px;
     margin-top: 0.25rem;
   }
 
   .submit-btn {
     background: var(--accent);
-    color: var(--button-text, #000);
+    color: var(--bg);
     border: none;
-    padding: 0.75rem;
+    padding: 14px;
     border-radius: 4px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: bold;
     cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
     min-height: 44px;
-    transition: opacity 0.2s;
-    margin-top: 0.5rem;
+    margin-top: 10px;
+    transition: background 0.2s;
   }
 
   .submit-btn:hover:not(:disabled) {
-    opacity: 0.9;
+    background: var(--accent-hover);
   }
 
   .submit-btn:disabled {
