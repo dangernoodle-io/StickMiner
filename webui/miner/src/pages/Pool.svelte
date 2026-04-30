@@ -190,8 +190,8 @@
           <div class="k">session</div>
         </div>
         <div class="m">
-          <div class="v muted">—</div>
-          <div class="k">latency <span class="pending-tag">TA-118</span></div>
+          <div class="v">{$pool?.latency_ms != null ? `${$pool.latency_ms} ms` : '—'}</div>
+          <div class="k">latency</div>
         </div>
       </div>
     </div>
@@ -380,7 +380,6 @@
     margin-bottom: 10px;
   }
 
-  .metrics .v.muted { color: var(--muted); }
 
   .pool-tag {
     display: inline-block;

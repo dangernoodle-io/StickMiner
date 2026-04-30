@@ -165,6 +165,7 @@ export interface Pool {
   connected: boolean
   session_start_ago_s: number | null
   current_difficulty: number
+  latency_ms: number | null
   extranonce1: string | null
   extranonce2_size: number | null
   version_mask: string | null
