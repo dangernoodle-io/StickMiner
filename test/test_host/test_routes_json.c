@@ -152,6 +152,7 @@ void test_pool_disconnected(void)
     s.connected         = false;
     s.has_session_start = false;
     s.current_difficulty = 512.0;
+    s.latency_ms        = -1;  /* no sample yet */
     /* extranonce1_len=0, has_notify=false */
 
     bb_json_t root = bb_json_obj_new();
@@ -162,7 +163,7 @@ void test_pool_disconnected(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"test-worker\",\"wallet\":\"tb1qtest000\","
         "\"connected\":false,\"session_start_ago_s\":null,"
-        "\"current_difficulty\":512,"
+        "\"current_difficulty\":512,\"latency_ms\":null,"
         "\"extranonce1\":null,\"extranonce2_size\":null,\"version_mask\":null,"
         "\"notify\":null}",
         json);
@@ -180,6 +181,7 @@ void test_pool_connected_with_notify(void)
     s.has_session_start  = true;
     s.session_start_ago_s = 120;
     s.current_difficulty = 8192.0;
+    s.latency_ms         = 42;  /* sample available */
 
     /* extranonce: 2 bytes = "aabb" */
     s.extranonce1[0] = 0xaa;
@@ -208,7 +210,7 @@ void test_pool_connected_with_notify(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"test-worker\",\"wallet\":\"tb1qtest000\","
         "\"connected\":true,\"session_start_ago_s\":120,"
-        "\"current_difficulty\":8192,"
+        "\"current_difficulty\":8192,\"latency_ms\":42,"
         "\"extranonce1\":\"aabb\",\"extranonce2_size\":4,\"version_mask\":\"1fffe000\","
         "\"notify\":{"
         "\"job_id\":\"abc123\","
@@ -234,6 +236,7 @@ void test_pool_version_mask_zero(void)
     s.has_session_start = true;
     s.session_start_ago_s = 5;
     s.current_difficulty = 512.0;
+    s.latency_ms        = -1;  /* no sample yet */
     s.extranonce1[0] = 0xde; s.extranonce1[1] = 0xad;
     s.extranonce1_len  = 2;
     s.extranonce2_size = 4;
@@ -248,8 +251,66 @@ void test_pool_version_mask_zero(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"\",\"wallet\":\"\","
         "\"connected\":true,\"session_start_ago_s\":5,"
-        "\"current_difficulty\":512,"
+        "\"current_difficulty\":512,\"latency_ms\":null,"
         "\"extranonce1\":\"dead\",\"extranonce2_size\":4,\"version_mask\":null,"
+        "\"notify\":null}",
+        json);
+    bb_json_free_str(json);
+}
+
+void test_pool_latency_positive(void)
+{
+    /* latency_ms=42 → "latency_ms":42 */
+    pool_snapshot_t s = {0};
+    strncpy(s.host, "pool.example.com", sizeof(s.host) - 1);
+    s.port = 3333;
+    s.connected         = true;
+    s.has_session_start = true;
+    s.session_start_ago_s = 10;
+    s.current_difficulty = 512.0;
+    s.latency_ms        = 42;  /* sample available */
+    s.extranonce1_len   = 0;   /* no subscribe yet */
+    s.has_notify        = false;
+
+    bb_json_t root = bb_json_obj_new();
+    build_pool_json(&s, root);
+    char *json = serialize_and_free(root);
+
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"host\":\"pool.example.com\",\"port\":3333,"
+        "\"worker\":\"\",\"wallet\":\"\","
+        "\"connected\":true,\"session_start_ago_s\":10,"
+        "\"current_difficulty\":512,\"latency_ms\":42,"
+        "\"extranonce1\":null,\"extranonce2_size\":null,\"version_mask\":null,"
+        "\"notify\":null}",
+        json);
+    bb_json_free_str(json);
+}
+
+void test_pool_latency_negative(void)
+{
+    /* latency_ms=-1 (no sample) → "latency_ms":null */
+    pool_snapshot_t s = {0};
+    strncpy(s.host, "pool.example.com", sizeof(s.host) - 1);
+    s.port = 3333;
+    s.connected         = true;
+    s.has_session_start = true;
+    s.session_start_ago_s = 5;
+    s.current_difficulty = 512.0;
+    s.latency_ms        = -1;  /* no sample yet */
+    s.extranonce1_len   = 0;
+    s.has_notify        = false;
+
+    bb_json_t root = bb_json_obj_new();
+    build_pool_json(&s, root);
+    char *json = serialize_and_free(root);
+
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"host\":\"pool.example.com\",\"port\":3333,"
+        "\"worker\":\"\",\"wallet\":\"\","
+        "\"connected\":true,\"session_start_ago_s\":5,"
+        "\"current_difficulty\":512,\"latency_ms\":null,"
+        "\"extranonce1\":null,\"extranonce2_size\":null,\"version_mask\":null,"
         "\"notify\":null}",
         json);
     bb_json_free_str(json);
