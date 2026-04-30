@@ -262,6 +262,7 @@ static bb_err_t pool_handler(bb_http_request_t *req)
     }
 
     s.current_difficulty = stratum_get_difficulty();
+    s.latency_ms = stratum_get_pool_rtt_ms();  // -1 if no sample yet (TA-118)
 
     // Negotiated session params — null until subscribe response received.
     stratum_session_snapshot_t sess;

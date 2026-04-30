@@ -152,6 +152,12 @@ void build_pool_json(const pool_snapshot_t *s, bb_json_t root)
 
     bb_json_obj_set_number(root, "current_difficulty", s->current_difficulty);
 
+    if (s->latency_ms >= 0) {
+        bb_json_obj_set_number(root, "latency_ms", (double)s->latency_ms);
+    } else {
+        bb_json_obj_set_null(root, "latency_ms");
+    }
+
     if (s->extranonce1_len > 0) {
         char en1_hex[2 * ROUTES_JSON_EXTRANONCE1_MAX + 1];
         bytes_to_hex(s->extranonce1, s->extranonce1_len, en1_hex);

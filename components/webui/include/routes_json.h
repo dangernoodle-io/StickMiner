@@ -110,6 +110,7 @@ typedef struct {
     uint32_t session_start_ago_s; /* 0 if not connected */
     bool     has_session_start;   /* false → emit null */
     double   current_difficulty;
+    int32_t  latency_ms;          /* -1 → emit null (TA-118) */
 
     /* extranonce / version_mask — valid only when extranonce1_len > 0 */
     uint8_t  extranonce1[ROUTES_JSON_EXTRANONCE1_MAX];

@@ -50,6 +50,9 @@ bool stratum_get_session_snapshot(stratum_session_snapshot_t *out);
 // is valid until the next mining.notify or reconnect.
 bool stratum_get_job_snapshot(const stratum_job_t **out);
 
+// Get pool round-trip time (ms, EMA-smoothed). Returns -1 if no sample yet (TA-118).
+int stratum_get_pool_rtt_ms(void);
+
 // Parse stratum error code from JSON-RPC error item.
 // Handles both [code, "message", "data"] array and {"code": N, ...} object forms.
 // Returns the error code, or -1 if absent/unparseable.

@@ -55,6 +55,12 @@ static volatile bool s_stratum_connected = false;
 static volatile bool s_reconnect_requested = false;
 static stratum_wifi_kick_cb_t s_wifi_kick_cb = NULL;
 
+// Pool RTT tracking (TA-118)
+#define STRATUM_INFLIGHT_MAX 32
+static int64_t s_inflight_send_us[STRATUM_INFLIGHT_MAX] = {0};
+static double s_pool_rtt_ms_ema = 0.0;
+static bool s_pool_rtt_initialized = false;
+
 // Line buffer for reading from socket
 static char s_linebuf[4096];
 static int s_linebuf_len = 0;
@@ -114,6 +120,11 @@ double stratum_get_difficulty(void)
     return s_state.difficulty;
 }
 
+int stratum_get_pool_rtt_ms(void)
+{
+    return s_pool_rtt_initialized ? (int)s_pool_rtt_ms_ema : -1;
+}
+
 bool stratum_get_session_snapshot(stratum_session_snapshot_t *out)
 {
     if (!s_stratum_connected || !out) return false;
@@ -143,6 +154,9 @@ static int stratum_request(const char *method, const char *params_json)
     if (stratum_send(buf) != 0) {
         return -1;
     }
+    // Record send time for RTT measurement (TA-118)
+    int slot = id % STRATUM_INFLIGHT_MAX;
+    s_inflight_send_us[slot] = esp_timer_get_time();
     return id;
 }
 
@@ -285,6 +299,10 @@ static int stratum_connect(const char *host, uint16_t port)
     s_state.next_msg_id = 1;
     s_rcvtimeo_ms = -1;
 
+    // Reset RTT tracking on new connection (TA-118)
+    memset(s_inflight_send_us, 0, sizeof(s_inflight_send_us));
+    s_pool_rtt_initialized = false;
+
     bb_log_i(TAG, "connected to %s:%d", host, port);
     return 0;
 }
@@ -422,6 +440,28 @@ static void process_message(const char *line)
     } else if (id_item && bb_json_item_is_number(id_item)) {
         // Response to our request
         int id = bb_json_item_get_int(id_item);
+
+        // Measure RTT for any response (TA-118)
+        {
+            int slot = id % STRATUM_INFLIGHT_MAX;
+            int64_t send_us = s_inflight_send_us[slot];
+            if (send_us > 0) {
+                int64_t rtt_us = esp_timer_get_time() - send_us;
+                if (rtt_us >= 0 && rtt_us < 30 * 1000 * 1000) {  // sanity: 0–30s
+                    double rtt_ms = (double)rtt_us / 1000.0;
+                    if (!s_pool_rtt_initialized) {
+                        s_pool_rtt_ms_ema = rtt_ms;
+                        s_pool_rtt_initialized = true;
+                    } else {
+                        // EMA: 7/8 old + 1/8 new
+                        s_pool_rtt_ms_ema = (s_pool_rtt_ms_ema * 7.0 + rtt_ms) / 8.0;
+                    }
+                }
+                // Clear slot to avoid stale re-use on collision
+                s_inflight_send_us[slot] = 0;
+            }
+        }
+
         if (id == s_state.subscribe_id) {
             // Subscribe response
             if (result_item) {
