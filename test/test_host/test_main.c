@@ -92,6 +92,9 @@ void test_pool_with_active_idx_and_configured_slots(void);
 void test_pool_options_round_trip(void);
 void test_pool_options_legacy_set_pool_preserves_flags(void);
 void test_pool_options_idx_out_of_range_safe(void);
+void test_pool_subscribe_status_pending(void);
+void test_pool_subscribe_status_active(void);
+void test_pool_subscribe_status_rejected(void);
 
 // Forward declarations from test_crc.c
 void test_crc5_chain_inactive(void);
@@ -1028,6 +1031,9 @@ int main(void) {
     RUN_TEST(test_pool_latency_positive);
     RUN_TEST(test_pool_latency_negative);
     RUN_TEST(test_pool_with_active_idx_and_configured_slots);
+    RUN_TEST(test_pool_subscribe_status_pending);
+    RUN_TEST(test_pool_subscribe_status_active);
+    RUN_TEST(test_pool_subscribe_status_rejected);
     RUN_TEST(test_diag_asic_empty);
     RUN_TEST(test_diag_asic_three_events);
     RUN_TEST(test_diag_asic_future_ts_clamps_to_zero);
