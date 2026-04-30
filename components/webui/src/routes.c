@@ -263,17 +263,22 @@ static bb_err_t pool_handler(bb_http_request_t *req)
 
     pool_snapshot_t s = {0};
 
-    // Pool config — always populated from NVS-backed accessors.
-    {
-        const char *h = taipan_config_pool_host();
-        if (h) strncpy(s.host, h, sizeof(s.host) - 1);
-        const char *wk = taipan_config_worker_name();
-        if (wk) strncpy(s.worker, wk, sizeof(s.worker) - 1);
-        const char *wa = taipan_config_wallet_addr();
-        if (wa) strncpy(s.wallet, wa, sizeof(s.wallet) - 1);
-    }
-    s.port      = taipan_config_pool_port();
     s.connected = stratum_is_connected();
+
+    // Top-level host/port/worker/wallet reflect the *active* pool slot so the
+    // UI's connection summary tracks the real connection target after a
+    // failover or manual switch. Falls back to primary when not connected.
+    {
+        int idx = stratum_get_active_pool_idx();
+        if (idx < 0) idx = TAIPAN_POOL_PRIMARY;
+        const char *h = taipan_config_pool_host_idx(idx);
+        if (h) strncpy(s.host, h, sizeof(s.host) - 1);
+        const char *wk = taipan_config_worker_name_idx(idx);
+        if (wk) strncpy(s.worker, wk, sizeof(s.worker) - 1);
+        const char *wa = taipan_config_wallet_addr_idx(idx);
+        if (wa) strncpy(s.wallet, wa, sizeof(s.wallet) - 1);
+        s.port = taipan_config_pool_port_idx(idx);
+    }
 
     // session_start_ago_s — null pre-connect; wrap-safe diff in ms then /1000.
     uint32_t start_ms = stratum_get_session_start_ms();

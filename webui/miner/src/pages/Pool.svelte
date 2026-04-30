@@ -280,9 +280,8 @@
                   <span class="active-tag">ACTIVE</span>
                 {:else if $pool.active_pool_idx === 1 && $pool.configured?.fallback}
                   <button class="btn outline sm" on:click={() => handleSwitch(0)} disabled={switching}>{switching ? 'Switching…' : 'Switch'}</button>
-                {:else}
-                  <button class="btn outline sm" on:click={() => startEdit(0)}>Edit</button>
                 {/if}
+                <button class="btn outline sm" on:click={() => startEdit(0)}>Edit</button>
               {:else}
                 <span class="placeholder">not configured</span>
                 <button class="btn outline sm" on:click={() => startEdit(0)}>Configure</button>
@@ -340,9 +339,8 @@
                   <span class="active-tag">ACTIVE</span>
                 {:else if $pool.active_pool_idx === 0 && $pool.configured?.primary}
                   <button class="btn outline sm" on:click={() => handleSwitch(1)} disabled={switching}>{switching ? 'Switching…' : 'Switch'}</button>
-                {:else}
-                  <button class="btn outline sm" on:click={() => startEdit(1)}>Edit</button>
                 {/if}
+                <button class="btn outline sm" on:click={() => startEdit(1)}>Edit</button>
               {:else}
                 <span class="placeholder">not configured · optional second pool for failover</span>
                 <button class="btn outline sm" on:click={() => startEdit(1)}>+ Add</button>
