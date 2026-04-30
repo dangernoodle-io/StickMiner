@@ -593,6 +593,76 @@ static bb_err_t pool_switch_handler(bb_http_request_t *req)
     return bb_http_resp_send(req, "", 0);
 }
 
+// ---------------------------------------------------------------------------
+// /api/pool/fallback — DELETE: clear fallback slot.
+// /api/pool/primary  — DELETE: promote fallback to primary, clear fallback.
+//                              409 if no fallback configured.
+// ---------------------------------------------------------------------------
+
+static bb_err_t pool_delete_fallback_handler(bb_http_request_t *req)
+{
+    set_common_headers(req);
+
+    if (!taipan_config_pool_configured(TAIPAN_POOL_FALLBACK)) {
+        // Idempotent: already absent → 204.
+        bb_http_resp_set_status(req, 204);
+        return bb_http_resp_send(req, "", 0);
+    }
+
+    taipan_pool_cfg_t primary = {0};
+    strncpy(primary.host,   taipan_config_pool_host_idx(TAIPAN_POOL_PRIMARY),   sizeof(primary.host)   - 1);
+    primary.port = taipan_config_pool_port_idx(TAIPAN_POOL_PRIMARY);
+    strncpy(primary.wallet, taipan_config_wallet_addr_idx(TAIPAN_POOL_PRIMARY), sizeof(primary.wallet) - 1);
+    strncpy(primary.worker, taipan_config_worker_name_idx(TAIPAN_POOL_PRIMARY), sizeof(primary.worker) - 1);
+    strncpy(primary.pass,   taipan_config_pool_pass_idx(TAIPAN_POOL_PRIMARY),   sizeof(primary.pass)   - 1);
+
+    bb_err_t err = taipan_config_set_pools(&primary, NULL);
+    if (err != BB_OK) {
+        bb_http_resp_send_err(req, 500, "save failed");
+        return err;
+    }
+
+    // If we were running on the fallback, fall back to primary.
+    if (stratum_get_active_pool_idx() == TAIPAN_POOL_FALLBACK) {
+        stratum_request_switch_pool(TAIPAN_POOL_PRIMARY);
+    }
+
+    bb_http_resp_set_status(req, 204);
+    return bb_http_resp_send(req, "", 0);
+}
+
+static bb_err_t pool_delete_primary_handler(bb_http_request_t *req)
+{
+    set_common_headers(req);
+
+    if (!taipan_config_pool_configured(TAIPAN_POOL_FALLBACK)) {
+        bb_http_resp_set_status(req, 409);
+        bb_http_resp_set_header(req, "Content-Type", "text/plain");
+        static const char *msg = "cannot remove primary without a fallback configured";
+        return bb_http_resp_send(req, msg, strlen(msg));
+    }
+
+    // Snapshot fallback into a struct, write it as the new primary, clear fallback.
+    taipan_pool_cfg_t new_primary = {0};
+    strncpy(new_primary.host,   taipan_config_pool_host_idx(TAIPAN_POOL_FALLBACK),   sizeof(new_primary.host)   - 1);
+    new_primary.port = taipan_config_pool_port_idx(TAIPAN_POOL_FALLBACK);
+    strncpy(new_primary.wallet, taipan_config_wallet_addr_idx(TAIPAN_POOL_FALLBACK), sizeof(new_primary.wallet) - 1);
+    strncpy(new_primary.worker, taipan_config_worker_name_idx(TAIPAN_POOL_FALLBACK), sizeof(new_primary.worker) - 1);
+    strncpy(new_primary.pass,   taipan_config_pool_pass_idx(TAIPAN_POOL_FALLBACK),   sizeof(new_primary.pass)   - 1);
+
+    bb_err_t err = taipan_config_set_pools(&new_primary, NULL);
+    if (err != BB_OK) {
+        bb_http_resp_send_err(req, 500, "save failed");
+        return err;
+    }
+
+    // Force a reconnect onto the new primary regardless of which slot was active.
+    stratum_request_switch_pool(TAIPAN_POOL_PRIMARY);
+
+    bb_http_resp_set_status(req, 204);
+    return bb_http_resp_send(req, "", 0);
+}
+
 #ifdef ASIC_CHIP
 static bb_err_t power_handler(bb_http_request_t *req)
 {
@@ -1168,6 +1238,39 @@ static const bb_route_t s_pool_switch_route = {
     .handler              = pool_switch_handler,
 };
 
+static const bb_route_response_t s_pool_delete_fallback_responses[] = {
+    { 204, NULL, NULL, "fallback cleared" },
+    { 500, "text/plain", NULL, "save failed" },
+    { 0 },
+};
+
+static const bb_route_t s_pool_delete_fallback_route = {
+    .method       = BB_HTTP_DELETE,
+    .path         = "/api/pool/fallback",
+    .tag          = "pool",
+    .summary      = "Clear fallback pool slot",
+    .operation_id = "deletePoolFallback",
+    .responses    = s_pool_delete_fallback_responses,
+    .handler      = pool_delete_fallback_handler,
+};
+
+static const bb_route_response_t s_pool_delete_primary_responses[] = {
+    { 204, NULL, NULL, "fallback promoted to primary" },
+    { 409, "text/plain", NULL, "no fallback configured" },
+    { 500, "text/plain", NULL, "save failed" },
+    { 0 },
+};
+
+static const bb_route_t s_pool_delete_primary_route = {
+    .method       = BB_HTTP_DELETE,
+    .path         = "/api/pool/primary",
+    .tag          = "pool",
+    .summary      = "Remove primary pool, promoting fallback",
+    .operation_id = "deletePoolPrimary",
+    .responses    = s_pool_delete_primary_responses,
+    .handler      = pool_delete_primary_handler,
+};
+
 // ---------------------------------------------------------------------------
 // /api/diag/asic — GET (TA-282, TA-287)
 // Recent telemetry-drop log. On ASIC boards, calls asic_task_get_drop_log()
@@ -1490,6 +1593,8 @@ static const bb_route_t * const s_mining_routes[] = {
     &s_pool_route,
     &s_pool_put_route,
     &s_pool_switch_route,
+    &s_pool_delete_primary_route,
+    &s_pool_delete_fallback_route,
     &s_diag_asic_route,
     &s_knot_route,
     &s_settings_get_route,

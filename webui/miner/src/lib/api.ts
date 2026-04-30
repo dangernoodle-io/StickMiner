@@ -244,6 +244,16 @@ export async function switchPool(idx: 0 | 1): Promise<void> {
   if (!res.ok) throw new Error(`switch pool failed: ${res.status}`)
 }
 
+// DELETE /api/pool/fallback — clear fallback slot.
+// DELETE /api/pool/primary  — promote fallback to primary; 409 if no fallback.
+export async function deletePoolSlot(slot: 'primary' | 'fallback'): Promise<void> {
+  const res = await fetch(`${baseUrl}/api/pool/${slot}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(body || `delete pool ${slot} failed: ${res.status}`)
+  }
+}
+
 export async function postReboot(): Promise<void> {
   const res = await fetch(`${baseUrl}/api/reboot`, { method: 'POST' })
   if (!res.ok) throw new Error(`reboot failed: ${res.status}`)
