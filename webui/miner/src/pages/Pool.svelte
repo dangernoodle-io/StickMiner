@@ -389,6 +389,24 @@
         </div>
       </div>
     </div>
+    {#if displayPool?.extranonce1 || displayPool?.version_mask}
+      <div class="session-strip">
+        {#if displayPool?.extranonce1}
+          <div class="sf">
+            <div class="sk">extranonce1</div>
+            <div class="sv mono" title="server-assigned per-session nonce prefix">
+              {displayPool.extranonce1}{displayPool.extranonce2_size != null ? ` · ${displayPool.extranonce2_size}B en2` : ''}
+            </div>
+          </div>
+        {/if}
+        {#if displayPool?.version_mask}
+          <div class="sf">
+            <div class="sk">version mask</div>
+            <div class="sv mono" title="BIP-320 version-rolling bits">0x{displayPool.version_mask}</div>
+          </div>
+        {/if}
+      </div>
+    {/if}
   </section>
 
   <!-- Stratum notify preview (TA-288). -->
@@ -795,14 +813,33 @@
     background: color-mix(in srgb, var(--success) 12%, transparent);
   }
 
-  .payout-strip {
+  .payout-strip,
+  .session-strip {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 12px;
+    gap: 18px;
     margin-top: 12px;
     padding-top: 10px;
     border-top: 1px dashed var(--border);
+  }
+
+  .session-strip .sf { min-width: 0; }
+  .session-strip .sf:last-child { text-align: right; }
+  .session-strip .sk {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--label);
+    margin-bottom: 2px;
+  }
+  .session-strip .sv {
+    font-size: 12px;
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .payout-strip .sk {
@@ -823,6 +860,12 @@
   }
 
   @media (max-width: 720px) {
+    .session-strip {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+    }
+    .session-strip .sf:last-child { text-align: left; }
     .payout-strip {
       flex-direction: column;
       align-items: stretch;
