@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store'
-import { fetchStats, fetchInfo, fetchPower, fetchFan, fetchSettings, fetchPool, type Stats, type Info, type Power, type Fan, type Settings, type Pool, type OtaCheckResult } from './api'
+import { fetchStats, fetchInfo, fetchPower, fetchFan, fetchSettings, fetchPool, fetchHealth, type Stats, type Info, type Power, type Fan, type Settings, type Pool, type Health, type OtaCheckResult } from './api'
 
 export interface HistorySample {
   ts: number              // epoch seconds (client-side)
@@ -21,6 +21,7 @@ export const history = writable<HistorySample[]>([])
 
 export const stats = writable<Stats | null>(null)
 export const info = writable<Info | null>(null)
+export const health = writable<Health | null>(null)
 export const settings = writable<Settings | null>(null)
 export const power = writable<Power | null>(null)
 export const fan = writable<Fan | null>(null)
@@ -116,6 +117,13 @@ let infoLoaded = false
 let settingsLoaded = false
 let asicProbed = false
 let asicAvailable = false
+/* Reboot detector: stats.uptime_s monotonically increases since boot, so a
+ * drop means the device rebooted (counter restarted from ~0). When that
+ * happens we invalidate the cached /api/info so the System page's Runtime
+ * card (Reset reason, WDT resets, Last boot, build info after a rollback)
+ * refreshes on the next poll. disc_age_s isn't usable here — it's "seconds
+ * since last WiFi disconnect" and stays at 0 across a clean reboot. */
+let lastUptimeS: number | null = null
 
 async function poll() {
   try {
@@ -123,6 +131,16 @@ async function poll() {
     stats.set(statsData)
     failCount = 0
     connected.set(true)
+
+    /* Reboot detection. uptime_s drops on boot — when we see a drop, the
+     * device restarted; refetch identity payloads so the System Runtime card
+     * matches the new boot. The first sample (lastUptimeS === null) just
+     * primes the watcher. */
+    if (lastUptimeS !== null && statsData.uptime_s < lastUptimeS) {
+      infoLoaded = false
+      settingsLoaded = false
+    }
+    lastUptimeS = statsData.uptime_s
 
     // Probe /api/power once to detect ASIC capability. Subsequent polls only
     // hit /api/power and /api/fan on ASIC boards — keeps tdongle firmware
@@ -172,6 +190,10 @@ async function poll() {
       const next = buf.concat(sample)
       return next.length > HISTORY_MAX_SAMPLES ? next.slice(-HISTORY_MAX_SAMPLES) : next
     })
+
+    try {
+      health.set(await fetchHealth())
+    } catch { /* keep prior value on transient failure */ }
 
     if (!infoLoaded) {
       try {
