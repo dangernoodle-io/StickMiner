@@ -10,6 +10,8 @@ sdkconfig.bitaxe-403
 sdkconfig.bitaxe-403-debug
 sdkconfig.bitaxe-650
 sdkconfig.bitaxe-650-debug
+sdkconfig.esp32-wroom32
+sdkconfig.esp32-wroom32-debug
 src/partition_fixup_data.c
 components/http_server/src/*_gz.c
 .code-graph/

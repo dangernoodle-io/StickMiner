@@ -26,7 +26,11 @@ void mining_stats_update_ema(hashrate_ema_t *ema, double sample, int64_t now_us)
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_task_wdt.h"
-#include "sha256_hw.h"
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
+#include "sha256_hw_ahb.h"
+#elif CONFIG_IDF_TARGET_ESP32
+#include "sha256_hw_dport.h"
+#endif
 #include "bb_nv.h"
 #include "bb_system.h"
 #include "driver/temperature_sensor.h"
@@ -89,9 +93,11 @@ void mining_stats_init(void)
 
     mining_stats_load_lifetime();
 
+#if CONFIG_IDF_TARGET_ESP32S3
     temperature_sensor_config_t cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
     BB_ERROR_CHECK(temperature_sensor_install(&cfg, &s_temp_handle));
     BB_ERROR_CHECK(temperature_sensor_enable(s_temp_handle));
+#endif
 }
 #endif
 
@@ -211,7 +217,9 @@ void sw_backend_setup(hash_backend_t *b, sw_backend_ctx_t *ctx)
 }
 
 #ifdef ESP_PLATFORM
-// --- Hardware SHA hash backend (ESP32-S3 SHA peripheral) ---
+
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
+// --- Hardware SHA hash backend (AHB-bus: ESP32-S3/S2/C3) ---
 
 typedef struct {
     uint32_t midstate_hw[8];
@@ -259,6 +267,53 @@ static void hw_backend_setup(hash_backend_t *b, hw_backend_ctx_t *ctx)
     b->hash_nonce = hw_hash_nonce;
     b->ctx = ctx;
 }
+
+#elif CONFIG_IDF_TARGET_ESP32
+// --- Hardware SHA hash backend (DPORT-bus: classic ESP32) ---
+// TA-271 step B: NerdMiner-verbatim hot loop via sha256_hw_dport_per_nonce.
+// prepare_job stores the header pointer; per_nonce re-hashes block1 every call
+// because classic ESP32 has no writable H registers (no midstate injection).
+
+typedef struct {
+    const uint8_t *header;
+} hw_backend_ctx_t;
+
+static void hw_backend_init(hash_backend_t *b)
+{
+    (void)b;
+    sha256_hw_dport_init();
+}
+
+static void hw_prepare_job(hash_backend_t *b,
+                           const mining_work_t *work,
+                           const uint8_t block2[64])
+{
+    hw_backend_ctx_t *ctx = (hw_backend_ctx_t *)b->ctx;
+    (void)block2;
+    ctx->header = work->header;
+}
+
+static hash_result_t hw_dport_hash_nonce(hash_backend_t *b,
+                                          uint32_t nonce,
+                                          uint8_t hash_out[32])
+{
+    hw_backend_ctx_t *ctx = (hw_backend_ctx_t *)b->ctx;
+    if (sha256_hw_dport_per_nonce(ctx->header, nonce, hash_out)) {
+        return HASH_CHECK;
+    }
+    return HASH_MISS;
+}
+
+static void hw_backend_setup(hash_backend_t *b, hw_backend_ctx_t *ctx)
+{
+    b->init = hw_backend_init;
+    b->prepare_job = hw_prepare_job;
+    b->hash_nonce = hw_dport_hash_nonce;
+    b->ctx = ctx;
+}
+
+#endif // CONFIG_IDF_TARGET_ESP32S3 || ... / CONFIG_IDF_TARGET_ESP32
+
 #endif // ESP_PLATFORM
 
 bool mine_nonce_range(hash_backend_t *backend,
@@ -274,12 +329,14 @@ bool mine_nonce_range(hash_backend_t *backend,
 #ifdef ESP_PLATFORM
     int64_t start_us = esp_timer_get_time();
     uint32_t hashes = 0;
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
     hw_backend_ctx_t *hw_ctx = (hw_backend_ctx_t *)backend->ctx;
+#endif
 #endif
 
     for (uint32_t nonce = params->nonce_start; ; nonce++) {
         uint8_t hash[32];
-#ifdef ESP_PLATFORM
+#if defined(ESP_PLATFORM) && (CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3)
         uint32_t digest_hw[8];
         uint32_t h7_raw = sha256_hw_mine_nonce(hw_ctx->midstate_hw,
                                                 hw_ctx->block2_words,
