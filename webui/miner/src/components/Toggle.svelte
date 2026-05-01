@@ -1,6 +1,7 @@
 <script lang="ts">
   export let checked: boolean
   export let disabled = false
+  export let size: 'sm' | 'md' = 'md'
 
   function onChange(e: Event) {
     const target = e.currentTarget as HTMLInputElement
@@ -8,7 +9,7 @@
   }
 </script>
 
-<label class="toggle" class:disabled>
+<label class="toggle" class:disabled class:sm={size === 'sm'}>
   <input type="checkbox" {checked} {disabled} on:change={onChange} on:change />
   <span class="slider"></span>
 </label>
@@ -22,6 +23,10 @@
     cursor: pointer;
     flex-shrink: 0;
   }
+
+  .toggle.sm { width: 32px; height: 18px; }
+  .toggle.sm .slider::before { width: 12px; height: 12px; }
+  .toggle.sm input:checked + .slider::before { transform: translateX(14px); }
 
   .toggle.disabled { cursor: not-allowed; }
 
