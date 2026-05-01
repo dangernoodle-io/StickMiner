@@ -162,3 +162,84 @@ void test_pid_trajectory_hot_to_cold_to_setpoint(void)
     TEST_ASSERT_GREATER_OR_EQUAL_FLOAT(25.0f, output);
     TEST_ASSERT_LESS_OR_EQUAL_FLOAT(100.0f, output);
 }
+
+void test_pid_set_tunings_updates_gains(void)
+{
+    PIDController pid;
+    float input = 60.0f, output = 25.0f, setpoint = 60.0f;
+    pid_init(&pid, &input, &output, &setpoint, 5.0f, 0.1f, 2.0f, PID_P_ON_E, PID_DIRECT);
+    pid_set_tunings(&pid, 7.0f, 0.2f, 3.0f);
+    TEST_ASSERT_EQUAL_FLOAT(7.0f, pid_get_kp(&pid));
+    TEST_ASSERT_EQUAL_FLOAT(0.2f, pid_get_ki(&pid));
+    TEST_ASSERT_EQUAL_FLOAT(3.0f, pid_get_kd(&pid));
+}
+
+void test_pid_set_sample_time_scales_gains(void)
+{
+    PIDController pid;
+    float input = 60.0f, output = 25.0f, setpoint = 60.0f;
+    pid_init(&pid, &input, &output, &setpoint, 5.0f, 1.0f, 2.0f, PID_P_ON_E, PID_DIRECT);
+    pid_set_sample_time(&pid, 5000);
+    pid_set_sample_time(&pid, 0);
+    pid_set_sample_time(&pid, 10000);
+    TEST_ASSERT_EQUAL_FLOAT(5.0f, pid_get_kp(&pid));
+}
+
+void test_pid_set_controller_direction_flips_signs_in_auto(void)
+{
+    PIDController pid;
+    float input = 60.0f, output = 25.0f, setpoint = 60.0f;
+    s_mock_time_ms = 0;
+    pid_init(&pid, &input, &output, &setpoint, 5.0f, 0.1f, 2.0f, PID_P_ON_E, PID_DIRECT);
+    pid_set_clock(&pid, mock_clock);
+    pid_set_output_limits(&pid, 0.0f, 100.0f);
+    pid_set_mode(&pid, AUTOMATIC);
+    pid_set_controller_direction(&pid, PID_REVERSE);
+    TEST_ASSERT_EQUAL_INT(PID_REVERSE, pid_get_direction(&pid));
+    pid_set_controller_direction(&pid, PID_REVERSE);
+    TEST_ASSERT_EQUAL_INT(PID_REVERSE, pid_get_direction(&pid));
+}
+
+void test_pid_initialize_clamps_output_sum(void)
+{
+    PIDController pid;
+    float input = 60.0f, output = 200.0f, setpoint = 60.0f;
+    s_mock_time_ms = 0;
+    pid_init(&pid, &input, &output, &setpoint, 5.0f, 0.1f, 2.0f, PID_P_ON_E, PID_REVERSE);
+    pid_set_clock(&pid, mock_clock);
+    pid_set_sample_time(&pid, 5000);
+    pid_set_output_limits(&pid, 25.0f, 100.0f);
+    output = -50.0f;
+    pid_set_mode(&pid, AUTOMATIC);
+    s_mock_time_ms += 5000;
+    pid_compute(&pid);
+    TEST_ASSERT_GREATER_OR_EQUAL_FLOAT(25.0f, output);
+    TEST_ASSERT_LESS_OR_EQUAL_FLOAT(100.0f, output);
+}
+
+void test_pid_getters_return_display_values(void)
+{
+    PIDController pid;
+    float input = 60.0f, output = 25.0f, setpoint = 60.0f;
+    pid_init(&pid, &input, &output, &setpoint, 4.0f, 0.5f, 2.0f, PID_P_ON_E, PID_REVERSE);
+    TEST_ASSERT_EQUAL_FLOAT(4.0f, pid_get_kp(&pid));
+    TEST_ASSERT_EQUAL_FLOAT(0.5f, pid_get_ki(&pid));
+    TEST_ASSERT_EQUAL_FLOAT(2.0f, pid_get_kd(&pid));
+    TEST_ASSERT_EQUAL_FLOAT(8.0f, pid_get_ti(&pid));
+    TEST_ASSERT_EQUAL_FLOAT(0.5f, pid_get_td(&pid));
+    TEST_ASSERT_EQUAL_INT(MANUAL, pid_get_mode(&pid));
+    TEST_ASSERT_EQUAL_INT(PID_REVERSE, pid_get_direction(&pid));
+}
+
+void test_pid_set_output_limits_rejects_invalid(void)
+{
+    PIDController pid;
+    float input = 60.0f, output = 50.0f, setpoint = 60.0f;
+    pid_init(&pid, &input, &output, &setpoint, 5.0f, 0.1f, 2.0f, PID_P_ON_E, PID_DIRECT);
+    pid_set_output_limits(&pid, 25.0f, 100.0f);
+    pid_set_output_limits(&pid, 100.0f, 25.0f);
+    pid_set_mode(&pid, AUTOMATIC);
+    output = 200.0f;
+    pid_set_output_limits(&pid, 25.0f, 100.0f);
+    TEST_ASSERT_LESS_OR_EQUAL_FLOAT(100.0f, output);
+}

@@ -516,6 +516,22 @@ void test_pid_output_always_within_limits(void);
 void test_pid_compute_false_in_manual_mode(void);
 void test_pid_compute_false_before_sample_time(void);
 void test_pid_trajectory_hot_to_cold_to_setpoint(void);
+void test_pid_set_tunings_updates_gains(void);
+void test_pid_set_sample_time_scales_gains(void);
+void test_pid_set_controller_direction_flips_signs_in_auto(void);
+void test_pid_initialize_clamps_output_sum(void);
+void test_pid_getters_return_display_values(void);
+void test_pid_set_output_limits_rejects_invalid(void);
+
+// TA-315: autofan setters
+void test_set_autofan_enabled_round_trip(void);
+void test_set_temp_target_in_range(void);
+void test_set_temp_target_clamps_low(void);
+void test_set_temp_target_clamps_high(void);
+void test_set_manual_fan_pct_in_range(void);
+void test_set_manual_fan_pct_clamps_high(void);
+void test_set_min_fan_pct_in_range(void);
+void test_set_min_fan_pct_clamps_high(void);
 
 // TA-234: stratum_watchdogs
 void test_stratum_watchdog_job_drought_never_observed(void);
@@ -1057,6 +1073,20 @@ int main(void) {
     RUN_TEST(test_pid_compute_false_in_manual_mode);
     RUN_TEST(test_pid_compute_false_before_sample_time);
     RUN_TEST(test_pid_trajectory_hot_to_cold_to_setpoint);
+    RUN_TEST(test_pid_set_tunings_updates_gains);
+    RUN_TEST(test_pid_set_sample_time_scales_gains);
+    RUN_TEST(test_pid_set_controller_direction_flips_signs_in_auto);
+    RUN_TEST(test_pid_initialize_clamps_output_sum);
+    RUN_TEST(test_pid_getters_return_display_values);
+    RUN_TEST(test_pid_set_output_limits_rejects_invalid);
+    RUN_TEST(test_set_autofan_enabled_round_trip);
+    RUN_TEST(test_set_temp_target_in_range);
+    RUN_TEST(test_set_temp_target_clamps_low);
+    RUN_TEST(test_set_temp_target_clamps_high);
+    RUN_TEST(test_set_manual_fan_pct_in_range);
+    RUN_TEST(test_set_manual_fan_pct_clamps_high);
+    RUN_TEST(test_set_min_fan_pct_in_range);
+    RUN_TEST(test_set_min_fan_pct_clamps_high);
 
     // TA-234: stratum_watchdogs tests
     RUN_TEST(test_stratum_watchdog_job_drought_never_observed);
