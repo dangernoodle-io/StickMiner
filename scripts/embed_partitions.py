@@ -34,11 +34,9 @@ if not os.path.exists(bin_path):
         write_c_file(b"\x00")
         print(f"embed_partitions: {bin_path} not found, wrote stub")
 else:
-    # Skip if .c is newer than .bin
-    if os.path.exists(c_path) and os.path.getmtime(c_path) >= os.path.getmtime(bin_path):
-        pass
-    else:
-        with open(bin_path, "rb") as f:
-            data = f.read()
-        write_c_file(data)
-        print(f"embed_partitions: partitions.bin -> {c_path} ({len(data)} bytes)")
+    # Always regenerate — the .c file is shared across envs, so an mtime
+    # skip would embed the wrong env's partition table on env switches.
+    with open(bin_path, "rb") as f:
+        data = f.read()
+    write_c_file(data)
+    print(f"embed_partitions: partitions.bin -> {c_path} ({len(data)} bytes)")
