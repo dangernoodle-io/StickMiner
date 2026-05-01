@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
   import Tooltip from './Tooltip.svelte'
+  import Toggle from './Toggle.svelte'
   import PasswordInput from 'ui-kit/PasswordInput.svelte'
 
   type PoolForm = {
@@ -70,17 +71,21 @@
   <details class="options">
     <summary>Advanced Options</summary>
 
-    <label class="check">
-      <input type="checkbox" bind:checked={form.extranonce_subscribe} disabled={saving} />
-      <span class="check-title">Extranonce subscribe</span>
-      <Tooltip icon text="Send mining.extranonce.subscribe after authorize so the pool can roll extranonce1 mid-session without forcing reconnect. Pools that don't support the extension reject it harmlessly." />
-    </label>
+    <div class="opt-row">
+      <span class="opt-label">
+        Extranonce subscribe
+        <Tooltip icon text="Send mining.extranonce.subscribe after authorize so the pool can roll extranonce1 mid-session without forcing reconnect. Pools that don't support the extension reject it harmlessly." />
+      </span>
+      <Toggle bind:checked={form.extranonce_subscribe} disabled={saving} size="sm" />
+    </div>
 
-    <label class="check">
-      <input type="checkbox" bind:checked={form.decode_coinbase} disabled={saving} />
-      <span class="check-title">Decode coinbase</span>
-      <Tooltip icon text="Decode coinbase tx for block height, scriptSig tag, payout, and reward. Turn off for non-BTC SHA-256d pools whose coinbase shape is unknown." />
-    </label>
+    <div class="opt-row">
+      <span class="opt-label">
+        Decode coinbase
+        <Tooltip icon text="Decode coinbase tx for block height, scriptSig tag, payout, and reward. Turn off for non-BTC SHA-256d pools whose coinbase shape is unknown." />
+      </span>
+      <Toggle bind:checked={form.decode_coinbase} disabled={saving} size="sm" />
+    </div>
   </details>
 
   <div class="actions">
@@ -171,7 +176,7 @@
 
   .options summary::before {
     content: '▸';
-    font-size: 11px;
+    font-size: 18px;
     transition: transform 0.15s;
   }
 
@@ -183,22 +188,26 @@
     gap: 1rem;
   }
 
-  .check {
+  .options[open] .opt-row + .opt-row {
+    margin-top: 6px;
+  }
+
+  .opt-row {
     display: flex;
     align-items: center;
     gap: 8px;
-    cursor: pointer;
     text-transform: none;
     letter-spacing: normal;
-    color: var(--text);
     font-size: 13px;
   }
 
-  .check input[type="checkbox"] { flex-shrink: 0; }
-
-  .check-title {
-    font-weight: 600;
+  .opt-label {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     color: var(--text);
+    font-weight: 600;
   }
 
   .actions {
