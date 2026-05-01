@@ -1,12 +1,16 @@
+#include "sdkconfig.h"
+
 #ifdef ESP_PLATFORM
 
-#include "sha256_hw.h"
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
+
+#include "sha256_hw_ahb.h"
 #include "soc/hwcrypto_reg.h"
 #include "soc/soc.h"
 #include "esp_crypto_lock.h"
-#include "esp_crypto_periph_clk.h"
 #include "esp_attr.h"
 #include "bb_log.h"
+#include "esp_crypto_periph_clk.h"
 
 // ESP32-S3 SHA hardware stores registers as raw bytes in memory-mapped IO.
 // On the LE Xtensa core, reading/writing uint32_t gives the native LE
@@ -332,5 +336,7 @@ void sha256_hw_bench_pass2(uint32_t iterations)
     }
 }
 #endif
+
+#endif // CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
 
 #endif // ESP_PLATFORM

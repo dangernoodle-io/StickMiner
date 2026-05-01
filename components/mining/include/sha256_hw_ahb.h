@@ -1,14 +1,17 @@
 #pragma once
+/* AHB-bus SHA-256 hardware backend (ESP32-S3, ESP32-S2, ESP32-C3). Raw volatile-pointer access; no DPORT serialization needed. */
 
 #ifdef ESP_PLATFORM
 
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
+
 #include <stdint.h>
 #include "esp_attr.h"
-#include "soc/hwcrypto_reg.h"
 #include "soc/soc.h"
+#include "soc/hwcrypto_reg.h"
 
-// Volatile pointers for direct register access
-#define SHA_H_REG   ((volatile uint32_t *)SHA_H_BASE)
+// ESP32-S3/S2/C3: separate H and TEXT register regions
+#define SHA_H_REG    ((volatile uint32_t *)SHA_H_BASE)
 #define SHA_TEXT_REG ((volatile uint32_t *)SHA_TEXT_BASE)
 
 // Enable SHA-256 hardware peripheral clock. Call once at startup.
@@ -145,5 +148,7 @@ bool sha256_hw_verify_text_preserved(void);
 // Runs iterations times for each approach and logs timing results.
 void sha256_hw_bench_pass2(uint32_t iterations);
 #endif
+
+#endif // CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
 
 #endif // ESP_PLATFORM
