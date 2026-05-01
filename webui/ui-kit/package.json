@@ -16,6 +16,10 @@
       "svelte": "./WifiSelect.svelte",
       "default": "./WifiSelect.svelte"
     },
+    "./PasswordInput.svelte": {
+      "svelte": "./PasswordInput.svelte",
+      "default": "./PasswordInput.svelte"
+    },
     "./theme.css": "./styles/theme.css",
     "./utilities.css": "./styles/utilities.css",
     "./logo.svg": "./assets/logo.svg"
