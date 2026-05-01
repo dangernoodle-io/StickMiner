@@ -798,9 +798,24 @@ static void taipan_info_extender(bb_json_t root)
     }
 }
 
+static void taipan_health_extender(bb_json_t root)
+{
+    /* Live liveness signals for the System page. /api/info still owns the
+     * one-shot fields (board, MAC, IP, reset_reason, etc.) — anything that
+     * changes during the session belongs here. */
+    bb_json_t network = bb_json_obj_get_item(root, "network");
+    if (network) {
+        bb_json_obj_set_bool(network, "stratum", stratum_is_connected());
+        bb_json_obj_set_number(network, "stratum_fail_count",
+                               stratum_get_connect_fail_count());
+    }
+}
+
 bb_err_t webui_register_info_extender(void)
 {
-    return bb_info_register_extender(taipan_info_extender);
+    bb_err_t err = bb_info_register_extender(taipan_info_extender);
+    if (err != BB_OK) return err;
+    return bb_health_register_extender(taipan_health_extender);
 }
 
 static bb_err_t settings_get_handler(bb_http_request_t *req)

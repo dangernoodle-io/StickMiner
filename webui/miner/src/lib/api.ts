@@ -105,6 +105,30 @@ export interface Info {
   network?: InfoNetwork
 }
 
+/**
+ * /api/health — live liveness signals, polled every 5s.
+ *
+ * disc_age_s is monotonic since the last WiFi disconnect; it resets to 0
+ * when the device reconnects post-reboot, so a sharp drop is the cheap
+ * reboot detector that lets us refetch /api/info.
+ */
+export interface HealthNetwork {
+  connected: boolean
+  rssi: number
+  disc_age_s: number
+  retry_count: number
+  mdns: string | null
+  stratum?: boolean              // TaipanMiner extender
+  stratum_fail_count?: number    // TaipanMiner extender
+}
+
+export interface Health {
+  ok: boolean
+  free_heap: number
+  validated: boolean
+  network: HealthNetwork
+}
+
 export interface Power {
   vcore_mv: number | null
   icore_ma: number | null
@@ -218,6 +242,7 @@ export interface Settings {
 
 export const fetchStats = () => getJson<Stats>('/api/stats')
 export const fetchInfo  = () => getJson<Info>('/api/info')
+export const fetchHealth = () => getJson<Health>('/api/health')
 export const fetchPower = () => getJson<Power>('/api/power')
 export const fetchFan   = () => getJson<Fan>('/api/fan')
 export const fetchSettings = () => getJson<Settings>('/api/settings')

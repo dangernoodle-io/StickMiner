@@ -1,22 +1,30 @@
 <script lang="ts">
-  import { stats, info } from '../lib/stores'
+  import { stats, info, health } from '../lib/stores'
   import Donut from '../components/Donut.svelte'
   import { fmtBytes, fmtUnixTs, fmtBuildTime, fmtDuration, rssiBars } from '../lib/fmt'
 
+  /* Layered data sources:
+   *   $health — polled every 5s, drives the visual row (live liveness signals)
+   *   $info   — fetched once at startup + after a reboot is detected (stores.ts).
+   *             Owns identity fields that don't change during a session
+   *             (board, MAC, IP, version, reset reason, etc.). */
+
   type Dot = 'ok' | 'warn' | 'err' | 'idle'
   $: healthRows = [
-    { label: 'WiFi',     dot: ($info?.network?.connected ? 'ok' : 'err') as Dot },
-    { label: 'mDNS',     dot: ($info?.network?.mdns ? 'ok' : 'idle') as Dot },
-    { label: 'Stratum',  dot: ($info?.network?.stratum ? 'ok' : 'err') as Dot },
-    { label: 'Firmware', dot: ($info?.validated === true ? 'ok'
-                           : $info?.validated === false ? 'warn'
+    { label: 'WiFi',     dot: ($health?.network?.connected ? 'ok' : 'err') as Dot },
+    { label: 'mDNS',     dot: ($health?.network?.mdns ? 'ok' : 'idle') as Dot },
+    { label: 'Stratum',  dot: ($health?.network?.stratum ? 'ok' : 'err') as Dot },
+    { label: 'Firmware', dot: ($health?.validated === true ? 'ok'
+                           : $health?.validated === false ? 'warn'
                            : 'idle') as Dot }
   ]
 
-  $: heapUsed = $info?.total_heap != null && $info?.free_heap != null
-    ? $info.total_heap - $info.free_heap
+  $: freeHeap = $health?.free_heap ?? $info?.free_heap ?? null
+  $: heapUsed = $info?.total_heap != null && freeHeap != null
+    ? $info.total_heap - freeHeap
     : null
-  $: rssi = $info?.network?.rssi ?? null
+  $: rssi = $health?.network?.rssi ?? null
+  $: stratumFails = $health?.network?.stratum_fail_count ?? 0
 </script>
 
 <div class="visual-row">
@@ -38,13 +46,13 @@
         <span class="h-label">{r.label}</span>
       </div>
     {/each}
-    {#if $info?.network?.stratum_fail_count}
+    {#if stratumFails}
       <div class="h-row" data-state="warn">
         <svg viewBox="0 0 20 20" class="h-icon" aria-hidden="true">
           <path d="M10 3 L18 17 L2 17 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
           <path d="M10 8 L10 12 M10 14.5 L10 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
         </svg>
-        <span class="h-label">{$info.network.stratum_fail_count} fails</span>
+        <span class="h-label">{stratumFails} fails</span>
       </div>
     {/if}
   </div>
