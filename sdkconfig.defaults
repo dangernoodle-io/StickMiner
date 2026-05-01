@@ -37,6 +37,12 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 # OTA rollback
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 
+# Panic coredump (writes ELF to dedicated coredump partition; bb_diag_panic decodes on next boot)
+CONFIG_BB_DIAG_PANIC_COREDUMP=y
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+CONFIG_ESP_COREDUMP_CHECKSUM_CRC32=y
+
 # Watchdog
 # 60 s timeout (Kconfig range cap) absorbs long stalls during pull-OTA on bitaxe
 # (TLS handshake + mbedTLS SHA on Core 1, bb_log writer TX backpressure on
