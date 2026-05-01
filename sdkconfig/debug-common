@@ -1,0 +1,8 @@
+# Settings shared across all *-debug envs.
+# Loaded via board_build.esp-idf.sdkconfig_defaults in platformio.ini.
+
+# Debug-only: POST /api/diag/panic/trigger forces a null-deref panic
+# so we can validate panic capture / coredump end-to-end on bench
+# hardware. NEVER enable on release builds.
+CONFIG_BB_DIAG_PANIC_TRIGGER=y
+CONFIG_LOG_MAXIMUM_LEVEL=5
