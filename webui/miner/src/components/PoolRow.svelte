@@ -1,32 +1,16 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import PoolEditForm from './PoolEditForm.svelte'
   import type { Pool, PoolConfigured } from '../lib/api'
   import { truncWallet } from '../lib/fmt'
   import { coinbaseHeight } from '../lib/coinbase'
-
-  type PoolForm = {
-    host: string
-    port: number
-    wallet: string
-    worker: string
-    pool_pass: string
-    extranonce_subscribe: boolean
-    decode_coinbase: boolean
-  }
+  import Tooltip from './Tooltip.svelte'
 
   // Which slot this row represents.
   export let idx: 0 | 1
   // Source of truth for the displayed pool (frozen during a switch).
   export let displayPool: Pool | null
-  // True when THIS row is in edit mode.
-  export let editing: boolean = false
-  // Form state, bound back to parent so handleSave can read it.
-  export let form: PoolForm
   export let saving: boolean = false
-  export let saveMsg: string = ''
   export let switching: boolean = false
-  export let workerPlaceholder: string = 'miner-1'
 
   $: kind = (idx === 0 ? 'Primary' : 'Fallback') as 'Primary' | 'Fallback'
   $: cfg = idx === 0 ? displayPool?.configured?.primary : displayPool?.configured?.fallback
@@ -67,19 +51,14 @@
 
   const dispatch = createEventDispatcher<{
     edit: void
-    'cancel-edit': void
-    save: void
     switch: void
     remove: void
   }>()
-
-
 </script>
 
-<div class="pool-row" class:editing class:disabled={!cfg && !editing}>
-  {#if !editing}
-    <div class="summary">
-      {#if cfg}
+<div class="pool-row" class:disabled={!cfg}>
+  <div class="summary">
+    {#if cfg}
         <div class="info">
           <div class="caption-row">
             <span class="kind-caption">{kind}</span>
@@ -108,14 +87,18 @@
             </span>
           </div>
           <div class="settings-line">
-            <span class="setting-indicator" title="Send mining.extranonce.subscribe after authorize so the pool can roll extranonce1 mid-session without forcing a reconnect. Pools that don't support the extension just reject the request — harmless.">
-              <span class="setting-label">extranonce subscribe</span>
-              <span class="status-pill {subscribeStatus.cls}">{subscribeStatus.text}</span>
-            </span>
-            <span class="setting-indicator" title="Decode this pool's coinbase tx for block height, scriptSig tag, payout address, and reward. Turn off for non-BTC SHA-256d pools whose coinbase shape we don't understand — those would crash or return garbage from the parser.">
-              <span class="setting-label">decode coinbase</span>
-              <span class="status-pill {decodeStatus.cls}">{decodeStatus.text}</span>
-            </span>
+            <Tooltip text="Send mining.extranonce.subscribe after authorize so the pool can roll extranonce1 mid-session without forcing a reconnect. Pools that don't support the extension just reject the request — harmless.">
+              <span class="setting-indicator">
+                <span class="setting-label">extranonce subscribe</span>
+                <span class="status-pill {subscribeStatus.cls}">{subscribeStatus.text}</span>
+              </span>
+            </Tooltip>
+            <Tooltip text="Decode this pool's coinbase tx for block height, scriptSig tag, payout address, and reward. Turn off for non-BTC SHA-256d pools whose coinbase shape we don't understand — those would crash or return garbage from the parser.">
+              <span class="setting-indicator">
+                <span class="setting-label">decode coinbase</span>
+                <span class="status-pill {decodeStatus.cls}">{decodeStatus.text}</span>
+              </span>
+            </Tooltip>
           </div>
         </div>
         <div class="actions">
@@ -137,19 +120,8 @@
         <div class="actions">
           <button class="btn outline sm" on:click={() => dispatch('edit')}>{idx === 0 ? 'Configure' : '+ Add'}</button>
         </div>
-      {/if}
-    </div>
-  {:else}
-    <PoolEditForm
-      bind:form
-      {kind}
-      {saving}
-      {saveMsg}
-      {workerPlaceholder}
-      on:save={() => dispatch('save')}
-      on:cancel={() => dispatch('cancel-edit')}
-    />
-  {/if}
+    {/if}
+  </div>
 </div>
 
 <style>
@@ -158,7 +130,6 @@
   }
 
   .pool-row.disabled { opacity: 0.5; }
-  .pool-row.editing { background: var(--bg); }
 
   .summary {
     display: flex;

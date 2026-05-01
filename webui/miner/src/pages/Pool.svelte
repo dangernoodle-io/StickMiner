@@ -5,8 +5,10 @@
   import { fmtRelative, fmtNetDiff, fmtBtc, fmtNtimeAge, truncAddr } from '../lib/fmt'
   import { nbitsToDifficulty, coinbaseTag, coinbaseHeight, coinbaseTotalReward, coinbasePayoutSpk, segwitAddress } from '../lib/coinbase'
   import PoolRow from '../components/PoolRow.svelte'
+  import PoolEditDialog from '../components/PoolEditDialog.svelte'
   import ConfirmDialog from '../components/ConfirmDialog.svelte'
   import ModalSpinner from '../components/ModalSpinner.svelte'
+  import Tooltip from '../components/Tooltip.svelte'
 
   const POOL_IDXS: (0 | 1)[] = [0, 1]
 
@@ -108,9 +110,12 @@
     return next
   }
 
-  // Build a PUT slot from the form (the edited pool).
+  // Build a PUT slot from the form (the edited pool). Omit pool_pass when
+  // the field is empty so the firmware preserves the stored value (we never
+  // echo passwords back, so blank means "unchanged"). Same convention as
+  // slotFromCurrent.
   function slotFromForm(): PoolConfigInput {
-    return {
+    const next: PoolConfigInput = {
       host: form.host.trim(),
       port: form.port,
       worker: form.worker.trim(),
@@ -119,6 +124,8 @@
       extranonce_subscribe: form.extranonce_subscribe,
       decode_coinbase: form.decode_coinbase,
     }
+    if (!form.pool_pass) delete (next as Partial<PoolConfigInput>).pool_pass
+    return next
   }
 
   async function handleSave() {
@@ -247,13 +254,12 @@
     <header class="active-head">
       <h3>Active</h3>
       {#if activeDecodeCoinbase && displayPool?.notify && coinbaseTag(displayPool.notify.coinb1, displayPool.notify.coinb2)}
-        <span class="pool-tag has-tip">
-          <span class="tag-prefix">scriptSig</span>
-          {coinbaseTag(displayPool.notify.coinb1, displayPool.notify.coinb2)}
-          <span class="tip" role="tooltip">
-            Block template upstream, read from the coinbase scriptSig. Not necessarily the stratum endpoint you're connected to — proxies and relays often forward another pool's template.
+        <Tooltip text="Block template upstream, read from the coinbase scriptSig. Not necessarily the stratum endpoint you're connected to — proxies and relays often forward another pool's template.">
+          <span class="pool-tag">
+            <span class="tag-prefix">scriptSig</span>
+            {coinbaseTag(displayPool.notify.coinb1, displayPool.notify.coinb2)}
           </span>
-        </span>
+        </Tooltip>
       {/if}
     </header>
     <div class="status-row">
@@ -383,15 +389,9 @@
           <PoolRow
             idx={idx}
             displayPool={displayPool}
-            editing={editingIdx === idx}
-            bind:form
             {saving}
-            {saveMsg}
             {switching}
-            workerPlaceholder={hostname || $info?.worker_name || 'miner-1'}
             on:edit={() => startEdit(idx)}
-            on:cancel-edit={cancelEdit}
-            on:save={handleSave}
             on:switch={() => handleSwitch(idx)}
             on:remove={() => handleRemove(idx === 0 ? 'primary' : 'fallback')}
           />
@@ -400,6 +400,17 @@
     {/if}
   </section>
 </div>
+
+<PoolEditDialog
+  open={editingIdx !== null}
+  bind:form
+  kind={editingIdx === 0 ? 'Primary' : 'Fallback'}
+  {saving}
+  {saveMsg}
+  workerPlaceholder={hostname || $info?.worker_name || 'miner-1'}
+  on:save={handleSave}
+  on:cancel={cancelEdit}
+/>
 
 <ConfirmDialog
   open={removeConfirmOpen}
@@ -439,45 +450,6 @@
     margin-bottom: 10px;
   }
 
-
-  .pool-tag.has-tip {
-    position: relative;
-    cursor: help;
-    overflow: visible;
-    max-width: none;
-  }
-
-  .has-tip .tip {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 50;
-    width: max-content;
-    max-width: 280px;
-    padding: 8px 10px;
-    border-radius: 6px;
-    background: var(--bg-elevated, #1f1f1f);
-    color: var(--text);
-    border: 1px solid var(--border);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
-    font-size: 11px;
-    font-weight: 400;
-    line-height: 1.45;
-    text-transform: none;
-    letter-spacing: 0;
-    white-space: normal;
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(-2px);
-    transition: opacity 80ms ease-out, transform 80ms ease-out;
-  }
-
-  .has-tip:hover .tip,
-  .has-tip:focus-within .tip {
-    opacity: 1;
-    transform: translateY(0);
-    transition-delay: 300ms;
-  }
 
   .pool-tag .tag-prefix {
     font-size: 9px;
