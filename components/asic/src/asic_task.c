@@ -14,7 +14,8 @@
 #include "crc.h"
 #include "tps546.h"
 #include "emc2101.h"
-#include "emc2101_curve.h"
+#include "pid.h"
+#include "taipan_config.h"
 #include "mining.h"
 #include "diag.h"
 #include "stratum.h"
@@ -43,6 +44,18 @@
 #include <math.h>
 
 static const char *TAG = "asic";
+
+// TA-315: autofan PID controller (initialized once at startup)
+static PIDController s_pid;
+static float         s_pid_input;
+static float         s_pid_output;
+static float         s_pid_setpoint;
+static float         s_pid_filtered = -1.0f; // <0 = uninitialized EMA
+
+static unsigned long s_pid_now_ms(void)
+{
+    return (unsigned long)(esp_timer_get_time() / 1000ULL);
+}
 
 // --- I2C bus handle (initialized in asic_init, shared with display) ---
 static i2c_master_bus_handle_t s_i2c_bus;
@@ -311,6 +324,18 @@ void asic_mining_task(void *arg)
     TickType_t last_hashrate_tick = xTaskGetTickCount();
     TickType_t last_reg_poll = 0;
     uint32_t nonces_since_log = 0;
+
+    // TA-315: initialize PID autofan controller.
+    // Ticks at 5000 ms — our existing temp tick cadence (AxeOS uses 100 ms but
+    // a separate task; we fold it into the existing 5s tick to keep the patch small).
+    s_pid_setpoint = (float)taipan_config_temp_target_c();
+    s_pid_output   = (float)taipan_config_min_fan_pct();
+    s_pid_input    = s_pid_setpoint;
+    pid_init(&s_pid, &s_pid_input, &s_pid_output, &s_pid_setpoint,
+             5.0f, 0.1f, 2.0f, PID_P_ON_E, PID_REVERSE);
+    pid_set_clock(&s_pid, s_pid_now_ms);
+    pid_set_sample_time(&s_pid, 5000);
+    pid_set_output_limits(&s_pid, (float)taipan_config_min_fan_pct(), 100.0f);
 
     for (;;) {
         // Pause/resume coalescing. bb_ota_pull triggers a check-phase pause/resume
@@ -613,22 +638,53 @@ void asic_mining_task(void *arg)
             }
         }
 
-        // 4. Periodic temp reading + fan control (~every 5s, log every 30s)
+        // 4. Periodic temp reading + fan control (~every 5s).
+        // PID ticks at 5000 ms — our existing cadence (AxeOS uses 100 ms but a separate task;
+        // we fold it into the existing 5s tick to keep the patch small).
         TickType_t now = xTaskGetTickCount();
         if (now - last_temp_tick >= pdMS_TO_TICKS(5000)) {
             float temp;
-            int new_duty;
-            if (emc2101_read_temp(&temp) == BB_OK) {
-                new_duty = emc2101_duty_for_temp_c(temp);
+            int fan_duty;
+            bool temp_ok = (emc2101_read_temp(&temp) == BB_OK);
+
+            if (temp_ok) {
                 if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
                     mining_stats.asic_temp_c = temp;
                     xSemaphoreGive(mining_stats.mutex);
                 }
-            } else {
-                // temp read failed — fail-safe to max cooling
-                new_duty = 100;
             }
-            emc2101_set_duty_pct(new_duty);
+
+            if (!temp_ok) {
+                // Fail-safe: temp read failed → max cooling
+                fan_duty = 100;
+            } else if (taipan_config_autofan_enabled()) {
+                // Refresh live-tunable setpoint and min from config each tick
+                s_pid_setpoint = (float)taipan_config_temp_target_c();
+                float new_min  = (float)taipan_config_min_fan_pct();
+                pid_set_output_limits(&s_pid, new_min, 100.0f);
+
+                // EMA filter: alpha=0.2 reduces sensor jitter
+                if (s_pid_filtered < 0.0f) {
+                    s_pid_filtered = temp;
+                } else {
+                    s_pid_filtered = 0.2f * temp + 0.8f * s_pid_filtered;
+                }
+                s_pid_input = s_pid_filtered;
+
+                // Arm PID on first valid reading
+                if (pid_get_mode(&s_pid) == MANUAL) {
+                    pid_set_mode(&s_pid, AUTOMATIC);
+                    bb_log_i(TAG, "autofan PID armed: temp=%.1f setpoint=%.1f (P:5.0 I:0.1 D:2.0)",
+                             s_pid_input, s_pid_setpoint);
+                }
+                pid_compute(&s_pid);
+                fan_duty = (int)s_pid_output;
+            } else {
+                // Manual mode
+                fan_duty = (int)taipan_config_manual_fan_pct();
+            }
+
+            emc2101_set_duty_pct(fan_duty);
 
             {
                 int v = tps546_read_vout_mv();

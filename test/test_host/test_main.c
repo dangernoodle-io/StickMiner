@@ -326,20 +326,6 @@ void test_slinear11_positive_exp_neg(void);
 void test_slinear11_negative_mantissa(void);
 void test_slinear11_zero_mantissa(void);
 
-// Forward declarations from test_emc2101_curve.c
-void test_curve_below_lower_bound(void);
-void test_curve_at_lower_bound(void);
-void test_curve_mid_segment_one(void);
-void test_curve_at_60c(void);
-void test_curve_mid_segment_two(void);
-void test_curve_at_75c(void);
-void test_curve_mid_segment_three(void);
-void test_curve_at_upper_bound(void);
-void test_curve_above_upper_bound(void);
-void test_curve_negative_temp(void);
-void test_curve_very_high_temp(void);
-void test_curve_monotonic(void);
-
 // Forward declarations from test_ota_validator_io.c (TA-234 phase A)
 void test_ota_io_authorize_pending_arms_timer(void);
 void test_ota_io_authorize_not_pending_no_timer(void);
@@ -521,6 +507,15 @@ void test_knot_empty(void);
 void test_knot_two_peers(void);
 void test_settings_happy_path(void);
 void test_settings_empty_optional_fields(void);
+
+// TA-315: PID autofan controller
+void test_pid_high_temp_drives_output_near_max(void);
+void test_pid_low_temp_drives_output_near_min(void);
+void test_pid_at_setpoint_output_stable_mid_range(void);
+void test_pid_output_always_within_limits(void);
+void test_pid_compute_false_in_manual_mode(void);
+void test_pid_compute_false_before_sample_time(void);
+void test_pid_trajectory_hot_to_cold_to_setpoint(void);
 
 // TA-234: stratum_watchdogs
 void test_stratum_watchdog_job_drought_never_observed(void);
@@ -857,20 +852,6 @@ int main(void) {
     RUN_TEST(test_slinear11_negative_mantissa);
     RUN_TEST(test_slinear11_zero_mantissa);
 
-    // EMC2101 fan curve tests
-    RUN_TEST(test_curve_below_lower_bound);
-    RUN_TEST(test_curve_at_lower_bound);
-    RUN_TEST(test_curve_mid_segment_one);
-    RUN_TEST(test_curve_at_60c);
-    RUN_TEST(test_curve_mid_segment_two);
-    RUN_TEST(test_curve_at_75c);
-    RUN_TEST(test_curve_mid_segment_three);
-    RUN_TEST(test_curve_at_upper_bound);
-    RUN_TEST(test_curve_above_upper_bound);
-    RUN_TEST(test_curve_negative_temp);
-    RUN_TEST(test_curve_very_high_temp);
-    RUN_TEST(test_curve_monotonic);
-
     // OTA validator IO shell tests (TA-234 phase A)
     RUN_TEST(test_ota_io_authorize_pending_arms_timer);
     RUN_TEST(test_ota_io_authorize_not_pending_no_timer);
@@ -1067,6 +1048,15 @@ int main(void) {
     RUN_TEST(test_stats_chip_array_empty);
     RUN_TEST(test_stats_last_drop_null_when_zero);
     RUN_TEST(test_stats_last_drop_nonzero_computes_age);
+
+    // TA-315: PID autofan controller tests
+    RUN_TEST(test_pid_high_temp_drives_output_near_max);
+    RUN_TEST(test_pid_low_temp_drives_output_near_min);
+    RUN_TEST(test_pid_at_setpoint_output_stable_mid_range);
+    RUN_TEST(test_pid_output_always_within_limits);
+    RUN_TEST(test_pid_compute_false_in_manual_mode);
+    RUN_TEST(test_pid_compute_false_before_sample_time);
+    RUN_TEST(test_pid_trajectory_hot_to_cold_to_setpoint);
 
     // TA-234: stratum_watchdogs tests
     RUN_TEST(test_stratum_watchdog_job_drought_never_observed);

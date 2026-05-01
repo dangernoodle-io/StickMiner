@@ -732,7 +732,14 @@ static bb_err_t fan_handler(bb_http_request_t *req)
 {
     set_common_headers(req);
 
-    fan_snapshot_t s = { .fan_rpm = -1, .fan_duty_pct = -1 };
+    fan_snapshot_t s = {
+        .fan_rpm      = -1,
+        .fan_duty_pct = -1,
+        .autofan      = taipan_config_autofan_enabled(),
+        .temp_target_c = (int)taipan_config_temp_target_c(),
+        .manual_pct    = (int)taipan_config_manual_fan_pct(),
+        .min_pct       = (int)taipan_config_min_fan_pct(),
+    };
 
     if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         s.fan_rpm      = mining_stats.fan_rpm;
@@ -745,6 +752,51 @@ static bb_err_t fan_handler(bb_http_request_t *req)
     bb_err_t rc = bb_http_resp_send_json(req, root);
     bb_json_free(root);
     return rc;
+}
+
+// TA-315: POST /api/fan — update autofan config fields (form-urlencoded, partial)
+static bb_err_t fan_post_handler(bb_http_request_t *req)
+{
+    set_common_headers(req);
+
+    char body[128];
+    int body_len = bb_http_req_body_len(req);
+    if (body_len > (int)(sizeof(body) - 1)) {
+        bb_http_resp_send_err(req, 400, "Body too large");
+        return BB_ERR_INVALID_ARG;
+    }
+    int len = bb_http_req_recv(req, body, sizeof(body) - 1);
+    if (len <= 0) {
+        bb_http_resp_send_err(req, 400, "Empty body");
+        return BB_ERR_INVALID_ARG;
+    }
+    body[len] = '\0';
+
+    // Parse optional fields; only fields present in the body are updated
+    char val[16];
+
+    bb_url_decode_field(body, "autofan", val, sizeof(val));
+    if (val[0] != '\0') {
+        taipan_config_set_autofan_enabled(val[0] == '1');
+    }
+
+    bb_url_decode_field(body, "temp_target_c", val, sizeof(val));
+    if (val[0] != '\0') {
+        taipan_config_set_temp_target_c((uint16_t)strtoul(val, NULL, 10));
+    }
+
+    bb_url_decode_field(body, "manual_pct", val, sizeof(val));
+    if (val[0] != '\0') {
+        taipan_config_set_manual_fan_pct((uint16_t)strtoul(val, NULL, 10));
+    }
+
+    bb_url_decode_field(body, "min_pct", val, sizeof(val));
+    if (val[0] != '\0') {
+        taipan_config_set_min_fan_pct((uint16_t)strtoul(val, NULL, 10));
+    }
+
+    bb_http_resp_set_status(req, 204);
+    return bb_http_resp_send(req, "", 0);
 }
 #endif // ASIC_BM1370 || ASIC_BM1368
 
@@ -1565,6 +1617,22 @@ static const bb_route_t s_fan_route = {
     .handler      = fan_handler,
 };
 
+// TA-315: POST /api/fan — update autofan config (form-urlencoded, all fields optional)
+static const bb_route_response_t s_fan_post_responses[] = {
+    { 204, NULL, NULL, "Fan config updated" },
+    { 0 },
+};
+
+static const bb_route_t s_fan_post_route = {
+    .method       = BB_HTTP_POST,
+    .path         = "/api/fan",
+    .tag          = "mining",
+    .summary      = "Update autofan configuration",
+    .operation_id = "postFan",
+    .responses    = s_fan_post_responses,
+    .handler      = fan_post_handler,
+};
+
 #endif /* ASIC_CHIP */
 
 // ============================================================================
@@ -1647,6 +1715,7 @@ static const bb_route_t * const s_mining_routes[] = {
 #ifdef ASIC_CHIP
     &s_power_route,
     &s_fan_route,
+    &s_fan_post_route,
 #endif
     &s_settings_patch_route,
 };

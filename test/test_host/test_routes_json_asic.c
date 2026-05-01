@@ -285,59 +285,72 @@ void test_power_vr_temp_null(void)
  * /api/fan — build_fan_json
  * ========================================================================= */
 
+// TA-315: fan snapshot now includes autofan config fields.
+// Tests use strstr checks on key fields so adding new fields doesn't break them.
+
 void test_fan_both_populated(void)
 {
-    fan_snapshot_t s = {0};
-    s.fan_rpm      = 2400;
-    s.fan_duty_pct = 75;
+    fan_snapshot_t s = { .fan_rpm = 2400, .fan_duty_pct = 75,
+                         .autofan = true, .temp_target_c = 60,
+                         .manual_pct = 100, .min_pct = 25 };
 
     bb_json_t root = bb_json_obj_new();
     build_fan_json(&s, root);
     char *json = serialize_and_free(root);
 
-    TEST_ASSERT_EQUAL_STRING("{\"rpm\":2400,\"duty_pct\":75}", json);
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"rpm\":2400"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"duty_pct\":75"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"autofan\":true"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"temp_target_c\":60"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"manual_pct\":100"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"min_pct\":25"));
     bb_json_free_str(json);
 }
 
 void test_fan_rpm_null(void)
 {
-    fan_snapshot_t s = {0};
-    s.fan_rpm      = -1;
-    s.fan_duty_pct = 75;
+    fan_snapshot_t s = { .fan_rpm = -1, .fan_duty_pct = 75,
+                         .autofan = false, .temp_target_c = 60,
+                         .manual_pct = 100, .min_pct = 25 };
 
     bb_json_t root = bb_json_obj_new();
     build_fan_json(&s, root);
     char *json = serialize_and_free(root);
 
-    TEST_ASSERT_EQUAL_STRING("{\"rpm\":null,\"duty_pct\":75}", json);
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"rpm\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"duty_pct\":75"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"autofan\":false"));
     bb_json_free_str(json);
 }
 
 void test_fan_duty_null(void)
 {
-    fan_snapshot_t s = {0};
-    s.fan_rpm      = 2400;
-    s.fan_duty_pct = -1;
+    fan_snapshot_t s = { .fan_rpm = 2400, .fan_duty_pct = -1,
+                         .autofan = true, .temp_target_c = 60,
+                         .manual_pct = 100, .min_pct = 25 };
 
     bb_json_t root = bb_json_obj_new();
     build_fan_json(&s, root);
     char *json = serialize_and_free(root);
 
-    TEST_ASSERT_EQUAL_STRING("{\"rpm\":2400,\"duty_pct\":null}", json);
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"rpm\":2400"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"duty_pct\":null"));
     bb_json_free_str(json);
 }
 
 void test_fan_both_null(void)
 {
-    fan_snapshot_t s = {0};
-    s.fan_rpm      = -1;
-    s.fan_duty_pct = -1;
+    fan_snapshot_t s = { .fan_rpm = -1, .fan_duty_pct = -1,
+                         .autofan = false, .temp_target_c = 60,
+                         .manual_pct = 100, .min_pct = 25 };
 
     bb_json_t root = bb_json_obj_new();
     build_fan_json(&s, root);
     char *json = serialize_and_free(root);
 
-    TEST_ASSERT_EQUAL_STRING("{\"rpm\":null,\"duty_pct\":null}", json);
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"rpm\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"duty_pct\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"autofan\":false"));
     bb_json_free_str(json);
 }
 

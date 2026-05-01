@@ -234,8 +234,13 @@ void build_power_json(const power_snapshot_t *s, bb_json_t root);
  * ========================================================================= */
 
 typedef struct {
-    int fan_rpm;       /* < 0 → null */
-    int fan_duty_pct;  /* < 0 → null */
+    int  fan_rpm;       /* < 0 → null */
+    int  fan_duty_pct;  /* < 0 → null */
+    /* TA-315: autofan config fields */
+    bool autofan;
+    int  temp_target_c; /* -1 → null */
+    int  manual_pct;    /* -1 → null */
+    int  min_pct;       /* -1 → null */
 } fan_snapshot_t;
 
 void build_fan_json(const fan_snapshot_t *s, bb_json_t root);
