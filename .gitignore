@@ -22,3 +22,4 @@ webui/.env
 /test.log
 /gcovr-coveralls.json
 /*_gz.c
+.breadboard

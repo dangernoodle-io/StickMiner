@@ -54,3 +54,14 @@ bool taipan_config_pool_configured(int idx);
 /* Atomic write: sets primary (required) and fallback (NULL clears fallback). */
 bb_err_t taipan_config_set_pools(const taipan_pool_cfg_t *primary,
                                  const taipan_pool_cfg_t *fallback);
+
+/* TA-315: autofan / PID config */
+bool     taipan_config_autofan_enabled(void);
+uint16_t taipan_config_temp_target_c(void);
+uint16_t taipan_config_manual_fan_pct(void);
+uint16_t taipan_config_min_fan_pct(void);
+
+bb_err_t taipan_config_set_autofan_enabled(bool enabled);
+bb_err_t taipan_config_set_temp_target_c(uint16_t val);
+bb_err_t taipan_config_set_manual_fan_pct(uint16_t val);
+bb_err_t taipan_config_set_min_fan_pct(uint16_t val);

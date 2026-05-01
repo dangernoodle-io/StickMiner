@@ -2,7 +2,6 @@
 #ifdef ASIC_CHIP
 
 #include "emc2101.h"
-#include "emc2101_curve.h"
 #include "esp_log.h"
 #include "bb_log.h"
 #include "esp_check.h"
