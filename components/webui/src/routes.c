@@ -855,6 +855,7 @@ static void taipan_health_extender(bb_json_t root)
     /* Live liveness signals for the System page. /api/info still owns the
      * one-shot fields (board, MAC, IP, reset_reason, etc.) — anything that
      * changes during the session belongs here. */
+    bb_json_obj_set_bool(root, "sha_self_test_failed", mining_sha_self_test_failed());
     bb_json_t network = bb_json_obj_get_item(root, "network");
     if (network) {
         bb_json_obj_set_bool(network, "stratum", stratum_is_connected());
