@@ -22,6 +22,15 @@ void mining_stats_update_ema(hashrate_ema_t *ema, double sample, int64_t now_us)
     ema->last_us = now_us;
 }
 
+// SHA self-test flag (process-static, exposed for host tests)
+static bool s_sha_self_test_failed = false;
+
+bool mining_sha_self_test_failed(void) { return s_sha_self_test_failed; }
+
+void mining_set_sha_self_test_failed(void) {
+    s_sha_self_test_failed = true;
+}
+
 #ifdef ESP_PLATFORM
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -43,14 +52,6 @@ QueueHandle_t result_queue = NULL;
 mining_stats_t mining_stats = {0};
 
 static temperature_sensor_handle_t s_temp_handle = NULL;
-
-static bool s_sha_self_test_failed = false;
-
-bool mining_sha_self_test_failed(void) { return s_sha_self_test_failed; }
-
-void mining_set_sha_self_test_failed(void) {
-    s_sha_self_test_failed = true;
-}
 
 void mining_stats_load_lifetime(void)
 {

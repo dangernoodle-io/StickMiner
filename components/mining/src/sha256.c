@@ -368,16 +368,17 @@ bb_err_t sha256_sw_self_test(void) {
 
     sha256(input, 3, hash);
 
-    /* Expected SHA-256("abc") in big-endian word format */
-    const uint32_t expected[8] = {
-        0xba7816bf, 0x8f01cfea, 0x414140de, 0x5dae2223,
-        0xb00361a3, 0x96177a9c, 0xb410ff61, 0xf20015ad
+    /* Expected SHA-256("abc") as byte array */
+    const uint8_t expected[32] = {
+        0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
+        0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
+        0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+        0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad
     };
 
-    const uint32_t *result = (const uint32_t *)hash;
     bool match = true;
-    for (int i = 0; i < 8; i++) {
-        if (result[i] != expected[i]) {
+    for (int i = 0; i < 32; i++) {
+        if (hash[i] != expected[i]) {
             match = false;
             break;
         }
@@ -387,10 +388,7 @@ bb_err_t sha256_sw_self_test(void) {
         bb_log_i("sha-self-test", "sw: PASS");
         return BB_OK;
     } else {
-        bb_log_i("sha-self-test", "sw: FAIL got=%08" PRIx32 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32
-                 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32,
-                 result[0], result[1], result[2], result[3],
-                 result[4], result[5], result[6], result[7]);
+        bb_log_i("sha-self-test", "sw: FAIL");
         return BB_ERR_INVALID_STATE;
     }
 }
