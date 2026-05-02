@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { start, stop, stats, connected, power, pool } from './lib/stores'
+  import { start, stop, stats, connected, power, pool, health } from './lib/stores'
   import { route } from './lib/router'
   import AlertBanner from './components/AlertBanner.svelte'
   import type { Alert } from './components/AlertBanner.svelte'
@@ -26,6 +26,13 @@
 
   $: alerts = (() => {
     const list: Alert[] = []
+    if ($health?.sha_self_test_failed) {
+      list.push({
+        key: 'sha_self_test_failed',
+        severity: 'danger',
+        message: 'SHA self-test failed: Mining is halted. The on-chip SHA-256 hardware or the firmware-side SHA verification produced an incorrect result on the boot known-vector test. This usually indicates a hardware fault or a corrupted firmware image. Reflash from a known-good release; if the failure persists, the device may need to be replaced.'
+      })
+    }
     if (!$connected) {
       list.push({ key: 'disconnected', severity: 'danger', message: 'Miner unreachable' })
     }

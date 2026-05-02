@@ -127,6 +127,7 @@ export interface Health {
   free_heap: number
   validated: boolean
   network: HealthNetwork
+  sha_self_test_failed?: boolean
 }
 
 export interface Power {
