@@ -61,6 +61,17 @@ sha_overlap_state_t mining_get_sha_overlap_state(void) {
     return s_sha_overlap_state;
 }
 
+// TA-320a: SHA H-write-during-compute canary state.
+static sha_overlap_state_t s_sha_hwrite_state = SHA_OVERLAP_UNKNOWN;
+
+void mining_set_sha_hwrite_safe(bool safe) {
+    s_sha_hwrite_state = safe ? SHA_OVERLAP_SAFE : SHA_OVERLAP_UNSAFE;
+}
+
+sha_overlap_state_t mining_get_sha_hwrite_state(void) {
+    return s_sha_hwrite_state;
+}
+
 #ifdef ESP_PLATFORM
 #include "esp_log.h"
 #include "esp_timer.h"

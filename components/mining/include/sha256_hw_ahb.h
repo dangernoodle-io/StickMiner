@@ -169,6 +169,11 @@ void sha256_hw_microbench(void);
 // mining_set_sha_overlap_safe for /api/info exposure.
 bool sha256_hw_overlap_canary(void);
 
+// SHA H-write-during-compute canary (TA-320a). Returns true if writing
+// SHA_H mid-compute does not corrupt the digest. Result cached via
+// mining_set_sha_hwrite_safe.
+bool sha256_hw_hwrite_canary(void);
+
 #ifdef TAIPANMINER_DEBUG
 // Debug benchmark comparing SHA_START vs SHA_CONTINUE+H0 for second hash pass.
 // Runs iterations times for each approach and logs timing results.
