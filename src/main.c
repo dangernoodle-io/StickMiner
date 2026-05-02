@@ -260,11 +260,15 @@ void app_main(void)
     }
 #endif
 
+#ifndef TM_BENCH_QUIET
     // Initialize display early so splash is visible during boot.
     // On Bitaxe, display creates I2C bus itself if asic_init() hasn't run.
     BB_ERROR_CHECK(display_init());
     BB_ERROR_CHECK(display_show_splash());
     vTaskDelay(pdMS_TO_TICKS(2000));
+#else
+    bb_log_w(TAG, "TM_BENCH_QUIET: display disabled");
+#endif
 
     // Set CORS methods before HTTP server starts (required for PATCH support)
     bb_http_set_cors_methods("GET, POST, PATCH, OPTIONS");
@@ -344,6 +348,11 @@ void app_main(void)
         }
     } else {
         // Normal boot: connect to saved WiFi
+#ifdef TM_BENCH_QUIET
+        bb_log_w(TAG, "TM_BENCH_QUIET: skipping mDNS/HTTP/knot/webui — bringing up WiFi only for stratum");
+        BB_ERROR_CHECK(bb_wifi_init());
+        goto bench_quiet_skip_net;
+#endif
         bb_mdns_set_service_type("_taipanminer");
         {
             char hn[64];
@@ -413,8 +422,12 @@ void app_main(void)
             BB_ERROR_CHECK(bb_manifest_register_mdns("_taipanminer._tcp", taipan_mdns_keys, sizeof(taipan_mdns_keys) / sizeof(taipan_mdns_keys[0])));
         }
         BB_ERROR_CHECK(webui_register_mining_routes(bb_http_server_get_handle()));
+#ifdef TM_BENCH_QUIET
+bench_quiet_skip_net:;
+#endif
     }
 
+#ifndef TM_BENCH_QUIET
     // Sync time via SNTP (UTC)
     bb_ntp_start("pool.ntp.org");
 
@@ -440,10 +453,15 @@ void app_main(void)
 
     // Wire production OTA validator ops before stratum starts
     ota_validator_init(&g_ota_timer_ops_default, &g_ota_mark_valid_ops_default);
+#else
+    bb_log_w(TAG, "TM_BENCH_QUIET: skipping NTP, OTA-pull, OTA-push, OTA-validator");
+#endif
 
     // Start mining
     start_mining();
 
+#ifndef TM_BENCH_QUIET
     // Start display status task on Core 0
     xTaskCreatePinnedToCore(display_status_task, "display", 4096, NULL, 2, NULL, 0);
+#endif
 }
