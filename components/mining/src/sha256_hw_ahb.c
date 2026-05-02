@@ -27,12 +27,13 @@
 // we bswap32 on every SHA_H read/write.  SHA_TEXT needs no swapping —
 // we cast byte buffers to uint32_t* and write directly, matching ESP-IDF.
 //
-// NOTE: The ESP32-S3 SHA peripheral overwrites SHA_TEXT registers during
-// message schedule expansion (W[] computation). SHA_TEXT contents are NOT
-// preserved after SHA_START or SHA_CONTINUE. This was verified empirically
-// via sha256_hw_verify_text_preserved(). As a result, all 16 SHA_TEXT words
-// must be written before each SHA operation — no per-nonce write reduction
-// is possible.
+// NOTE: The ESP32-S3 SHA peripheral was historically assumed to overwrite
+// SHA_TEXT during W[] schedule expansion. The TA-320 boot probe
+// (sha256_hw_verify_text_preserved) actually shows SHA_TEXT IS preserved
+// after SHA_START/SHA_CONTINUE on this silicon. Per-nonce zero-write
+// reduction (M[9..14] persistent across nonces) is therefore possible —
+// see TA-320 follow-up. Current code still rewrites all 16 words for
+// safety; the gain is small (~0.2% of hot loop) and not yet wired up.
 
 static const char *TAG = "sha256_hw";
 
@@ -67,8 +68,12 @@ void sha256_hw_init(void)
 {
     sha256_hw_acquire();
 
-#ifdef TAIPANMINER_DEBUG
+    // TA-320: log SHA_TEXT-persistence behavior at boot in every build so the
+    // assumption behind the per-nonce pad-rewrite cost is visible (not just a
+    // historical comment). Cheap one-shot — overhead is ~one SHA op.
     sha256_hw_verify_text_preserved();
+
+#ifdef TAIPANMINER_DEBUG
     sha256_hw_bench_pass2(100000);
 #endif
 
@@ -288,13 +293,11 @@ bb_err_t sha256_hw_ahb_self_test(void)
     return sha256_check_abc_vector("ahb", digest_bytes);
 }
 
-// --- Debug utilities ---
-
-#ifdef TAIPANMINER_DEBUG
-#include "esp_log.h"
-#include "esp_timer.h"
-#include <inttypes.h>
-
+// SHA_TEXT-persistence probe: writes 0xDEAD000_i to M[0..15], fires SHA_START,
+// reads back. If preserved, the per-nonce zero-padding writes in
+// sha256_hw_mine_nonce could be skipped (TA-320 sub-task b). If not preserved
+// (the historically empirically-observed case on S3), the rewrite cost is
+// unavoidable. Run at boot so the assumption is visible in the log every time.
 bool sha256_hw_verify_text_preserved(void)
 {
     uint32_t original[16];
@@ -311,23 +314,31 @@ bool sha256_hw_verify_text_preserved(void)
     while (REG_READ(SHA_BUSY_REG)) {}
 
     // Check preservation
+    int first_modified = -1;
     for (int i = 0; i < 16; i++) {
         uint32_t actual = SHA_TEXT_REG[i];
         if (actual != original[i]) {
-            bb_log_w(TAG, "SHA_TEXT[%d] modified: wrote 0x%08" PRIx32 ", read 0x%08" PRIx32,
-                     i, original[i], actual);
+            if (first_modified < 0) first_modified = i;
             preserved = false;
         }
     }
 
     if (preserved) {
-        bb_log_i(TAG, "SHA_TEXT registers preserved after SHA_START");
+        bb_log_i(TAG, "SHA_TEXT preserved after SHA_START — pad-write reduction possible");
     } else {
-        bb_log_w(TAG, "SHA_TEXT registers NOT preserved — per-nonce write reduction not possible");
+        bb_log_i(TAG, "SHA_TEXT NOT preserved (first mismatch at M[%d]) — per-nonce pad-write required",
+                 first_modified);
     }
 
     return preserved;
 }
+
+// --- Debug utilities ---
+
+#ifdef TAIPANMINER_DEBUG
+#include "esp_log.h"
+#include "esp_timer.h"
+#include <inttypes.h>
 
 void sha256_hw_bench_pass2(uint32_t iterations)
 {
