@@ -156,6 +156,12 @@ sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
 // visible in the log; release builds use the result for diagnostic only.
 bool sha256_hw_verify_text_preserved(void);
 
+// Boot-time SHA throughput micro-bench (TA-337). Logs a single
+// "HW SHA microbench: N us/op (~M kH/s peripheral ceiling)" line.
+// 1000 iterations; ~5ms boot cost. Run unconditionally so per-device +
+// per-firmware throughput regressions are visible without -debug rebuilds.
+void sha256_hw_microbench(void);
+
 #ifdef TAIPANMINER_DEBUG
 // Debug benchmark comparing SHA_START vs SHA_CONTINUE+H0 for second hash pass.
 // Runs iterations times for each approach and logs timing results.
