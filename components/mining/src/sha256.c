@@ -388,7 +388,12 @@ bb_err_t sha256_sw_self_test(void) {
         bb_log_i("sha-self-test", "sw: PASS");
         return BB_OK;
     } else {
-        bb_log_i("sha-self-test", "sw: FAIL");
+        bb_log_e("sha-self-test",
+                 "sw: FAIL got=%02x%02x%02x%02x%02x%02x%02x%02x...%02x%02x%02x%02x%02x%02x%02x%02x",
+                 hash[0], hash[1], hash[2], hash[3],
+                 hash[4], hash[5], hash[6], hash[7],
+                 hash[24], hash[25], hash[26], hash[27],
+                 hash[28], hash[29], hash[30], hash[31]);
         return BB_ERR_INVALID_STATE;
     }
 }
