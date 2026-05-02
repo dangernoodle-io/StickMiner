@@ -843,6 +843,14 @@ static void taipan_info_extender(bb_json_t root)
         bb_json_obj_set_number(root, "sha_khs_ceiling", sha_khs);
     }
 
+    // TA-320a: SHA TEXT-overlap canary result. Drives the decision to
+    // overlap next-pass TEXT writes during current busy-wait.
+    sha_overlap_state_t ov = mining_get_sha_overlap_state();
+    if (ov != SHA_OVERLAP_UNKNOWN) {
+        bb_json_obj_set_string(root, "sha_overlap",
+                               ov == SHA_OVERLAP_SAFE ? "safe" : "unsafe");
+    }
+
     time_t now = time(NULL);
     if (now > 1700000000) {
         int64_t uptime_s = esp_timer_get_time() / 1000000LL;

@@ -162,6 +162,13 @@ bool sha256_hw_verify_text_preserved(void);
 // per-firmware throughput regressions are visible without -debug rebuilds.
 void sha256_hw_microbench(void);
 
+// SHA TEXT-overlap canary (TA-320a). Determines whether writing the next
+// pass's SHA_TEXT registers during the current pass's busy-wait window is
+// safe. Returns true if peripheral snapshots TEXT at trigger; false if it
+// reads TEXT continuously during compute. Result cached via
+// mining_set_sha_overlap_safe for /api/info exposure.
+bool sha256_hw_overlap_canary(void);
+
 #ifdef TAIPANMINER_DEBUG
 // Debug benchmark comparing SHA_START vs SHA_CONTINUE+H0 for second hash pass.
 // Runs iterations times for each approach and logs timing results.
