@@ -6,6 +6,7 @@
 #include "sha256_hw_dport.h"
 #include "sha256.h"
 #include "bb_core.h"
+#include "bb_byte_order.h"
 #include "esp_crypto_lock.h"
 #include "esp_private/periph_ctrl.h"
 #include "soc/dport_access.h"
@@ -136,14 +137,14 @@ static inline bool dport_read_digest_swap_if(uint8_t out[32])
         DPORT_INTERRUPT_RESTORE();                 /* mining.cpp:911 */
         return false;                              /* mining.cpp:912 */
     }
-    ((uint32_t *)out)[7] = __builtin_bswap32(fin); /* mining.cpp:914 */
-    ((uint32_t *)out)[0] = __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 0 * 4)); /* mining.cpp:915 */
-    ((uint32_t *)out)[1] = __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 1 * 4)); /* mining.cpp:916 */
-    ((uint32_t *)out)[2] = __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 2 * 4)); /* mining.cpp:917 */
-    ((uint32_t *)out)[3] = __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 3 * 4)); /* mining.cpp:918 */
-    ((uint32_t *)out)[4] = __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 4 * 4)); /* mining.cpp:919 */
-    ((uint32_t *)out)[5] = __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 5 * 4)); /* mining.cpp:920 */
-    ((uint32_t *)out)[6] = __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 6 * 4)); /* mining.cpp:921 */
+    bb_store_be32(out + 7 * 4, __builtin_bswap32(fin)); /* mining.cpp:914 */
+    bb_store_be32(out + 0 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 0 * 4))); /* mining.cpp:915 */
+    bb_store_be32(out + 1 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 1 * 4))); /* mining.cpp:916 */
+    bb_store_be32(out + 2 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 2 * 4))); /* mining.cpp:917 */
+    bb_store_be32(out + 3 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 3 * 4))); /* mining.cpp:918 */
+    bb_store_be32(out + 4 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 4 * 4))); /* mining.cpp:919 */
+    bb_store_be32(out + 5 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 5 * 4))); /* mining.cpp:920 */
+    bb_store_be32(out + 6 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 6 * 4))); /* mining.cpp:921 */
     DPORT_INTERRUPT_RESTORE();                     /* mining.cpp:922 */
     return true;                                   /* mining.cpp:923 */
 }

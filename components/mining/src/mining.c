@@ -7,6 +7,7 @@
 #include "stratum.h"
 #include "work.h"
 #include "bb_log.h"
+#include "bb_byte_order.h"
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
@@ -110,14 +111,6 @@ void mining_stats_init(void)
 }
 #endif
 
-// Store 32-bit big-endian value
-static inline void store_be32(uint8_t *p, uint32_t v) {
-    p[0] = (v >> 24) & 0xff;
-    p[1] = (v >> 16) & 0xff;
-    p[2] = (v >> 8) & 0xff;
-    p[3] = v & 0xff;
-}
-
 // Build the 64-byte block2 from header tail + SHA padding
 void build_block2(uint8_t block2[64], const uint8_t header[80])
 {
@@ -200,14 +193,14 @@ hash_result_t sw_hash_nonce(hash_backend_t *b,
 
     // Early reject: check MSB word
     if (state[7] <= ctx->target_word0) {
-        store_be32(hash_out,      state[0]);
-        store_be32(hash_out + 4,  state[1]);
-        store_be32(hash_out + 8,  state[2]);
-        store_be32(hash_out + 12, state[3]);
-        store_be32(hash_out + 16, state[4]);
-        store_be32(hash_out + 20, state[5]);
-        store_be32(hash_out + 24, state[6]);
-        store_be32(hash_out + 28, state[7]);
+        bb_store_be32(hash_out,      state[0]);
+        bb_store_be32(hash_out + 4,  state[1]);
+        bb_store_be32(hash_out + 8,  state[2]);
+        bb_store_be32(hash_out + 12, state[3]);
+        bb_store_be32(hash_out + 16, state[4]);
+        bb_store_be32(hash_out + 20, state[5]);
+        bb_store_be32(hash_out + 24, state[6]);
+        bb_store_be32(hash_out + 28, state[7]);
         return HASH_CHECK;
     }
     return HASH_MISS;
@@ -262,7 +255,7 @@ static hash_result_t hw_hash_nonce(hash_backend_t *b,
     if ((h7_raw >> 16) == 0) {
         for (int i = 0; i < 8; i++) {
             uint32_t w = __builtin_bswap32(digest_hw[i]);
-            store_be32(hash_out + i * 4, w);
+            bb_store_be32(hash_out + i * 4, w);
         }
         return HASH_CHECK;
     }
@@ -354,7 +347,7 @@ bool mine_nonce_range(hash_backend_t *backend,
         if ((h7_raw >> 16) == 0) {
             for (int i = 0; i < 8; i++) {
                 uint32_t w = __builtin_bswap32(digest_hw[i]);
-                store_be32(hash + i * 4, w);
+                bb_store_be32(hash + i * 4, w);
             }
             hr = HASH_CHECK;
         } else {
