@@ -72,6 +72,7 @@ void sha256_hw_init(void)
     // assumption behind the per-nonce pad-rewrite cost is visible (not just a
     // historical comment). Cheap one-shot — overhead is ~one SHA op.
     sha256_hw_verify_text_preserved();
+    sha256_hw_microbench();
 
 #ifdef TAIPANMINER_DEBUG
     sha256_hw_bench_pass2(100000);
@@ -333,12 +334,43 @@ bool sha256_hw_verify_text_preserved(void)
     return preserved;
 }
 
+#include "esp_timer.h"
+#include <inttypes.h>
+
+// Boot-time micro-bench (TA-337): 1000 SHA peripheral ops, log a single
+// "HW SHA microbench: N us/op (~M kH/s)" line so per-device + per-firmware
+// throughput regressions are visible in every boot log without rebuilding
+// -debug. Mining does 2 SHA ops per nonce, so kH/s = 500 / us_per_op.
+// Budget: ~5ms boot cost (1000 iters * ~5us).
+void sha256_hw_microbench(void)
+{
+    static const uint32_t test_msg[16] = {
+        0x12345678, 0x9abcdef0, 0x12345678, 0x9abcdef0,
+        0x12345678, 0x9abcdef0, 0x12345678, 0x9abcdef0,
+        0x00000080, 0, 0, 0, 0, 0, 0, 0x00010000
+    };
+    const uint32_t iterations = 1000;
+
+    int64_t start = esp_timer_get_time();
+    for (uint32_t i = 0; i < iterations; i++) {
+        for (int j = 0; j < 16; j++) {
+            SHA_TEXT_REG[j] = test_msg[j];
+        }
+        REG_WRITE(SHA_START_REG, 1);
+        while (REG_READ(SHA_BUSY_REG)) {}
+    }
+    int64_t elapsed = esp_timer_get_time() - start;
+
+    double us_per_op = (double)elapsed / iterations;
+    double khs = 500.0 / us_per_op;  // 2 SHA ops per nonce
+    bb_log_i(TAG, "HW SHA microbench: %.2f us/op (~%.0f kH/s peripheral ceiling)",
+             us_per_op, khs);
+}
+
 // --- Debug utilities ---
 
 #ifdef TAIPANMINER_DEBUG
 #include "esp_log.h"
-#include "esp_timer.h"
-#include <inttypes.h>
 
 void sha256_hw_bench_pass2(uint32_t iterations)
 {
