@@ -108,6 +108,12 @@ bool mining_pause_pending(void);
 bool mining_sha_self_test_failed(void);
 void mining_set_sha_self_test_failed(void);
 
+// Run SHA self-tests (SW + HW for the active target). Synchronous, must
+// be called from app_main before any task starts so the failure flag is
+// committed before stratum / mining / etc. can query it (TA-341).
+// Sets mining_set_sha_self_test_failed() on any failure.
+void mining_run_self_tests(void);
+
 // Boot-time SHA peripheral microbench result (TA-339).
 // Set once by sha256_hw_microbench() at boot; read by /api/info.
 // Returns false on boards without HW SHA microbench (e.g. D0/DPORT until

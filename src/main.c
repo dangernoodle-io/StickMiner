@@ -92,12 +92,20 @@ static void start_mining(void)
     // Register WiFi kick callback for zombie-state recovery
     stratum_set_wifi_kick_cb(bb_wifi_force_reassociate);
 
-    // Start stratum task on Core 0
-    xTaskCreatePinnedToCore(stratum_task, "stratum", 8192, NULL, 5, NULL, 0);
+    // TA-341: run SHA self-tests synchronously before any task starts
+    // so the failure flag is committed before stratum / mining can read it.
+    mining_run_self_tests();
 
-    // Start miner task (board-specific config from g_miner_config)
-    // Skip task creation if SHA self-test failed
-    if (!mining_sha_self_test_failed()) {
+    if (mining_sha_self_test_failed()) {
+        // No mining → no shares → no point holding a pool socket open.
+        // HTTP/UI/OTA tasks (already started above) stay up so the failure
+        // surfaces on the dashboard and the device can be recovered.
+        bb_log_w(TAG, "SHA self-test failed: stratum and mining tasks not started");
+    } else {
+        // Start stratum task on Core 0
+        xTaskCreatePinnedToCore(stratum_task, "stratum", 8192, NULL, 5, NULL, 0);
+
+        // Start miner task (board-specific config from g_miner_config)
         xTaskCreatePinnedToCore(g_miner_config.task_fn, g_miner_config.name,
                                 g_miner_config.stack_size, NULL, g_miner_config.priority,
 #ifdef ASIC_CHIP
@@ -106,8 +114,6 @@ static void start_mining(void)
                                 &mining_hw_task_handle,
 #endif
                                 g_miner_config.core);
-    } else {
-        bb_log_w(TAG, "SHA self-test failed, mining task not started");
     }
 
     bb_log_i(TAG, "all tasks started");
