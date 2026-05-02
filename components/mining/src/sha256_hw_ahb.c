@@ -69,11 +69,17 @@ void sha256_hw_init(void)
 {
     sha256_hw_acquire();
 
+#ifndef ASIC_CHIP
     // TA-320: log SHA_TEXT-persistence behavior at boot in every build so the
     // assumption behind the per-nonce pad-rewrite cost is visible (not just a
     // historical comment). Cheap one-shot — overhead is ~one SHA op.
+    // TA-339: HW SHA peripheral throughput microbench. Both probes describe
+    // the SHA hot-loop ceiling — meaningless on ASIC boards where mining is
+    // done by the BM13xx chip, not the S3 SHA peripheral. Gate by ASIC_CHIP
+    // so /api/info doesn't carry confusing fields on bitaxe.
     sha256_hw_verify_text_preserved();
     sha256_hw_microbench();
+#endif
 
 #ifdef TAIPANMINER_DEBUG
     sha256_hw_bench_pass2(100000);
