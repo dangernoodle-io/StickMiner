@@ -267,8 +267,13 @@ bb_err_t sha256_hw_ahb_self_test(void)
     abc_block[3]  = 0x80;  /* SHA padding bit */
     abc_block[63] = 0x18;  /* 64-bit BE bit-length = 24 */
 
+    /* sha256_hw_midstate writes/reads SHA peripheral registers; the periph
+     * clock must be on and the AES/SHA lock held, otherwise AHB writes are
+     * silently dropped and downstream code paths see undefined state. */
+    sha256_hw_acquire();
     uint32_t digest_hw[8];
     sha256_hw_midstate(abc_block, digest_hw);
+    sha256_hw_release();
 
     /* Convert HW-format digest (each word bswapped) to canonical byte form
      * for the shared comparison helper. */
