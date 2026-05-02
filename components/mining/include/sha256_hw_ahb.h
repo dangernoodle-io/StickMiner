@@ -6,6 +6,7 @@
 #if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
 
 #include <stdint.h>
+#include "bb_core.h"
 #include "esp_attr.h"
 #include "soc/soc.h"
 #include "soc/hwcrypto_reg.h"
@@ -55,6 +56,10 @@ uint32_t sha256_hw_mine_second(uint32_t state[8], uint32_t target_word0);
 // Call once per job. Writes midstate in HW word order to midstate_hw.
 void sha256_hw_midstate(const uint8_t header_block1[64],
                         uint32_t midstate_hw[8]);
+
+// Known-vector self-test: SHA-256("abc")
+// Returns BB_OK on PASS, BB_ERR_INVALID_STATE on FAIL
+bb_err_t sha256_hw_ahb_self_test(void);
 
 // Optimized per-nonce SHA-256d with zero-bswap pipeline.
 // midstate_hw[]: midstate in HW format (from sha256_hw_midstate).

@@ -4,6 +4,7 @@
 #if CONFIG_IDF_TARGET_ESP32
 
 #include "sha256_hw_dport.h"
+#include "bb_core.h"
 #include "esp_crypto_lock.h"
 #include "esp_private/periph_ctrl.h"
 #include "soc/dport_access.h"
@@ -207,13 +208,12 @@ bool sha256_hw_dport_per_nonce(const uint8_t header_80[80], uint32_t nonce, uint
 }
 
 /* ---------------------------------------------------------------------------
- * Init: runs known-vector self-test then logs result.
+ * Known-vector self-test: SHA-256("abc")
+ * Returns BB_OK on PASS, BB_ERR_INVALID_STATE on FAIL.
  * ---------------------------------------------------------------------------
  */
-void sha256_hw_dport_init(void)
+bb_err_t sha256_hw_dport_self_test(void)
 {
-    sha256_hw_dport_acquire();
-
     /* Known-vector test: SHA-256("abc"). Byte form matches how BTC headers
      * are stored — fill_raw will bswap each word on the way to the peripheral. */
     uint8_t abc_block[64];
@@ -244,12 +244,6 @@ void sha256_hw_dport_init(void)
     digest[7] = DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 7 * 4);
     DPORT_INTERRUPT_RESTORE();
 
-    bb_log_i(TAG, "[TA271-DIAG] sha('abc') = %08" PRIx32 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32
-             " %08" PRIx32 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32,
-             digest[0], digest[1], digest[2], digest[3],
-             digest[4], digest[5], digest[6], digest[7]);
-    bb_log_i(TAG, "[TA271-DIAG] expected   = ba7816bf 8f01cfea 414140de 5dae2223 b00361a3 96177a9c b410ff61 f20015ad");
-
     bool match = (digest[0] == 0xba7816bf &&
                   digest[1] == 0x8f01cfea &&
                   digest[2] == 0x414140de &&
@@ -259,8 +253,27 @@ void sha256_hw_dport_init(void)
                   digest[6] == 0xb410ff61 &&
                   digest[7] == 0xf20015ad);
 
-    bb_log_i(TAG, "[TA271-DIAG] result: %s", match ? "PASS" : "FAIL");
+    if (match) {
+        bb_log_i(TAG, "[sha-self-test] dport: PASS");
+        return BB_OK;
+    } else {
+        bb_log_i(TAG, "[sha-self-test] dport: FAIL got=%08" PRIx32 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32
+                 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32,
+                 digest[0], digest[1], digest[2], digest[3],
+                 digest[4], digest[5], digest[6], digest[7]);
+        return BB_ERR_INVALID_STATE;
+    }
+}
 
+/* ---------------------------------------------------------------------------
+ * Init: runs known-vector self-test then logs result.
+ * Return value is ignored at this layer; gate logic (Phase 2) will check it.
+ * ---------------------------------------------------------------------------
+ */
+void sha256_hw_dport_init(void)
+{
+    sha256_hw_dport_acquire();
+    sha256_hw_dport_self_test();  /* return value ignored; mining.c will check it in Phase 2 */
     sha256_hw_dport_release();
 }
 

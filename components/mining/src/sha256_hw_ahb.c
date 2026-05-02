@@ -5,12 +5,14 @@
 #if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
 
 #include "sha256_hw_ahb.h"
+#include "bb_core.h"
 #include "soc/hwcrypto_reg.h"
 #include "soc/soc.h"
 #include "esp_crypto_lock.h"
 #include "esp_attr.h"
 #include "bb_log.h"
 #include "esp_crypto_periph_clk.h"
+#include <inttypes.h>
 
 // ESP32-S3 SHA hardware stores registers as raw bytes in memory-mapped IO.
 // On the LE Xtensa core, reading/writing uint32_t gives the native LE
@@ -243,6 +245,54 @@ IRAM_ATTR void sha256_hw_midstate(const uint8_t header_block1[64],
     // Read result WITHOUT bswap — midstate_hw stays in HW format
     for (int i = 0; i < 8; i++) {
         midstate_hw[i] = SHA_H_REG[i];
+    }
+}
+
+/* ---------------------------------------------------------------------------
+ * Known-vector self-test: SHA-256("abc")
+ * Returns BB_OK on PASS, BB_ERR_INVALID_STATE on FAIL.
+ * ---------------------------------------------------------------------------
+ */
+bb_err_t sha256_hw_ahb_self_test(void)
+{
+    /* Known-vector test: SHA-256("abc").
+     * The abc_block has only one 512-bit block, so sha256_hw_midstate()
+     * produces the complete digest. */
+    uint8_t abc_block[64];
+    memset(abc_block, 0, sizeof(abc_block));
+    abc_block[0]  = 0x61;  /* 'a' */
+    abc_block[1]  = 0x62;  /* 'b' */
+    abc_block[2]  = 0x63;  /* 'c' */
+    abc_block[3]  = 0x80;  /* SHA padding bit */
+    abc_block[63] = 0x18;  /* 64-bit BE bit-length = 24 */
+
+    uint32_t digest_hw[8];
+    sha256_hw_midstate(abc_block, digest_hw);
+
+    /* Expected SHA-256("abc") in standard format; bswap to compare with HW format */
+    const uint32_t expected[8] = {
+        0xba7816bf, 0x8f01cfea, 0x414140de, 0x5dae2223,
+        0xb00361a3, 0x96177a9c, 0xb410ff61, 0xf20015ad
+    };
+
+    bool match = true;
+    for (int i = 0; i < 8; i++) {
+        if (__builtin_bswap32(digest_hw[i]) != expected[i]) {
+            match = false;
+            break;
+        }
+    }
+
+    if (match) {
+        bb_log_i(TAG, "[sha-self-test] ahb: PASS");
+        return BB_OK;
+    } else {
+        /* Log in HW format for debugging */
+        bb_log_i(TAG, "[sha-self-test] ahb: FAIL got=%08" PRIx32 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32
+                 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32,
+                 digest_hw[0], digest_hw[1], digest_hw[2], digest_hw[3],
+                 digest_hw[4], digest_hw[5], digest_hw[6], digest_hw[7]);
+        return BB_ERR_INVALID_STATE;
     }
 }
 

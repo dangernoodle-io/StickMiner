@@ -1,11 +1,15 @@
 #include "sha256.h"
+#include "bb_core.h"
+#include "bb_log.h"
 #include <string.h>
+#include <inttypes.h>
 
 // Platform compatibility
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
 #else
 #define IRAM_ATTR
+#define bb_log_i(tag, fmt, ...) printf("[%s] " fmt "\n", tag, ##__VA_ARGS__)
 #endif
 
 // Initial hash values (H0 - H7)
@@ -355,4 +359,38 @@ void sha256d(const uint8_t *data, size_t len, uint8_t hash[32]) {
     uint8_t first_hash[32];
     sha256(data, len, first_hash);
     sha256(first_hash, 32, hash);
+}
+
+bb_err_t sha256_sw_self_test(void) {
+    /* Known-vector test: SHA-256("abc") */
+    uint8_t input[3] = {0x61, 0x62, 0x63};  /* "abc" */
+    uint8_t hash[32];
+
+    sha256(input, 3, hash);
+
+    /* Expected SHA-256("abc") in big-endian word format */
+    const uint32_t expected[8] = {
+        0xba7816bf, 0x8f01cfea, 0x414140de, 0x5dae2223,
+        0xb00361a3, 0x96177a9c, 0xb410ff61, 0xf20015ad
+    };
+
+    const uint32_t *result = (const uint32_t *)hash;
+    bool match = true;
+    for (int i = 0; i < 8; i++) {
+        if (result[i] != expected[i]) {
+            match = false;
+            break;
+        }
+    }
+
+    if (match) {
+        bb_log_i("sha-self-test", "sw: PASS");
+        return BB_OK;
+    } else {
+        bb_log_i("sha-self-test", "sw: FAIL got=%08" PRIx32 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32
+                 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32 " %08" PRIx32,
+                 result[0], result[1], result[2], result[3],
+                 result[4], result[5], result[6], result[7]);
+        return BB_ERR_INVALID_STATE;
+    }
 }
