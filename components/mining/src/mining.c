@@ -94,11 +94,11 @@ mining_stats_t mining_stats = {0};
 
 static temperature_sensor_handle_t s_temp_handle = NULL;
 
-// TA-341: run SHA self-tests synchronously in app_main, before any task
-// starts. Previously these ran inside mining_task, which meant other tasks
-// (stratum, http, ui) started before the failure flag was set — making the
-// gate at main.c ineffective. Informational probes (canaries, microbench)
-// stay in sha256_hw_init under the mining task.
+// TA-341 + TA-320f: run SHA self-tests + boot probes synchronously in
+// app_main, before any task starts. Self-tests gate mining (failure flag
+// committed before stratum / http / ui can read it). Probes are
+// informational — moved here so the boot log shows them in order before
+// "Returned from app_main()".
 void mining_run_self_tests(void)
 {
     if (sha256_sw_self_test() != BB_OK) {
@@ -110,7 +110,9 @@ void mining_run_self_tests(void)
     if (sha256_hw_ahb_self_test() != BB_OK) {
         bb_log_e(TAG, "SHA AHB self-test FAILED — mining will not start");
         mining_set_sha_self_test_failed();
+        return;
     }
+    sha256_hw_ahb_boot_probes();
 #elif CONFIG_IDF_TARGET_ESP32
     if (sha256_hw_dport_self_test() != BB_OK) {
         bb_log_e(TAG, "SHA DPORT self-test FAILED — mining will not start");

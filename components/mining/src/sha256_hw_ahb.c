@@ -14,6 +14,8 @@
 #include "esp_attr.h"
 #include "bb_log.h"
 #include "esp_crypto_periph_clk.h"
+#include "esp_cpu.h"
+#include "esp_private/esp_clk.h"
 #include <inttypes.h>
 
 // ESP32-S3 SHA hardware stores registers as raw bytes in memory-mapped IO.
@@ -68,20 +70,11 @@ void sha256_hw_release(void)
 void sha256_hw_init(void)
 {
     sha256_hw_acquire();
-
-#ifndef ASIC_CHIP
-    // TA-320: log SHA_TEXT-persistence behavior at boot in every build so the
-    // assumption behind the per-nonce pad-rewrite cost is visible (not just a
-    // historical comment). Cheap one-shot — overhead is ~one SHA op.
-    // TA-339: HW SHA peripheral throughput microbench. Both probes describe
-    // the SHA hot-loop ceiling — meaningless on ASIC boards where mining is
-    // done by the BM13xx chip, not the S3 SHA peripheral. Gate by ASIC_CHIP
-    // so /api/info doesn't carry confusing fields on bitaxe.
-    sha256_hw_verify_text_preserved();
-    sha256_hw_overlap_canary();
-    sha256_hw_hwrite_canary();
-    sha256_hw_microbench();
-#endif
+    // TA-320f: boot probes (verify_text_preserved, canaries, microbench,
+    // profile_hotloop) moved to sha256_hw_ahb_boot_probes(), called from
+    // mining_run_self_tests() in app_main so the boot log shows them
+    // before "Returned from app_main()" rather than after, interleaved
+    // with mining task startup.
 
 #ifdef TAIPANMINER_DEBUG
     sha256_hw_bench_pass2(100000);
@@ -149,12 +142,25 @@ void sha256_hw_init_job(const uint8_t block2[64])
 // at boot). Skipping the per-nonce writes saves 12 stores per nonce.
 void sha256_hw_pipeline_prep(void)
 {
+    // TA-320b: persistent zeros at TEXT[9..14] (block2/digest tail padding,
+    // identical for both passes).
     SHA_TEXT_REG[9]  = 0;
     SHA_TEXT_REG[10] = 0;
     SHA_TEXT_REG[11] = 0;
     SHA_TEXT_REG[12] = 0;
     SHA_TEXT_REG[13] = 0;
     SHA_TEXT_REG[14] = 0;
+    // TA-320f: seed pass1's TEXT[4..8, 15] for the first nonce. Subsequent
+    // nonces have these restored during the prior nonce's pass2_wait
+    // overlap window. Without this prime, the first nonce after a
+    // prepare_job would compute against stale TEXT slots from whatever
+    // ran on the peripheral before (mbedTLS, prior job, etc).
+    SHA_TEXT_REG[4]  = 0x00000080;
+    SHA_TEXT_REG[5]  = 0;
+    SHA_TEXT_REG[6]  = 0;
+    SHA_TEXT_REG[7]  = 0;
+    SHA_TEXT_REG[8]  = 0;
+    SHA_TEXT_REG[15] = 0x80020000;
 }
 
 IRAM_ATTR void sha256_hw_mine_first(uint32_t state[8],
@@ -315,7 +321,114 @@ bb_err_t sha256_hw_ahb_self_test(void)
         digest_bytes[i*4 + 2] = (w >> 8)  & 0xff;
         digest_bytes[i*4 + 3] =  w        & 0xff;
     }
-    return sha256_check_abc_vector("ahb", digest_bytes);
+    bb_err_t midstate_result = sha256_check_abc_vector("ahb", digest_bytes);
+    if (midstate_result != BB_OK) {
+        return midstate_result;
+    }
+
+    /* TA-320f: lockstep test of sha256_hw_mine_nonce against the SW SHA-256d
+     * reference. Catches silent regressions in the per-nonce hot loop
+     * (TA-271 / TA-322 bug class) — a wrong-byte-order or stale-TEXT-slot
+     * bug here causes every share to be rejected by the pool with no
+     * other symptom. Required after any change to TEXT/H register sequencing,
+     * overlap-store windows, or persistent-zero discipline.
+     *
+     * Test: 8 consecutive nonces against a fixed midstate + block2 tail.
+     * For each nonce, compute SHA-256d via the SW path (sha256_transform
+     * twice), then compare h7_raw and (when in candidate range) the full
+     * digest against sha256_hw_mine_nonce's output. */
+    {
+        /* Synthetic but well-defined inputs. midstate must be a plausible
+         * SHA-256 mid-state shape (any 8 words work for correctness tests
+         * because we compare HW vs SW with the same inputs). */
+        const uint32_t midstate_canonical[8] = {
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+            0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+        };
+        /* HW backend stores midstate in HW word order (bswap of canonical). */
+        uint32_t midstate_hw[8];
+        for (int i = 0; i < 8; i++) {
+            midstate_hw[i] = __builtin_bswap32(midstate_canonical[i]);
+        }
+        /* block2 first 12 bytes = three uint32_t words; the rest is padding
+         * + bit-length, handled by sha256_hw_mine_nonce internally. */
+        const uint32_t block2_words[3] = { 0xdeadbeef, 0x12345678, 0xcafebabe };
+
+        sha256_hw_acquire();
+        sha256_hw_pipeline_prep();
+        for (uint32_t nonce = 0x10000000; nonce < 0x10000008; nonce++) {
+            uint32_t hw_digest[8] = {0};
+            uint32_t hw_h7 = sha256_hw_mine_nonce(midstate_hw, block2_words,
+                                                   nonce, hw_digest);
+
+            /* SW reference: rebuild block2 in the byte sequence the HW
+             * peripheral actually sees. SHA_TEXT_REG[i] = X stores LE bytes
+             * of X to MMIO; the peripheral reads each word position as
+             * big-endian for SHA. So a word value X feeds SHA the byte
+             * sequence (X & 0xff, (X>>8)&0xff, (X>>16)&0xff, (X>>24)&0xff).
+             * That's a straight LE byte copy of the word — no bswap. */
+            uint8_t block2_bytes[64] = {0};
+            for (int i = 0; i < 3; i++) {
+                uint32_t w = block2_words[i];
+                block2_bytes[i*4 + 0] =  w        & 0xff;
+                block2_bytes[i*4 + 1] = (w >> 8)  & 0xff;
+                block2_bytes[i*4 + 2] = (w >> 16) & 0xff;
+                block2_bytes[i*4 + 3] = (w >> 24) & 0xff;
+            }
+            block2_bytes[12] =  nonce        & 0xff;
+            block2_bytes[13] = (nonce >> 8)  & 0xff;
+            block2_bytes[14] = (nonce >> 16) & 0xff;
+            block2_bytes[15] = (nonce >> 24) & 0xff;
+            block2_bytes[16] = 0x80;       /* SHA padding */
+            block2_bytes[62] = 0x02;       /* bit-length high byte (640 bits) */
+            block2_bytes[63] = 0x80;       /* bit-length low byte */
+
+            uint32_t sw_state[8];
+            for (int i = 0; i < 8; i++) sw_state[i] = midstate_canonical[i];
+            sha256_transform(sw_state, block2_bytes);
+
+            /* Pack pass1 digest into block3 with SHA-256d padding. */
+            uint8_t block3_bytes[64] = {0};
+            for (int i = 0; i < 8; i++) {
+                block3_bytes[i*4 + 0] = (sw_state[i] >> 24) & 0xff;
+                block3_bytes[i*4 + 1] = (sw_state[i] >> 16) & 0xff;
+                block3_bytes[i*4 + 2] = (sw_state[i] >> 8)  & 0xff;
+                block3_bytes[i*4 + 3] =  sw_state[i]        & 0xff;
+            }
+            block3_bytes[32] = 0x80;
+            block3_bytes[62] = 0x01;       /* bit-length high (256 bits) */
+            block3_bytes[63] = 0x00;
+            uint32_t sw_final[8] = {
+                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+                0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+            };
+            sha256_transform(sw_final, block3_bytes);
+            uint32_t sw_h7 = __builtin_bswap32(sw_final[7]);
+
+            if (hw_h7 != sw_h7) {
+                bb_log_e(TAG, "mine_nonce mismatch @ nonce=0x%08" PRIx32
+                         ": hw_h7=0x%08" PRIx32 " sw_h7=0x%08" PRIx32,
+                         nonce, hw_h7, sw_h7);
+                sha256_hw_release();
+                return BB_ERR_INVALID_STATE;
+            }
+            /* If candidate, also compare full digest. */
+            if ((hw_h7 >> 16) == 0) {
+                for (int i = 0; i < 7; i++) {
+                    uint32_t sw_w = __builtin_bswap32(sw_final[i]);
+                    if (hw_digest[i] != sw_w) {
+                        bb_log_e(TAG, "mine_nonce digest mismatch @ nonce=0x%08"
+                                 PRIx32 " word=%d: hw=0x%08" PRIx32 " sw=0x%08"
+                                 PRIx32, nonce, i, hw_digest[i], sw_w);
+                        sha256_hw_release();
+                        return BB_ERR_INVALID_STATE;
+                    }
+                }
+            }
+        }
+        sha256_hw_release();
+    }
+    return BB_OK;
 }
 
 // SHA_TEXT-persistence probe: writes 0xDEAD000_i to M[0..15], fires SHA_START,
@@ -456,6 +569,24 @@ bool sha256_hw_hwrite_canary(void)
     return safe;
 }
 
+// TA-320f: boot probes bundle. Called from mining_run_self_tests() in
+// app_main so output appears before "Returned from app_main()" rather
+// than concurrently with mining task startup. Skipped on ASIC builds —
+// the SHA peripheral isn't on the hashing path there. Acquires the
+// peripheral around the bundle; safe to call once at boot.
+void sha256_hw_ahb_boot_probes(void)
+{
+#ifndef ASIC_CHIP
+    sha256_hw_acquire();
+    sha256_hw_verify_text_preserved();
+    sha256_hw_overlap_canary();
+    sha256_hw_hwrite_canary();
+    sha256_hw_microbench();
+    sha256_hw_profile_hotloop(2000);
+    sha256_hw_release();
+#endif
+}
+
 // Boot-time micro-bench (TA-337): 1000 SHA peripheral ops, log a single
 // "HW SHA microbench: N us/op (~M kH/s)" line so per-device + per-firmware
 // throughput regressions are visible in every boot log without rebuilding
@@ -485,6 +616,112 @@ void sha256_hw_microbench(void)
     bb_log_i(TAG, "HW SHA microbench: %.2f us/op (~%.0f kH/s peripheral ceiling)",
              us_per_op, khs);
     mining_set_sha_microbench(us_per_op, khs);
+}
+
+// TA-320f: per-phase cycle profile of the per-nonce hot loop.
+// Mirrors sha256_hw_mine_nonce body exactly but with esp_cpu_get_cycle_count()
+// brackets around each phase. Synthetic inputs (zeros) — measures timing only.
+// Uses asm volatile + ordering barriers so the compiler doesn't reorder the
+// reads relative to the MMIO stores.
+void sha256_hw_profile_hotloop(uint32_t iterations)
+{
+    static const uint32_t midstate_zero[8] = {0};
+    static const uint32_t block2_zero[3] = {0};
+    uint32_t digest_hw[8];
+
+    uint64_t pass1_setup_cyc = 0;
+    uint64_t pass1_wait_cyc  = 0;
+    uint64_t pass2_setup_cyc = 0;
+    uint64_t pass2_wait_cyc  = 0;
+    uint64_t reject_cyc      = 0;
+    uint64_t total_cyc       = 0;
+
+    // Prime all persistent + restore-from-overlap slots (matches
+    // sha256_hw_pipeline_prep: TEXT[9..14]=0, TEXT[4..8, 15] for first pass1).
+    sha256_hw_pipeline_prep();
+
+    for (uint32_t n = 0; n < iterations; n++) {
+        uint32_t t0 = esp_cpu_get_cycle_count();
+
+        // --- pass1 setup: H + TEXT[0..3] + CONTINUE ---
+        // TEXT[4..8, 15] restored during prior pass2_wait overlap.
+        for (int i = 0; i < 8; i++) {
+            SHA_H_REG[i] = midstate_zero[i];
+        }
+        SHA_TEXT_REG[0] = block2_zero[0];
+        SHA_TEXT_REG[1] = block2_zero[1];
+        SHA_TEXT_REG[2] = block2_zero[2];
+        SHA_TEXT_REG[3] = n;
+        REG_WRITE(SHA_CONTINUE_REG, 1);
+
+        uint32_t t1 = esp_cpu_get_cycle_count();
+
+        // --- pass1 wait + pass2 padding overlap ---
+        SHA_TEXT_REG[8] = 0x00000080;
+        SHA_TEXT_REG[15] = 0x00010000;
+        while (REG_READ(SHA_BUSY_REG)) {}
+
+        uint32_t t2 = esp_cpu_get_cycle_count();
+
+        // --- pass2 setup: H -> TEXT[0..7] + START ---
+        SHA_TEXT_REG[0] = SHA_H_REG[0];
+        SHA_TEXT_REG[1] = SHA_H_REG[1];
+        SHA_TEXT_REG[2] = SHA_H_REG[2];
+        SHA_TEXT_REG[3] = SHA_H_REG[3];
+        SHA_TEXT_REG[4] = SHA_H_REG[4];
+        SHA_TEXT_REG[5] = SHA_H_REG[5];
+        SHA_TEXT_REG[6] = SHA_H_REG[6];
+        SHA_TEXT_REG[7] = SHA_H_REG[7];
+        REG_WRITE(SHA_START_REG, 1);
+
+        uint32_t t3 = esp_cpu_get_cycle_count();
+
+        // --- pass2 wait + next pass1 padding restore overlap ---
+        SHA_TEXT_REG[4] = 0x00000080;
+        SHA_TEXT_REG[5] = 0;
+        SHA_TEXT_REG[6] = 0;
+        SHA_TEXT_REG[7] = 0;
+        SHA_TEXT_REG[8] = 0;
+        SHA_TEXT_REG[15] = 0x80020000;
+        while (REG_READ(SHA_BUSY_REG)) {}
+
+        uint32_t t4 = esp_cpu_get_cycle_count();
+
+        // --- reject check: read h7, branch, conditional digest read ---
+        uint32_t h7_raw = SHA_H_REG[7];
+        if ((h7_raw >> 16) == 0) {
+            for (int i = 0; i < 7; i++) {
+                digest_hw[i] = SHA_H_REG[i];
+            }
+            digest_hw[7] = h7_raw;
+        }
+
+        uint32_t t5 = esp_cpu_get_cycle_count();
+
+        pass1_setup_cyc += (uint32_t)(t1 - t0);
+        pass1_wait_cyc  += (uint32_t)(t2 - t1);
+        pass2_setup_cyc += (uint32_t)(t3 - t2);
+        pass2_wait_cyc  += (uint32_t)(t4 - t3);
+        reject_cyc      += (uint32_t)(t5 - t4);
+        total_cyc       += (uint32_t)(t5 - t0);
+    }
+    (void)digest_hw;
+
+    double n = (double)iterations;
+    double total_per   = (double)total_cyc       / n;
+    double khs = ((double)esp_clk_cpu_freq() / total_per) / 1000.0;
+
+    bb_log_i(TAG,
+        "SHA hotloop profile (%" PRIu32 " iters): "
+        "pass1_setup=%.0f pass1_wait=%.0f pass2_setup=%.0f pass2_wait=%.0f reject=%.0f "
+        "total=%.0f cyc/nonce (~%.0f kH/s effective)",
+        iterations,
+        (double)pass1_setup_cyc / n,
+        (double)pass1_wait_cyc  / n,
+        (double)pass2_setup_cyc / n,
+        (double)pass2_wait_cyc  / n,
+        (double)reject_cyc      / n,
+        total_per, khs);
 }
 
 // --- Debug utilities ---
