@@ -6,6 +6,7 @@
 
 #include "sha256_hw_ahb.h"
 #include "sha256.h"
+#include "mining.h"
 #include "bb_core.h"
 #include "soc/hwcrypto_reg.h"
 #include "soc/soc.h"
@@ -68,11 +69,17 @@ void sha256_hw_init(void)
 {
     sha256_hw_acquire();
 
+#ifndef ASIC_CHIP
     // TA-320: log SHA_TEXT-persistence behavior at boot in every build so the
     // assumption behind the per-nonce pad-rewrite cost is visible (not just a
     // historical comment). Cheap one-shot — overhead is ~one SHA op.
+    // TA-339: HW SHA peripheral throughput microbench. Both probes describe
+    // the SHA hot-loop ceiling — meaningless on ASIC boards where mining is
+    // done by the BM13xx chip, not the S3 SHA peripheral. Gate by ASIC_CHIP
+    // so /api/info doesn't carry confusing fields on bitaxe.
     sha256_hw_verify_text_preserved();
     sha256_hw_microbench();
+#endif
 
 #ifdef TAIPANMINER_DEBUG
     sha256_hw_bench_pass2(100000);
@@ -365,6 +372,7 @@ void sha256_hw_microbench(void)
     double khs = 500.0 / us_per_op;  // 2 SHA ops per nonce
     bb_log_i(TAG, "HW SHA microbench: %.2f us/op (~%.0f kH/s peripheral ceiling)",
              us_per_op, khs);
+    mining_set_sha_microbench(us_per_op, khs);
 }
 
 // --- Debug utilities ---
