@@ -67,6 +67,13 @@ bb_err_t sha256_hw_ahb_self_test(void);
 // nonce: nonce to test.
 // digest_hw[8]: written only on potential hit (upper 16 bits of h7_raw are zero).
 // Returns raw SHA_H_REG[7] value; caller performs full target comparison.
+//
+// Note: an experimental memw-collapse variant (TA-320) traded the per-store
+// Xtensa memw fences for a single asm("memw") barrier before each trigger.
+// Measured +0.7% kH/s on tdongle-s3 but caused ~+12°C die temp and visibly
+// starved Core-0 work (HTTP/UI unresponsive). The fences function as
+// implicit cooperative-yield points by draining the AHB pipeline; removing
+// them lets the SHA hot loop monopolize the bus. Reverted 2026-05-01.
 static inline __attribute__((always_inline)) IRAM_ATTR uint32_t
 sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
                      const uint32_t block2_words[3],
@@ -141,14 +148,15 @@ sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
 
 // --- Debug utilities ---
 
-#ifdef TAIPANMINER_DEBUG
 #include <stdbool.h>
 
 // Verify that SHA_TEXT registers preserve their contents after SHA_START.
 // Returns true if all 16 words are preserved, false if any are modified.
-// (Empirical testing shows they are NOT preserved on ESP32-S3.)
+// Run at boot in every build (TA-320) so the persistence assumption is
+// visible in the log; release builds use the result for diagnostic only.
 bool sha256_hw_verify_text_preserved(void);
 
+#ifdef TAIPANMINER_DEBUG
 // Debug benchmark comparing SHA_START vs SHA_CONTINUE+H0 for second hash pass.
 // Runs iterations times for each approach and logs timing results.
 void sha256_hw_bench_pass2(uint32_t iterations);
