@@ -229,6 +229,13 @@ bb_err_t asic_init(void)
 {
     bb_log_i(TAG, "initializing ASIC subsystem");
 
+    // Run SW SHA self-test at the top of asic_init
+    if (sha256_sw_self_test() != BB_OK) {
+        bb_log_e(TAG, "SHA self-test FAILED — mining will not start");
+        mining_set_sha_self_test_failed();
+        return BB_OK;
+    }
+
     // 1. UART init
     uart_config_t uart_cfg = {
         .baud_rate = ASIC_BAUD_INIT,

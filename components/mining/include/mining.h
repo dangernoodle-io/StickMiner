@@ -104,6 +104,10 @@ bool mining_pause_check(void);
 // Non-blocking query: returns true if a pause has been requested
 bool mining_pause_pending(void);
 
+// SHA self-test failure flag (set by mining task or asic_init on FAIL)
+bool mining_sha_self_test_failed(void);
+void mining_set_sha_self_test_failed(void);
+
 // Exponential moving average state for hashrate smoothing
 typedef struct {
     double   value;

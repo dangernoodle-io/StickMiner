@@ -10,6 +10,14 @@ void test_sha256_genesis_header(void);
 void test_sha256_transform_words(void);
 void test_sha256_transform_performance(void);
 
+// Forward declarations from test_sha_self_test_gate.c (TA-322)
+void test_sha256_sw_self_test_passes(void);
+void test_mining_self_test_flag_default_false(void);
+void test_mining_set_self_test_failed_flips_flag(void);
+void test_sha256_check_abc_vector_accepts_correct_digest(void);
+void test_sha256_check_abc_vector_rejects_wrong_digest(void);
+void test_sha256_check_abc_vector_rejects_one_byte_flip(void);
+
 // Forward declarations from test_work.c
 void test_hex_to_bytes(void);
 void test_bytes_to_hex(void);
@@ -567,6 +575,15 @@ int main(void) {
     RUN_TEST(test_sha256_genesis_header);
     RUN_TEST(test_sha256_transform_words);
     RUN_TEST(test_sha256_transform_performance);
+
+    // SHA self-test gate tests (TA-322)
+    // Note: test_mining_self_test_flag_default_false must run first (process-static state)
+    RUN_TEST(test_mining_self_test_flag_default_false);
+    RUN_TEST(test_sha256_sw_self_test_passes);
+    RUN_TEST(test_mining_set_self_test_failed_flips_flag);
+    RUN_TEST(test_sha256_check_abc_vector_accepts_correct_digest);
+    RUN_TEST(test_sha256_check_abc_vector_rejects_wrong_digest);
+    RUN_TEST(test_sha256_check_abc_vector_rejects_one_byte_flip);
 
     // Work module tests
     RUN_TEST(test_hex_to_bytes);

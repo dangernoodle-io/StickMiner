@@ -15,10 +15,15 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "bb_core.h"
 
 void sha256_hw_dport_init(void);
 void sha256_hw_dport_acquire(void);
 void sha256_hw_dport_release(void);
+
+/* Known-vector self-test: SHA-256("abc")
+ * Returns BB_OK on PASS, BB_ERR_INVALID_STATE on FAIL */
+bb_err_t sha256_hw_dport_self_test(void);
 
 /* Returns true on potential hit (low 16 bits of last digest word == 0). Caller
  * proceeds to full target check. Returns false on early reject.
