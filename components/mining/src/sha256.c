@@ -1,11 +1,15 @@
 #include "sha256.h"
+#include "bb_core.h"
+#include "bb_log.h"
 #include <string.h>
+#include <inttypes.h>
 
 // Platform compatibility
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
 #else
 #define IRAM_ATTR
+#define bb_log_i(tag, fmt, ...) printf("[%s] " fmt "\n", tag, ##__VA_ARGS__)
 #endif
 
 // Initial hash values (H0 - H7)
@@ -355,4 +359,35 @@ void sha256d(const uint8_t *data, size_t len, uint8_t hash[32]) {
     uint8_t first_hash[32];
     sha256(data, len, first_hash);
     sha256(first_hash, 32, hash);
+}
+
+/* Pure helper: compare a 32-byte digest against the SHA-256("abc") NIST
+ * vector, log PASS/FAIL with backend_tag, and return BB_OK/BB_ERR_INVALID_STATE.
+ * Split out so the FAIL branch is host-testable by feeding a synthetic digest. */
+bb_err_t sha256_check_abc_vector(const char *backend_tag, const uint8_t hash[32]) {
+    static const uint8_t expected[32] = {
+        0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
+        0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
+        0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+        0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad
+    };
+    if (memcmp(hash, expected, 32) == 0) {
+        bb_log_i("sha-self-test", "%s: PASS", backend_tag);
+        return BB_OK;
+    }
+    bb_log_e("sha-self-test",
+             "%s: FAIL got=%02x%02x%02x%02x%02x%02x%02x%02x...%02x%02x%02x%02x%02x%02x%02x%02x",
+             backend_tag,
+             hash[0], hash[1], hash[2], hash[3],
+             hash[4], hash[5], hash[6], hash[7],
+             hash[24], hash[25], hash[26], hash[27],
+             hash[28], hash[29], hash[30], hash[31]);
+    return BB_ERR_INVALID_STATE;
+}
+
+bb_err_t sha256_sw_self_test(void) {
+    uint8_t input[3] = {0x61, 0x62, 0x63};  /* "abc" */
+    uint8_t hash[32];
+    sha256(input, 3, hash);
+    return sha256_check_abc_vector("sw", hash);
 }

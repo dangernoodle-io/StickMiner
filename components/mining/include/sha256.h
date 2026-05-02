@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "bb_core.h"
 
 // Platform compatibility
 #ifdef ESP_PLATFORM
@@ -42,3 +43,12 @@ void sha256_transform_words(uint32_t state[8], const uint32_t words[16]);
 
 // Initial hash values (exposed for mining optimization)
 extern const uint32_t sha256_H0[8];
+
+// Known-vector self-test: SHA-256("abc")
+// Returns BB_OK on PASS, BB_ERR_INVALID_STATE on FAIL
+bb_err_t sha256_sw_self_test(void);
+
+// Compare a 32-byte digest against the SHA-256("abc") NIST vector and log
+// PASS/FAIL with backend_tag (e.g. "sw", "ahb", "dport"). HW backends call
+// this with the digest they read from peripheral registers.
+bb_err_t sha256_check_abc_vector(const char *backend_tag, const uint8_t hash[32]);

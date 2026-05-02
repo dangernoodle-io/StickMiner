@@ -5,12 +5,15 @@
 #if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
 
 #include "sha256_hw_ahb.h"
+#include "sha256.h"
+#include "bb_core.h"
 #include "soc/hwcrypto_reg.h"
 #include "soc/soc.h"
 #include "esp_crypto_lock.h"
 #include "esp_attr.h"
 #include "bb_log.h"
 #include "esp_crypto_periph_clk.h"
+#include <inttypes.h>
 
 // ESP32-S3 SHA hardware stores registers as raw bytes in memory-mapped IO.
 // On the LE Xtensa core, reading/writing uint32_t gives the native LE
@@ -244,6 +247,40 @@ IRAM_ATTR void sha256_hw_midstate(const uint8_t header_block1[64],
     for (int i = 0; i < 8; i++) {
         midstate_hw[i] = SHA_H_REG[i];
     }
+}
+
+/* ---------------------------------------------------------------------------
+ * Known-vector self-test: SHA-256("abc")
+ * Returns BB_OK on PASS, BB_ERR_INVALID_STATE on FAIL.
+ * ---------------------------------------------------------------------------
+ */
+bb_err_t sha256_hw_ahb_self_test(void)
+{
+    /* Known-vector test: SHA-256("abc").
+     * The abc_block has only one 512-bit block, so sha256_hw_midstate()
+     * produces the complete digest. */
+    uint8_t abc_block[64];
+    memset(abc_block, 0, sizeof(abc_block));
+    abc_block[0]  = 0x61;  /* 'a' */
+    abc_block[1]  = 0x62;  /* 'b' */
+    abc_block[2]  = 0x63;  /* 'c' */
+    abc_block[3]  = 0x80;  /* SHA padding bit */
+    abc_block[63] = 0x18;  /* 64-bit BE bit-length = 24 */
+
+    uint32_t digest_hw[8];
+    sha256_hw_midstate(abc_block, digest_hw);
+
+    /* Convert HW-format digest (each word bswapped) to canonical byte form
+     * for the shared comparison helper. */
+    uint8_t digest_bytes[32];
+    for (int i = 0; i < 8; i++) {
+        uint32_t w = __builtin_bswap32(digest_hw[i]);
+        digest_bytes[i*4 + 0] = (w >> 24) & 0xff;
+        digest_bytes[i*4 + 1] = (w >> 16) & 0xff;
+        digest_bytes[i*4 + 2] = (w >> 8)  & 0xff;
+        digest_bytes[i*4 + 3] =  w        & 0xff;
+    }
+    return sha256_check_abc_vector("ahb", digest_bytes);
 }
 
 // --- Debug utilities ---
