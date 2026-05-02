@@ -72,6 +72,31 @@ mining_stats_t mining_stats = {0};
 
 static temperature_sensor_handle_t s_temp_handle = NULL;
 
+// TA-341: run SHA self-tests synchronously in app_main, before any task
+// starts. Previously these ran inside mining_task, which meant other tasks
+// (stratum, http, ui) started before the failure flag was set — making the
+// gate at main.c ineffective. Informational probes (canaries, microbench)
+// stay in sha256_hw_init under the mining task.
+void mining_run_self_tests(void)
+{
+    if (sha256_sw_self_test() != BB_OK) {
+        bb_log_e(TAG, "SHA SW self-test FAILED — mining will not start");
+        mining_set_sha_self_test_failed();
+        return;
+    }
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
+    if (sha256_hw_ahb_self_test() != BB_OK) {
+        bb_log_e(TAG, "SHA AHB self-test FAILED — mining will not start");
+        mining_set_sha_self_test_failed();
+    }
+#elif CONFIG_IDF_TARGET_ESP32
+    if (sha256_hw_dport_self_test() != BB_OK) {
+        bb_log_e(TAG, "SHA DPORT self-test FAILED — mining will not start");
+        mining_set_sha_self_test_failed();
+    }
+#endif
+}
+
 void mining_stats_load_lifetime(void)
 {
     uint32_t lo = 0, hi = 0;
@@ -523,28 +548,13 @@ void mining_task(void *arg)
 
     bb_log_i(TAG, "mining task started");
 
-    // Run SHA self-tests before initializing hardware
-    // SW self-test always runs to verify sha256_transform
-    if (sha256_sw_self_test() != BB_OK) {
-        bb_log_e(TAG, "SHA self-test FAILED — mining will not start");
-        mining_set_sha_self_test_failed();
+    // SHA self-tests now run in app_main before any task starts (TA-341).
+    // The gate at main.c is what skips creating this task on failure;
+    // double-check here in case someone calls mining_task directly.
+    if (mining_sha_self_test_failed()) {
+        bb_log_e(TAG, "SHA self-test previously failed — mining task exiting");
         return;
     }
-
-    // HW self-test (conditionally on target)
-#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
-    if (sha256_hw_ahb_self_test() != BB_OK) {
-        bb_log_e(TAG, "SHA self-test FAILED — mining will not start");
-        mining_set_sha_self_test_failed();
-        return;
-    }
-#elif CONFIG_IDF_TARGET_ESP32
-    if (sha256_hw_dport_self_test() != BB_OK) {
-        bb_log_e(TAG, "SHA self-test FAILED — mining will not start");
-        mining_set_sha_self_test_failed();
-        return;
-    }
-#endif
 
     // Set up hash backend
     hw_backend_ctx_t hw_ctx;
