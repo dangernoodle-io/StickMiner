@@ -78,6 +78,7 @@ void sha256_hw_init(void)
     // done by the BM13xx chip, not the S3 SHA peripheral. Gate by ASIC_CHIP
     // so /api/info doesn't carry confusing fields on bitaxe.
     sha256_hw_verify_text_preserved();
+    sha256_hw_overlap_canary();
     sha256_hw_microbench();
 #endif
 
@@ -343,6 +344,57 @@ bool sha256_hw_verify_text_preserved(void)
 
 #include "esp_timer.h"
 #include <inttypes.h>
+
+// SHA TEXT-overlap canary (TA-320a): determines whether the SHA peripheral
+// snapshots SHA_TEXT at trigger time (SHA_START) or reads it continuously
+// during compute. If the former, writing the next pass's TEXT registers
+// during the current pass's busy-wait window is safe — the largest TA-320
+// optimization that doesn't require hand asm. NerdMiner-AxeHub does this
+// via an equivalent canary (axehub_sha_fast_overlap_canary).
+//
+// Method: compute reference H(input). Reset, write input, trigger
+// SHA_START, then while busy overwrite SHA_TEXT[0] with garbage. Wait,
+// read H. If H == reference → snapshot at trigger → overlap safe.
+//
+// Run at boot with the result cached so /api/info exposes it for fleet
+// comparison.
+bool sha256_hw_overlap_canary(void)
+{
+    static const uint32_t test_msg[16] = {
+        0xfeedface, 0xcafebabe, 0xdeadbeef, 0x01234567,
+        0x89abcdef, 0x12345678, 0x9abcdef0, 0x0fedcba9,
+        0x00000080, 0, 0, 0, 0, 0, 0, 0x00010000
+    };
+    uint32_t reference[8];
+    uint32_t observed[8];
+
+    // Reference: clean SHA_START with no mid-compute interference.
+    for (int j = 0; j < 16; j++) SHA_TEXT_REG[j] = test_msg[j];
+    REG_WRITE(SHA_START_REG, 1);
+    while (REG_READ(SHA_BUSY_REG)) {}
+    for (int j = 0; j < 8; j++) reference[j] = SHA_H_REG[j];
+
+    // Trial: SHA_START, then immediately corrupt SHA_TEXT[0] before busy clears.
+    for (int j = 0; j < 16; j++) SHA_TEXT_REG[j] = test_msg[j];
+    REG_WRITE(SHA_START_REG, 1);
+    SHA_TEXT_REG[0] = 0xBADC0FFE;  // corrupt TEXT mid-compute
+    while (REG_READ(SHA_BUSY_REG)) {}
+    for (int j = 0; j < 8; j++) observed[j] = SHA_H_REG[j];
+
+    bool safe = true;
+    for (int j = 0; j < 8; j++) {
+        if (observed[j] != reference[j]) { safe = false; break; }
+    }
+
+    if (safe) {
+        bb_log_i(TAG, "SHA TEXT-overlap canary: SAFE — peripheral snapshots TEXT at trigger; overlap-during-busy-wait possible");
+    } else {
+        bb_log_i(TAG, "SHA TEXT-overlap canary: UNSAFE — peripheral reads TEXT during compute; cannot overlap");
+    }
+
+    mining_set_sha_overlap_safe(safe);
+    return safe;
+}
 
 // Boot-time micro-bench (TA-337): 1000 SHA peripheral ops, log a single
 // "HW SHA microbench: N us/op (~M kH/s)" line so per-device + per-firmware
