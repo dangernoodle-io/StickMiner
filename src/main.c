@@ -96,14 +96,19 @@ static void start_mining(void)
     xTaskCreatePinnedToCore(stratum_task, "stratum", 8192, NULL, 5, NULL, 0);
 
     // Start miner task (board-specific config from g_miner_config)
-    xTaskCreatePinnedToCore(g_miner_config.task_fn, g_miner_config.name,
-                            g_miner_config.stack_size, NULL, g_miner_config.priority,
+    // Skip task creation if SHA self-test failed
+    if (!mining_sha_self_test_failed()) {
+        xTaskCreatePinnedToCore(g_miner_config.task_fn, g_miner_config.name,
+                                g_miner_config.stack_size, NULL, g_miner_config.priority,
 #ifdef ASIC_CHIP
-                            &asic_task_handle,
+                                &asic_task_handle,
 #else
-                            &mining_hw_task_handle,
+                                &mining_hw_task_handle,
 #endif
-                            g_miner_config.core);
+                                g_miner_config.core);
+    } else {
+        bb_log_w(TAG, "SHA self-test failed, mining task not started");
+    }
 
     bb_log_i(TAG, "all tasks started");
 }

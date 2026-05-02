@@ -44,6 +44,14 @@ mining_stats_t mining_stats = {0};
 
 static temperature_sensor_handle_t s_temp_handle = NULL;
 
+static bool s_sha_self_test_failed = false;
+
+bool mining_sha_self_test_failed(void) { return s_sha_self_test_failed; }
+
+void mining_set_sha_self_test_failed(void) {
+    s_sha_self_test_failed = true;
+}
+
 void mining_stats_load_lifetime(void)
 {
     uint32_t lo = 0, hi = 0;
@@ -501,6 +509,31 @@ void mining_task(void *arg)
 {
     (void)arg;
 
+    bb_log_i(TAG, "mining task started");
+
+    // Run SHA self-tests before initializing hardware
+    // SW self-test always runs to verify sha256_transform
+    if (sha256_sw_self_test() != BB_OK) {
+        bb_log_e(TAG, "SHA self-test FAILED — mining will not start");
+        mining_set_sha_self_test_failed();
+        return;
+    }
+
+    // HW self-test (conditionally on target)
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
+    if (sha256_hw_ahb_self_test() != BB_OK) {
+        bb_log_e(TAG, "SHA self-test FAILED — mining will not start");
+        mining_set_sha_self_test_failed();
+        return;
+    }
+#elif CONFIG_IDF_TARGET_ESP32
+    if (sha256_hw_dport_self_test() != BB_OK) {
+        bb_log_e(TAG, "SHA self-test FAILED — mining will not start");
+        mining_set_sha_self_test_failed();
+        return;
+    }
+#endif
+
     // Set up hash backend
     hw_backend_ctx_t hw_ctx;
     hash_backend_t backend;
@@ -513,8 +546,6 @@ void mining_task(void *arg)
     // Subscribe mining task to TWDT — IDLE1 monitoring is disabled because
     // this task is CPU-bound on core 1 by design. Feed at each yield point.
     esp_task_wdt_add(NULL);
-
-    bb_log_i(TAG, "mining task started");
 
     sha256_hw_acquire();
 
