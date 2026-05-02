@@ -131,6 +131,11 @@ typedef enum {
 void mining_set_sha_overlap_safe(bool safe);
 sha_overlap_state_t mining_get_sha_overlap_state(void);
 
+// SHA H-write-during-compute canary state (TA-320a). Set by
+// sha256_hw_hwrite_canary at boot; read by /api/info.
+void mining_set_sha_hwrite_safe(bool safe);
+sha_overlap_state_t mining_get_sha_hwrite_state(void);
+
 // Exponential moving average state for hashrate smoothing
 typedef struct {
     double   value;

@@ -850,6 +850,11 @@ static void taipan_info_extender(bb_json_t root)
         bb_json_obj_set_string(root, "sha_overlap",
                                ov == SHA_OVERLAP_SAFE ? "safe" : "unsafe");
     }
+    sha_overlap_state_t hw = mining_get_sha_hwrite_state();
+    if (hw != SHA_OVERLAP_UNKNOWN) {
+        bb_json_obj_set_string(root, "sha_hwrite",
+                               hw == SHA_OVERLAP_SAFE ? "safe" : "unsafe");
+    }
 
     time_t now = time(NULL);
     if (now > 1700000000) {
