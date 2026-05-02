@@ -1,6 +1,7 @@
 #include "sha256.h"
 #include "bb_core.h"
 #include "bb_log.h"
+#include "bb_byte_order.h"
 #include <string.h>
 #include <inttypes.h>
 
@@ -48,23 +49,10 @@ static inline uint32_t sigma1(uint32_t x) {
     return rotr(x, 17) ^ rotr(x, 19) ^ (x >> 10);
 }
 
-// Load 32-bit big-endian value
-static inline uint32_t load_be32(const uint8_t *p) {
-    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
-}
-
-// Store 32-bit big-endian value
-static inline void store_be32(uint8_t *p, uint32_t v) {
-    p[0] = (v >> 24) & 0xff;
-    p[1] = (v >> 16) & 0xff;
-    p[2] = (v >> 8) & 0xff;
-    p[3] = v & 0xff;
-}
-
 // Store 64-bit big-endian value
 static inline void store_be64(uint8_t *p, uint64_t v) {
-    store_be32(p, (uint32_t)(v >> 32));
-    store_be32(p + 4, (uint32_t)v);
+    bb_store_be32(p, (uint32_t)(v >> 32));
+    bb_store_be32(p + 4, (uint32_t)v);
 }
 
 // SHA-256 round macro for unrolled loop (inlined K constants)
@@ -82,7 +70,7 @@ IRAM_ATTR void sha256_transform(uint32_t state[8], const uint8_t block[64]) {
 
     // Load message schedule (first 16 words from block)
     for (i = 0; i < 16; i++) {
-        W[i] = load_be32(block + i * 4);
+        W[i] = bb_load_be32(block + i * 4);
     }
 
     // Expand message schedule (words 16-63)
@@ -344,7 +332,7 @@ void sha256_final(sha256_ctx_t *ctx, uint8_t hash[32]) {
 
     // Output final hash (big-endian)
     for (int i = 0; i < 8; i++) {
-        store_be32(hash + i * 4, ctx->state[i]);
+        bb_store_be32(hash + i * 4, ctx->state[i]);
     }
 }
 

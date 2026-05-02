@@ -1,16 +1,9 @@
 #include "work.h"
 #include "sha256.h"
+#include "bb_byte_order.h"
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
-
-// Utility to write uint32 in little-endian format
-static void write_le32(uint8_t *buf, uint32_t val) {
-    buf[0] = (uint8_t)(val & 0xFF);
-    buf[1] = (uint8_t)((val >> 8) & 0xFF);
-    buf[2] = (uint8_t)((val >> 16) & 0xFF);
-    buf[3] = (uint8_t)((val >> 24) & 0xFF);
-}
 
 void build_coinbase_hash(const uint8_t *coinb1, size_t coinb1_len,
                          const uint8_t *extranonce1, size_t en1_len,
@@ -67,7 +60,7 @@ void serialize_header(uint32_t version, const uint8_t prevhash[32],
                       uint32_t nbits, uint32_t nonce,
                       uint8_t header[80]) {
     // Bytes 0-3: version (uint32 LE)
-    write_le32(header, version);
+    bb_store_le32(header, version);
 
     // Bytes 4-35: prevhash (32 bytes, already in correct byte order)
     memcpy(header + 4, prevhash, 32);
@@ -76,17 +69,17 @@ void serialize_header(uint32_t version, const uint8_t prevhash[32],
     memcpy(header + 36, merkle_root, 32);
 
     // Bytes 68-71: ntime (uint32 LE)
-    write_le32(header + 68, ntime);
+    bb_store_le32(header + 68, ntime);
 
     // Bytes 72-75: nbits (uint32 LE)
-    write_le32(header + 72, nbits);
+    bb_store_le32(header + 72, nbits);
 
     // Bytes 76-79: nonce (uint32 LE)
-    write_le32(header + 76, nonce);
+    bb_store_le32(header + 76, nonce);
 }
 
 void set_header_nonce(uint8_t header[80], uint32_t nonce) {
-    write_le32(header + 76, nonce);
+    bb_store_le32(header + 76, nonce);
 }
 
 void nbits_to_target(uint32_t nbits, uint8_t target[32]) {

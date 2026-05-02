@@ -2,16 +2,9 @@
 #include "work.h"
 #include "mining.h"
 #include "sha256.h"
+#include "bb_byte_order.h"
 #include <string.h>
 #include <stdlib.h>
-
-// Helper to store a 32-bit value in big-endian byte order
-static inline void store_be32(uint8_t *p, uint32_t v) {
-    p[0] = (v >> 24) & 0xff;
-    p[1] = (v >> 16) & 0xff;
-    p[2] = (v >> 8) & 0xff;
-    p[3] = v & 0xff;
-}
 
 // Test: hex_to_bytes conversion
 void test_hex_to_bytes(void)

@@ -27,6 +27,7 @@
 
 #include "esp_log.h"
 #include "bb_log.h"
+#include "bb_byte_order.h"
 #include "esp_check.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -441,8 +442,7 @@ void asic_mining_task(void *arg)
                 // Command response: reinterpret bytes per ESP-Miner's bm1370_asic_result_cmd_t.
                 // rx[2..5] = value (big-endian; ASIC returns network byte order — ntohl equivalent),
                 // rx[6] = asic_address, rx[7] = register_address
-                uint32_t value = ((uint32_t)rx[2] << 24) | ((uint32_t)rx[3] << 16) |
-                                 ((uint32_t)rx[4] << 8)  | (uint32_t)rx[5];
+                uint32_t value = bb_load_be32(rx + 2);
                 uint8_t asic_addr = rx[6];
                 uint8_t reg_addr  = rx[7];
 
@@ -589,11 +589,9 @@ void asic_mining_task(void *arg)
 
             mining_work_t *orig = &s_job_table[recv_slot];
             uint32_t ver_bits = asic_decode_version_bits(&nonce);
-            uint32_t nonce_val = ((uint32_t)nonce.nonce[0] << 24) | ((uint32_t)nonce.nonce[1] << 16) |
-                                 ((uint32_t)nonce.nonce[2] << 8) | nonce.nonce[3];
+            uint32_t nonce_val = bb_load_be32(nonce.nonce);
             // LE uint32: raw ASIC wire bytes interpreted as little-endian (pool submission value)
-            uint32_t nonce_le = nonce.nonce[0] | ((uint32_t)nonce.nonce[1] << 8) |
-                                ((uint32_t)nonce.nonce[2] << 16) | ((uint32_t)nonce.nonce[3] << 24);
+            uint32_t nonce_le = bb_load_le32(nonce.nonce);
 
             // Dedup: skip if we already submitted this nonce+version for this job
             if (asic_nonce_dedup_check_and_insert(&s_dedup, real_job_id, nonce_val, ver_bits)) {
