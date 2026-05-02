@@ -32,6 +32,24 @@ void mining_set_sha_self_test_failed(void) {
     s_sha_self_test_failed = true;
 }
 
+// TA-339: cached HW SHA peripheral microbench result (set once at boot).
+static bool   s_sha_microbench_valid = false;
+static double s_sha_us_per_op        = 0.0;
+static double s_sha_khs_ceiling      = 0.0;
+
+void mining_set_sha_microbench(double us_per_op, double khs_ceiling) {
+    s_sha_us_per_op = us_per_op;
+    s_sha_khs_ceiling = khs_ceiling;
+    s_sha_microbench_valid = true;
+}
+
+bool mining_get_sha_microbench(double *us_per_op, double *khs_ceiling) {
+    if (!s_sha_microbench_valid) return false;
+    if (us_per_op) *us_per_op = s_sha_us_per_op;
+    if (khs_ceiling) *khs_ceiling = s_sha_khs_ceiling;
+    return true;
+}
+
 #ifdef ESP_PLATFORM
 #include "esp_log.h"
 #include "esp_timer.h"

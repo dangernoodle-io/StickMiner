@@ -6,6 +6,7 @@
 
 #include "sha256_hw_ahb.h"
 #include "sha256.h"
+#include "mining.h"
 #include "bb_core.h"
 #include "soc/hwcrypto_reg.h"
 #include "soc/soc.h"
@@ -365,6 +366,7 @@ void sha256_hw_microbench(void)
     double khs = 500.0 / us_per_op;  // 2 SHA ops per nonce
     bb_log_i(TAG, "HW SHA microbench: %.2f us/op (~%.0f kH/s peripheral ceiling)",
              us_per_op, khs);
+    mining_set_sha_microbench(us_per_op, khs);
 }
 
 // --- Debug utilities ---

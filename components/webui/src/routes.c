@@ -835,6 +835,14 @@ static void taipan_info_extender(bb_json_t root)
     bb_json_obj_set_bool(root, "validated", !bb_ota_is_pending());
     bb_json_obj_set_number(root, "wdt_resets", s_wdt_resets);
 
+    // TA-339: per-device HW SHA peripheral ceiling (boot microbench).
+    // Absent on boards without HW SHA microbench (e.g. D0/DPORT).
+    double sha_us, sha_khs;
+    if (mining_get_sha_microbench(&sha_us, &sha_khs)) {
+        bb_json_obj_set_number(root, "sha_us_per_op", sha_us);
+        bb_json_obj_set_number(root, "sha_khs_ceiling", sha_khs);
+    }
+
     time_t now = time(NULL);
     if (now > 1700000000) {
         int64_t uptime_s = esp_timer_get_time() / 1000000LL;

@@ -108,6 +108,13 @@ bool mining_pause_pending(void);
 bool mining_sha_self_test_failed(void);
 void mining_set_sha_self_test_failed(void);
 
+// Boot-time SHA peripheral microbench result (TA-339).
+// Set once by sha256_hw_microbench() at boot; read by /api/info.
+// Returns false on boards without HW SHA microbench (e.g. D0/DPORT until
+// equivalent probe lands there).
+void mining_set_sha_microbench(double us_per_op, double khs_ceiling);
+bool mining_get_sha_microbench(double *us_per_op, double *khs_ceiling);
+
 // Exponential moving average state for hashrate smoothing
 typedef struct {
     double   value;
