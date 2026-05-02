@@ -1,15 +1,20 @@
 """Pre-build script: convert partitions.bin to C source with const uint8_t array.
 
-Reads partitions.bin from the PlatformIO build output and generates a
-partition_fixup_data.c file in src/ that can be compiled as part of the app.
+Writes partition_fixup_data.c into the env's own .pio/build/<env>/ directory
+so parallel multi-env builds (`pio run -e a -e b`) can't race on a shared
+src/ output (TA-332). src/CMakeLists.txt picks the file up via
+${CMAKE_BINARY_DIR}/partition_fixup_data.c.
 """
 import os
 
 Import("env")
 
 env_name = env.subst("$PIOENV")
-bin_path = os.path.join(".pio", "build", env_name, "partitions.bin")
-c_path = os.path.join("src", "partition_fixup_data.c")
+build_dir = os.path.join(".pio", "build", env_name)
+bin_path = os.path.join(build_dir, "partitions.bin")
+c_path = os.path.join(build_dir, "partition_fixup_data.c")
+
+os.makedirs(build_dir, exist_ok=True)
 
 
 def write_c_file(data):
@@ -32,10 +37,8 @@ if not os.path.exists(bin_path):
     # Fixup code treats len=0 as "table matches" (memcmp of 0 bytes = 0).
     if not os.path.exists(c_path):
         write_c_file(b"\x00")
-        print(f"embed_partitions: {bin_path} not found, wrote stub")
+        print(f"embed_partitions: {bin_path} not found, wrote stub at {c_path}")
 else:
-    # Always regenerate — the .c file is shared across envs, so an mtime
-    # skip would embed the wrong env's partition table on env switches.
     with open(bin_path, "rb") as f:
         data = f.read()
     write_c_file(data)
