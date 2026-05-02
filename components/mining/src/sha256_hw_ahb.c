@@ -79,6 +79,7 @@ void sha256_hw_init(void)
     // so /api/info doesn't carry confusing fields on bitaxe.
     sha256_hw_verify_text_preserved();
     sha256_hw_overlap_canary();
+    sha256_hw_hwrite_canary();
     sha256_hw_microbench();
 #endif
 
@@ -393,6 +394,50 @@ bool sha256_hw_overlap_canary(void)
     }
 
     mining_set_sha_overlap_safe(safe);
+    return safe;
+}
+
+// SHA H-write-during-compute canary (TA-320a). Same idea as the TEXT
+// overlap canary, but tests whether writing SHA_H mid-compute corrupts
+// the digest. If safe, the next-pass H=midstate reload can move into the
+// previous pass's busy-wait window — material for cross-nonce pipelining.
+//
+// Method: clean reference H(input). Then trigger SHA_START and overwrite
+// SHA_H[0] with garbage during busy. Compare. NerdMiner-AxeHub uses the
+// equivalent (axehub_sha_fast_hwrite_canary).
+bool sha256_hw_hwrite_canary(void)
+{
+    static const uint32_t test_msg[16] = {
+        0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210,
+        0x0a0b0c0d, 0x10203040, 0x55aa55aa, 0xa5a5a5a5,
+        0x00000080, 0, 0, 0, 0, 0, 0, 0x00010000
+    };
+    uint32_t reference[8];
+    uint32_t observed[8];
+
+    for (int j = 0; j < 16; j++) SHA_TEXT_REG[j] = test_msg[j];
+    REG_WRITE(SHA_START_REG, 1);
+    while (REG_READ(SHA_BUSY_REG)) {}
+    for (int j = 0; j < 8; j++) reference[j] = SHA_H_REG[j];
+
+    for (int j = 0; j < 16; j++) SHA_TEXT_REG[j] = test_msg[j];
+    REG_WRITE(SHA_START_REG, 1);
+    SHA_H_REG[0] = 0xDEC0DE01;  // corrupt H mid-compute
+    while (REG_READ(SHA_BUSY_REG)) {}
+    for (int j = 0; j < 8; j++) observed[j] = SHA_H_REG[j];
+
+    bool safe = true;
+    for (int j = 0; j < 8; j++) {
+        if (observed[j] != reference[j]) { safe = false; break; }
+    }
+
+    if (safe) {
+        bb_log_i(TAG, "SHA H-write canary: SAFE — H reload during compute does not corrupt digest");
+    } else {
+        bb_log_i(TAG, "SHA H-write canary: UNSAFE — H reload during compute corrupts digest");
+    }
+
+    mining_set_sha_hwrite_safe(safe);
     return safe;
 }
 
