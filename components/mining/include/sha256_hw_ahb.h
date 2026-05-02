@@ -38,6 +38,18 @@ void sha256_hw_transform_start(uint32_t state[8], const uint8_t block[64]);
 // Once per job: prime SHA_TEXT with block2 constants and persistent zeros.
 void sha256_hw_init_job(const uint8_t block2[64]);
 
+// TA-320b: prep persistent SHA_TEXT slots that don't change across nonces
+// or across pass1/pass2 within a nonce. The TA-320 boot probe confirmed
+// SHA_TEXT preserves contents across SHA_START / SHA_CONTINUE on this
+// silicon, so writes to these slots only need to happen once per job
+// rather than per-nonce. Indices [9..14] are always 0 in both pass1
+// (block2 tail padding) and pass2 (32-byte digest tail padding).
+//
+// Must be called at the start of every job (hw_prepare_job), since
+// mbedTLS can grab the SHA peripheral while mining yields and reset
+// arbitrary register state.
+void sha256_hw_pipeline_prep(void);
+
 // Per nonce first hash: write midstate to SHA_H, repair damaged SHA_TEXT words,
 // write nonce, SHA_CONTINUE, poll, read result to state.
 void sha256_hw_mine_first(uint32_t state[8],
@@ -88,7 +100,9 @@ sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
         SHA_H_REG[i] = midstate_hw[i];
     }
 
-    // Write SHA_TEXT: block2_words[0-2], nonce, padding, bit-length
+    // Write SHA_TEXT: block2_words[0-2], nonce, padding, bit-length.
+    // TA-320b: indices [9..14] omitted — primed once per job by
+    // sha256_hw_pipeline_prep() and preserved across SHA operations.
     SHA_TEXT_REG[0] = block2_words[0];
     SHA_TEXT_REG[1] = block2_words[1];
     SHA_TEXT_REG[2] = block2_words[2];
@@ -98,12 +112,6 @@ sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
     SHA_TEXT_REG[6] = 0;
     SHA_TEXT_REG[7] = 0;
     SHA_TEXT_REG[8] = 0;
-    SHA_TEXT_REG[9] = 0;
-    SHA_TEXT_REG[10] = 0;
-    SHA_TEXT_REG[11] = 0;
-    SHA_TEXT_REG[12] = 0;
-    SHA_TEXT_REG[13] = 0;
-    SHA_TEXT_REG[14] = 0;
     SHA_TEXT_REG[15] = 0x80020000;
 
     REG_WRITE(SHA_CONTINUE_REG, 1);
@@ -119,13 +127,8 @@ sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
     SHA_TEXT_REG[5] = SHA_H_REG[5];
     SHA_TEXT_REG[6] = SHA_H_REG[6];
     SHA_TEXT_REG[7] = SHA_H_REG[7];
+    // TA-320b: indices [9..14] omitted — persistent zeros (see pass1).
     SHA_TEXT_REG[8] = 0x00000080;
-    SHA_TEXT_REG[9] = 0;
-    SHA_TEXT_REG[10] = 0;
-    SHA_TEXT_REG[11] = 0;
-    SHA_TEXT_REG[12] = 0;
-    SHA_TEXT_REG[13] = 0;
-    SHA_TEXT_REG[14] = 0;
     SHA_TEXT_REG[15] = 0x00010000;
 
     REG_WRITE(SHA_START_REG, 1);
