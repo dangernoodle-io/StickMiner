@@ -306,6 +306,7 @@ static void hw_prepare_job(hash_backend_t *b,
     hw_backend_ctx_t *ctx = (hw_backend_ctx_t *)b->ctx;
     sha256_hw_midstate(work->header, ctx->midstate_hw);
     ctx->block2_words = (uint32_t *)block2;
+    sha256_hw_pipeline_prep();  // TA-320b: prime persistent zero slots
 }
 
 static hash_result_t hw_hash_nonce(hash_backend_t *b,

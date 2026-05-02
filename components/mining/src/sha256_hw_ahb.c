@@ -30,11 +30,11 @@
 //
 // NOTE: The ESP32-S3 SHA peripheral was historically assumed to overwrite
 // SHA_TEXT during W[] schedule expansion. The TA-320 boot probe
-// (sha256_hw_verify_text_preserved) actually shows SHA_TEXT IS preserved
-// after SHA_START/SHA_CONTINUE on this silicon. Per-nonce zero-write
-// reduction (M[9..14] persistent across nonces) is therefore possible —
-// see TA-320 follow-up. Current code still rewrites all 16 words for
-// safety; the gain is small (~0.2% of hot loop) and not yet wired up.
+// (sha256_hw_verify_text_preserved) shows SHA_TEXT IS preserved across
+// SHA_START / SHA_CONTINUE on this silicon. TA-320b uses this to prime
+// the persistent zero slots (M[9..14]) once per job in
+// sha256_hw_pipeline_prep() and skip them in sha256_hw_mine_nonce —
+// measured +20% mining hashrate on tdongle-S3 (220 → 264 kH/s).
 
 static const char *TAG = "sha256_hw";
 
@@ -140,6 +140,21 @@ void sha256_hw_init_job(const uint8_t block2[64])
     for (int i = 0; i < 16; i++) {
         SHA_TEXT_REG[i] = w[i];
     }
+}
+
+// TA-320b: prime persistent SHA_TEXT zero-slots once per job. Indices
+// [9..14] are 0 in both the pass1 (block2 tail) and pass2 (digest tail)
+// padding layouts, and the SHA peripheral preserves them across
+// SHA_START / SHA_CONTINUE (verified by sha256_hw_verify_text_preserved
+// at boot). Skipping the per-nonce writes saves 12 stores per nonce.
+void sha256_hw_pipeline_prep(void)
+{
+    SHA_TEXT_REG[9]  = 0;
+    SHA_TEXT_REG[10] = 0;
+    SHA_TEXT_REG[11] = 0;
+    SHA_TEXT_REG[12] = 0;
+    SHA_TEXT_REG[13] = 0;
+    SHA_TEXT_REG[14] = 0;
 }
 
 IRAM_ATTR void sha256_hw_mine_first(uint32_t state[8],
