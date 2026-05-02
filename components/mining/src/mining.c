@@ -50,6 +50,17 @@ bool mining_get_sha_microbench(double *us_per_op, double *khs_ceiling) {
     return true;
 }
 
+// TA-320a: SHA TEXT-overlap canary state.
+static sha_overlap_state_t s_sha_overlap_state = SHA_OVERLAP_UNKNOWN;
+
+void mining_set_sha_overlap_safe(bool safe) {
+    s_sha_overlap_state = safe ? SHA_OVERLAP_SAFE : SHA_OVERLAP_UNSAFE;
+}
+
+sha_overlap_state_t mining_get_sha_overlap_state(void) {
+    return s_sha_overlap_state;
+}
+
 #ifdef ESP_PLATFORM
 #include "esp_log.h"
 #include "esp_timer.h"

@@ -121,6 +121,16 @@ void mining_run_self_tests(void);
 void mining_set_sha_microbench(double us_per_op, double khs_ceiling);
 bool mining_get_sha_microbench(double *us_per_op, double *khs_ceiling);
 
+// SHA TEXT-overlap canary state (TA-320a). Set by sha256_hw_overlap_canary
+// at boot; read by /api/info. UNKNOWN means probe never ran (D0/ASIC boards).
+typedef enum {
+    SHA_OVERLAP_UNKNOWN = 0,
+    SHA_OVERLAP_SAFE,
+    SHA_OVERLAP_UNSAFE
+} sha_overlap_state_t;
+void mining_set_sha_overlap_safe(bool safe);
+sha_overlap_state_t mining_get_sha_overlap_state(void);
+
 // Exponential moving average state for hashrate smoothing
 typedef struct {
     double   value;
