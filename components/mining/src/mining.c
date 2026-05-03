@@ -82,7 +82,6 @@ sha_overlap_state_t mining_get_sha_hwrite_state(void) {
 #include "sha256_hw_dport.h"
 #endif
 #include "bb_nv.h"
-#include "nvs.h"  /* TODO(bb_nv): drop once breadboard ships bb_nv_batch_* (B1-165) */
 #include "bb_system.h"
 #include "driver/temperature_sensor.h"
 
@@ -136,37 +135,24 @@ void mining_stats_load_lifetime(void)
 
 void mining_stats_save_lifetime(const mining_lifetime_t *snapshot)
 {
-    /* TA-347: 3 sequential bb_nv_set_u32 calls each open/set/commit/close,
-     * holding the SPI flash bus for ~150-300ms total. On the share-accept
-     * hot path, that overlaps with TLS handshakes / OTA on the other core
-     * and stalls mining_hw long enough to trip the task watchdog (esp.
-     * single-core ESP32 WROOM-32). Batch into one open + 3 sets + one
-     * commit so the bus is held once.
-     *
-     * TODO(bb_nv): replace with bb_nv_batch_* once breadboard ships
-     * batched setters. Tracked: B1-165. */
-#ifdef ESP_PLATFORM
-    nvs_handle_t handle;
-    esp_err_t err = nvs_open("taipanminer", NVS_READWRITE, &handle);
-    if (err != ESP_OK) {
-        bb_log_w(TAG, "save_lifetime: nvs_open failed (%s)", esp_err_to_name(err));
+    /* Three logically-atomic fields → one batched open/commit/close so the
+     * SPI flash bus is held once instead of three times. Without this,
+     * concurrent flash work (TLS handshake, OTA) on the share-accept hot
+     * path stalled mining_hw long enough to trip the task watchdog on
+     * single-core ESP32 WROOM-32 (TA-347). */
+    bb_nv_batch_t batch;
+    bb_err_t err = bb_nv_batch_begin(&batch, "taipanminer");
+    if (err != BB_OK) {
+        bb_log_w(TAG, "save_lifetime: batch_begin failed (%d)", (int)err);
         return;
     }
-    nvs_set_u32(handle, "lt_shares",    snapshot->total_shares);
-    nvs_set_u32(handle, "lt_hashes_lo", (uint32_t)(snapshot->total_hashes & 0xFFFFFFFFu));
-    nvs_set_u32(handle, "lt_hashes_hi", (uint32_t)(snapshot->total_hashes >> 32));
-    err = nvs_commit(handle);
-    if (err != ESP_OK) {
-        bb_log_w(TAG, "save_lifetime: nvs_commit failed (%s)", esp_err_to_name(err));
+    bb_nv_batch_set_u32(&batch, "lt_shares",    snapshot->total_shares);
+    bb_nv_batch_set_u32(&batch, "lt_hashes_lo", (uint32_t)(snapshot->total_hashes & 0xFFFFFFFFu));
+    bb_nv_batch_set_u32(&batch, "lt_hashes_hi", (uint32_t)(snapshot->total_hashes >> 32));
+    err = bb_nv_batch_commit(&batch);
+    if (err != BB_OK) {
+        bb_log_w(TAG, "save_lifetime: batch_commit failed (%d)", (int)err);
     }
-    nvs_close(handle);
-#else
-    /* Native build: fall back to the per-key wrappers (no flash; cost is
-     * irrelevant). */
-    bb_nv_set_u32("taipanminer", "lt_shares",    snapshot->total_shares);
-    bb_nv_set_u32("taipanminer", "lt_hashes_lo", (uint32_t)(snapshot->total_hashes & 0xFFFFFFFFu));
-    bb_nv_set_u32("taipanminer", "lt_hashes_hi", (uint32_t)(snapshot->total_hashes >> 32));
-#endif
 }
 
 temperature_sensor_handle_t mining_stats_temp_handle(void)
