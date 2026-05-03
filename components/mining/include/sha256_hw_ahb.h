@@ -100,25 +100,29 @@ sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
         SHA_H_REG[i] = midstate_hw[i];
     }
 
-    // Write SHA_TEXT: block2_words[0-2], nonce, padding, bit-length.
+    // Write SHA_TEXT: block2_words[0-2], nonce.
     // TA-320b: indices [9..14] omitted — primed once per job by
     // sha256_hw_pipeline_prep() and preserved across SHA operations.
+    // TA-320f: indices [4..8, 15] are restored during the previous nonce's
+    // pass2_wait window (see below), or primed once per job for the first
+    // nonce. So pass1 only writes the per-nonce / per-job slots here.
     SHA_TEXT_REG[0] = block2_words[0];
     SHA_TEXT_REG[1] = block2_words[1];
     SHA_TEXT_REG[2] = block2_words[2];
     SHA_TEXT_REG[3] = nonce;
-    SHA_TEXT_REG[4] = 0x00000080;
-    SHA_TEXT_REG[5] = 0;
-    SHA_TEXT_REG[6] = 0;
-    SHA_TEXT_REG[7] = 0;
-    SHA_TEXT_REG[8] = 0;
-    SHA_TEXT_REG[15] = 0x80020000;
 
     REG_WRITE(SHA_CONTINUE_REG, 1);
+
+    // TA-320f: overlap pass2's TEXT[8] / TEXT[15] writes into pass1's
+    // busy-wait window. Canary (sha256_hw_overlap_canary) confirmed the
+    // peripheral snapshots TEXT at trigger, so writes here only affect
+    // the *next* trigger (pass2 below). Saves ~10 cyc/nonce.
+    SHA_TEXT_REG[8] = 0x00000080;
+    SHA_TEXT_REG[15] = 0x00010000;
     while (REG_READ(SHA_BUSY_REG)) {}
 
     // --- Pass 2: copy SHA_H → SHA_TEXT directly (no bswap!) ---
-    // This is the key optimization: SHA_H and SHA_TEXT are both in HW format
+    // TEXT[8] and TEXT[15] were already staged during pass1_wait above.
     SHA_TEXT_REG[0] = SHA_H_REG[0];
     SHA_TEXT_REG[1] = SHA_H_REG[1];
     SHA_TEXT_REG[2] = SHA_H_REG[2];
@@ -127,11 +131,20 @@ sha256_hw_mine_nonce(const uint32_t midstate_hw[8],
     SHA_TEXT_REG[5] = SHA_H_REG[5];
     SHA_TEXT_REG[6] = SHA_H_REG[6];
     SHA_TEXT_REG[7] = SHA_H_REG[7];
-    // TA-320b: indices [9..14] omitted — persistent zeros (see pass1).
-    SHA_TEXT_REG[8] = 0x00000080;
-    SHA_TEXT_REG[15] = 0x00010000;
 
     REG_WRITE(SHA_START_REG, 1);
+
+    // TA-320f: overlap NEXT pass1's TEXT[4..8, 15] restoration into
+    // pass2's busy-wait window. After pass2 these slots hold H[4..7], 0x80,
+    // and 0x00010000; restore them to the constants pass1 needs. Saves ~30
+    // cyc/nonce. Same canary justifies safety: writes here affect the next
+    // trigger (next nonce's pass1), not the in-flight pass2.
+    SHA_TEXT_REG[4] = 0x00000080;
+    SHA_TEXT_REG[5] = 0;
+    SHA_TEXT_REG[6] = 0;
+    SHA_TEXT_REG[7] = 0;
+    SHA_TEXT_REG[8] = 0;
+    SHA_TEXT_REG[15] = 0x80020000;
     while (REG_READ(SHA_BUSY_REG)) {}
 
     // Early reject: if upper 16 bits of h7_raw are nonzero, hash can't meet
@@ -164,6 +177,24 @@ bool sha256_hw_verify_text_preserved(void);
 // 1000 iterations; ~5ms boot cost. Run unconditionally so per-device +
 // per-firmware throughput regressions are visible without -debug rebuilds.
 void sha256_hw_microbench(void);
+
+// TA-320f: per-phase cycle profile of the per-nonce hot loop. Logs a
+// single "SHA hotloop profile: pass1_setup=X pass1_wait=Y pass2_setup=Z
+// pass2_wait=W reject=R total=T cycles/nonce (effective ~K kH/s)" line.
+// Runs N iterations of the same body as sha256_hw_mine_nonce against
+// synthetic inputs (zeros) — measures timing only, not correctness.
+// Pinpoints which phase owns the wrapper overhead above the peripheral
+// compute floor (786 cycles for 2 passes @ 1.64us each on 240 MHz S3).
+void sha256_hw_profile_hotloop(uint32_t iterations);
+
+// TA-320f: boot diagnostics bundle. Runs verify_text_preserved + both
+// canaries + microbench + profile_hotloop. Call from app_main (via
+// mining_run_self_tests) so output is visible in the boot log before
+// "Returned from app_main()" rather than concurrent with mining task
+// startup. Skipped on ASIC builds — peripheral isn't on the hashing
+// path there. Acquires the SHA peripheral internally; safe to call
+// multiple times.
+void sha256_hw_ahb_boot_probes(void);
 
 // SHA TEXT-overlap canary (TA-320a). Determines whether writing the next
 // pass's SHA_TEXT registers during the current pass's busy-wait window is
