@@ -580,6 +580,70 @@ void test_knot_two_peers(void)
     bb_json_free_str(json);
 }
 
+void test_knot_peer_single_peer(void)
+{
+    /* Test build_knot_peer_json: builds a single peer object matching
+     * the JSON structure produced by build_knot_json for that peer */
+    knot_peer_t peer = {0};
+    strncpy(peer.instance_name, "test-miner._taipan._tcp.local", sizeof(peer.instance_name) - 1);
+    strncpy(peer.hostname, "test-miner", sizeof(peer.hostname) - 1);
+    strncpy(peer.ip4,      "10.0.0.1",  sizeof(peer.ip4) - 1);
+    strncpy(peer.worker,   "test-worker", sizeof(peer.worker) - 1);
+    strncpy(peer.board,    "tdongle-s3",  sizeof(peer.board) - 1);
+    strncpy(peer.version,  "0.9.5",       sizeof(peer.version) - 1);
+    strncpy(peer.state,    "idle",        sizeof(peer.state) - 1);
+    peer.last_seen_us = 60000000LL;  /* 60 s since epoch */
+
+    int64_t now_us = 75000000LL;  /* 75 s since epoch: 15 s ago */
+
+    bb_json_t peer_obj = build_knot_peer_json(&peer, now_us);
+    char *json = serialize_and_free(peer_obj);
+
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"instance\":\"test-miner._taipan._tcp.local\","
+        "\"hostname\":\"test-miner\",\"ip\":\"10.0.0.1\","
+        "\"worker\":\"test-worker\",\"board\":\"tdongle-s3\","
+        "\"version\":\"0.9.5\",\"state\":\"idle\",\"seen_ago_s\":15}",
+        json);
+    bb_json_free_str(json);
+}
+
+void test_knot_peer_matches_array_builder(void)
+{
+    /* Verify that build_knot_peer_json produces identical JSON for a peer
+     * as build_knot_json does when passed an array containing that peer */
+    knot_peer_t peer = {0};
+    strncpy(peer.instance_name, "gamma._taipan._tcp.local", sizeof(peer.instance_name) - 1);
+    strncpy(peer.hostname, "gamma", sizeof(peer.hostname) - 1);
+    strncpy(peer.ip4,      "172.16.1.50", sizeof(peer.ip4) - 1);
+    strncpy(peer.worker,   "gamma-w", sizeof(peer.worker) - 1);
+    strncpy(peer.board,    "bitaxe-650", sizeof(peer.board) - 1);
+    strncpy(peer.version,  "2.1.0", sizeof(peer.version) - 1);
+    strncpy(peer.state,    "mining", sizeof(peer.state) - 1);
+    peer.last_seen_us = 1000000000LL;
+
+    int64_t now_us = 1000003000LL;  /* 3000 us = 0.003 s, rounds to 0 */
+
+    /* Build via per-peer function */
+    bb_json_t peer_obj = build_knot_peer_json(&peer, now_us);
+    char *peer_json = serialize_and_free(peer_obj);
+
+    /* Build via array function (single peer) */
+    knot_peer_t peers[1] = {peer};
+    bb_json_t root = bb_json_arr_new();
+    build_knot_json(peers, 1, now_us, root);
+    char *arr_json = serialize_and_free(root);
+
+    /* Extract the first (only) element from array: remove "[" and "]" */
+    char expected[512];
+    snprintf(expected, sizeof(expected), "[%s]", peer_json);
+
+    TEST_ASSERT_EQUAL_STRING(expected, arr_json);
+
+    bb_json_free_str(peer_json);
+    bb_json_free_str(arr_json);
+}
+
 /* ============================================================================
  * /api/settings GET
  * ========================================================================= */

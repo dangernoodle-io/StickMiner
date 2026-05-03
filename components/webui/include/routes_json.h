@@ -195,6 +195,10 @@ void build_diag_asic_json(const diag_asic_snapshot_t *s, bb_json_t root);
 #define ROUTES_JSON_MAX_PEERS 32
 
 
+/* Build a JSON object for a single peer. Returns a fresh bb_json_t object
+ * that the caller must free. */
+bb_json_t build_knot_peer_json(const knot_peer_t *peer, int64_t now_us);
+
 /* Writes a JSON array into root (which must be bb_json_arr_new()).
  * Walks knot_peer_t directly, mapping field names at JSON write time. */
 void build_knot_json(const knot_peer_t *peers, size_t n_peers, int64_t now_us, bb_json_t root);

@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +47,11 @@ int knot_init(void);
 /// Copies non-empty entries to out buffer, returns count copied.
 /// Safe to call concurrently from any task.
 size_t knot_snapshot(knot_peer_t *out, size_t cap);
+
+/// Walk all non-empty peers under the knot mutex. cb returns false to abort
+/// iteration early. Mutex is held for the whole walk — keep cb work small
+/// (build a small bb_json_t, emit, free).
+void knot_walk(bool (*cb)(const knot_peer_t *peer, void *ctx), void *ctx);
 
 /// Insert/refresh the local device's own entry in the peer table.
 /// mdns_browse doesn't return self, so consumers must inject their own

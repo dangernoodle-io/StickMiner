@@ -292,22 +292,27 @@ void build_diag_asic_json(const diag_asic_snapshot_t *s, bb_json_t root)
  * /api/knot
  * ========================================================================= */
 
+bb_json_t build_knot_peer_json(const knot_peer_t *peer, int64_t now_us)
+{
+    bb_json_t peer_obj = bb_json_obj_new();
+    bb_json_obj_set_string(peer_obj, "instance",  peer->instance_name);
+    bb_json_obj_set_string(peer_obj, "hostname",  peer->hostname);
+    bb_json_obj_set_string(peer_obj, "ip",        peer->ip4);
+    bb_json_obj_set_string(peer_obj, "worker",    peer->worker);
+    bb_json_obj_set_string(peer_obj, "board",     peer->board);
+    bb_json_obj_set_string(peer_obj, "version",   peer->version);
+    bb_json_obj_set_string(peer_obj, "state",     peer->state);
+
+    int64_t seen_ago_s = (now_us - peer->last_seen_us) / 1000000;
+    bb_json_obj_set_number(peer_obj, "seen_ago_s", (double)seen_ago_s);
+
+    return peer_obj;
+}
+
 void build_knot_json(const knot_peer_t *peers, size_t n_peers, int64_t now_us, bb_json_t root)
 {
     for (size_t i = 0; i < n_peers; i++) {
-        const knot_peer_t *p = &peers[i];
-        bb_json_t peer_obj = bb_json_obj_new();
-        bb_json_obj_set_string(peer_obj, "instance",  p->instance_name);
-        bb_json_obj_set_string(peer_obj, "hostname",  p->hostname);
-        bb_json_obj_set_string(peer_obj, "ip",        p->ip4);
-        bb_json_obj_set_string(peer_obj, "worker",    p->worker);
-        bb_json_obj_set_string(peer_obj, "board",     p->board);
-        bb_json_obj_set_string(peer_obj, "version",   p->version);
-        bb_json_obj_set_string(peer_obj, "state",     p->state);
-
-        int64_t seen_ago_s = (now_us - p->last_seen_us) / 1000000;
-        bb_json_obj_set_number(peer_obj, "seen_ago_s", (double)seen_ago_s);
-
+        bb_json_t peer_obj = build_knot_peer_json(&peers[i], now_us);
         bb_json_arr_append_obj(root, peer_obj);
     }
 }
