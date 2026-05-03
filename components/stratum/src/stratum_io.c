@@ -74,9 +74,16 @@ static volatile stratum_extranonce_sub_status_t s_extranonce_sub_status = STRATU
 static int64_t s_extranonce_sub_sent_us = 0;
 #define STRATUM_EXNX_SUB_TIMEOUT_US (5LL * 1000 * 1000)
 
-// Line buffer for reading from socket
+// Single 4 KB I/O buffer used as both recv accumulator AND extracted-line
+// storage. Lines are returned to the caller as pointers into s_linebuf with a
+// null terminator written in place, then dropped via s_pending_consume on the
+// next stratum_readline() call. This eliminates the previous parallel
+// `char line[4096]` stack buffer in stratum_task — net 4 KB stack saved
+// (TA-298). The 4 KB cap matches the largest stratum message we've observed
+// (mining.notify with deep merkle branches).
 static char s_linebuf[4096];
 static int s_linebuf_len = 0;
+static int s_pending_consume = 0;  // bytes to memmove off the front next call
 static int s_rcvtimeo_ms = -1;
 
 // Send a string to the socket
@@ -200,23 +207,37 @@ static int stratum_request(const char *method, const char *params_json)
     return id;
 }
 
-// Read one newline-terminated line from socket. Returns line length, 0 for no data yet, -1 on error.
-static int stratum_readline(char *out, int max_len, int timeout_ms)
+// Drop the previously-returned line (and its trailing '\n') from s_linebuf,
+// shifting any remaining bytes to the front. Called at the top of every
+// readline call so the previous extraction stays visible to the caller until
+// the next pass.
+static void stratum_consume_pending(void)
 {
+    if (s_pending_consume == 0) return;
+    int remaining = s_linebuf_len - s_pending_consume;
+    if (remaining > 0) {
+        memmove(s_linebuf, s_linebuf + s_pending_consume, remaining);
+    }
+    s_linebuf_len = remaining > 0 ? remaining : 0;
+    s_pending_consume = 0;
+}
+
+// Read one newline-terminated line from the socket. On success returns line
+// length and writes a pointer to the line (null-terminated, in s_linebuf) into
+// *out_line. The pointer remains valid until the next stratum_readline() call,
+// which shifts the consumed line off the front. Returns 0 if no full line is
+// ready yet, -1 on socket error.
+static int stratum_readline(const char **out_line, int timeout_ms)
+{
+    stratum_consume_pending();
+
     // Check if we already have a complete line in buffer
     for (int i = 0; i < s_linebuf_len; i++) {
         if (s_linebuf[i] == '\n') {
-            int line_len = i;  // exclude newline
-            if (line_len >= max_len) line_len = max_len - 1;
-            memcpy(out, s_linebuf, line_len);
-            out[line_len] = '\0';
-            // Shift buffer
-            int remaining = s_linebuf_len - (i + 1);
-            if (remaining > 0) {
-                memmove(s_linebuf, s_linebuf + i + 1, remaining);
-            }
-            s_linebuf_len = remaining;
-            return line_len;
+            s_linebuf[i] = '\0';
+            *out_line = s_linebuf;
+            s_pending_consume = i + 1;
+            return i;
         }
     }
 
@@ -229,7 +250,7 @@ static int stratum_readline(char *out, int max_len, int timeout_ms)
         s_rcvtimeo_ms = timeout_ms;
     }
 
-    int space = sizeof(s_linebuf) - s_linebuf_len - 1;
+    int space = (int)sizeof(s_linebuf) - s_linebuf_len - 1;
     if (space <= 0) {
         bb_log_w(TAG, "line buffer overflow, discarding");
         s_linebuf_len = 0;
@@ -251,19 +272,13 @@ static int stratum_readline(char *out, int max_len, int timeout_ms)
 
     s_linebuf_len += n;
 
-    // Try again to find a line
+    // Try again to find a line in the freshly-extended buffer
     for (int i = 0; i < s_linebuf_len; i++) {
         if (s_linebuf[i] == '\n') {
-            int line_len = i;
-            if (line_len >= max_len) line_len = max_len - 1;
-            memcpy(out, s_linebuf, line_len);
-            out[line_len] = '\0';
-            int remaining = s_linebuf_len - (i + 1);
-            if (remaining > 0) {
-                memmove(s_linebuf, s_linebuf + i + 1, remaining);
-            }
-            s_linebuf_len = remaining;
-            return line_len;
+            s_linebuf[i] = '\0';
+            *out_line = s_linebuf;
+            s_pending_consume = i + 1;
+            return i;
         }
     }
 
@@ -336,6 +351,7 @@ static int stratum_connect(const char *host, uint16_t port)
 
     freeaddrinfo(res);
     s_linebuf_len = 0;
+    s_pending_consume = 0;
     s_state.next_msg_id = 1;
     s_rcvtimeo_ms = -1;
 
@@ -614,8 +630,6 @@ static void process_message(const char *line)
 
 void stratum_task(void *arg)
 {
-    char line[4096];
-
     bb_log_i(TAG, "stratum task started");
 
     for (;;) {
@@ -675,7 +689,8 @@ void stratum_task(void *arg)
 
         // Wait for subscribe response
         for (int i = 0; i < 50; i++) {  // 5s timeout
-            int n = stratum_readline(line, sizeof(line), 100);
+            const char *line = NULL;
+            int n = stratum_readline(&line, 100);
             if (n > 0) {
                 process_message(line);
                 if (s_state.extranonce1_len > 0) break;
@@ -721,7 +736,8 @@ void stratum_task(void *arg)
         // Wait for authorize response, set_difficulty, and initial notify
         bool job_received = false;
         for (int i = 0; i < 50; i++) {  // 5s timeout
-            int n = stratum_readline(line, sizeof(line), 100);
+            const char *line = NULL;
+            int n = stratum_readline(&line, 100);
             if (n > 0) {
                 process_message(line);
                 if (s_state.job.job_id[0] != '\0') {
@@ -754,7 +770,8 @@ void stratum_task(void *arg)
             }
 
             // Try to read a message (100ms timeout to check results)
-            int n = stratum_readline(line, sizeof(line), 100);
+            const char *line = NULL;
+            int n = stratum_readline(&line, 100);
             if (n > 0) {
                 process_message(line);
             } else if (n < 0) {
