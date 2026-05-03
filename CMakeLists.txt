@@ -5,8 +5,17 @@ list(APPEND EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/.breadboard/components"
 )
 
-# bb_display is P4-only (requires esp_lcd_ek79007); TM uses its local display/ component
-set(EXCLUDE_COMPONENTS bb_display)
+# bb_display family excluded — TM uses its local components/display/. Without
+# excluding the backends, IDF Component Manager resolves their idf_component.yml
+# deps; bb_display_ek79007 → esp_lcd_ek79007 is esp32p4-only and breaks
+# version solving on bitaxe-403/601/650/tdongle-s3.
+set(EXCLUDE_COMPONENTS
+    bb_display
+    bb_display_ek79007
+    bb_display_ili9341
+    bb_display_ssd1306
+    bb_display_st77xx
+)
 
 # Override breadboard's nv_config namespace to "taipanminer" for on-device compatibility
 # (compile-time define; breadboard's nv_config.c checks `#ifndef BB_NV_CONFIG_NAMESPACE`)

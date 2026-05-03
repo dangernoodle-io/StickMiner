@@ -15,14 +15,14 @@ static SemaphoreHandle_t g_mutex = NULL;
 static bool g_initialized = false;
 
 static void on_peer_discovered(const bb_mdns_peer_t *peer, void *ctx) {
-    if (!peer || !peer->instance_name) {
+    if (!peer || peer->instance_name[0] == '\0') {
         return;
     }
 
     knot_peer_t new_peer = {0};
     strncpy(new_peer.instance_name, peer->instance_name, sizeof(new_peer.instance_name) - 1);
-    strncpy(new_peer.hostname, peer->hostname ? peer->hostname : "", sizeof(new_peer.hostname) - 1);
-    strncpy(new_peer.ip4, peer->ip4 ? peer->ip4 : "", sizeof(new_peer.ip4) - 1);
+    strncpy(new_peer.hostname,      peer->hostname,      sizeof(new_peer.hostname) - 1);
+    strncpy(new_peer.ip4,           peer->ip4,           sizeof(new_peer.ip4) - 1);
     new_peer.port = peer->port;
     new_peer.last_seen_us = esp_timer_get_time();
 
