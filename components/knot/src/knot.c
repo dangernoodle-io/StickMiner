@@ -122,3 +122,20 @@ size_t knot_snapshot(knot_peer_t *out, size_t cap) {
 
     return copied;
 }
+
+void knot_walk(bool (*cb)(const knot_peer_t *peer, void *ctx), void *ctx) {
+    if (!cb || !g_mutex) {
+        return;
+    }
+
+    if (xSemaphoreTake(g_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        for (size_t i = 0; i < KNOT_PEER_COUNT; i++) {
+            if (g_peer_table[i].instance_name[0] != '\0') {
+                if (!cb(&g_peer_table[i], ctx)) {
+                    break;
+                }
+            }
+        }
+        xSemaphoreGive(g_mutex);
+    }
+}

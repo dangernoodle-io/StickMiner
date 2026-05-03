@@ -800,28 +800,40 @@ static bb_err_t fan_post_handler(bb_http_request_t *req)
 }
 #endif // ASIC_BM1370 || ASIC_BM1368
 
+/* Context for knot_walk callback */
+typedef struct {
+    bb_http_json_stream_t *stream;
+    int64_t now_us;
+} knot_emit_ctx_t;
+
+/* Callback for knot_walk: build one peer JSON object and emit it */
+static bool knot_emit_peer_cb(const knot_peer_t *peer, void *ctx_vp)
+{
+    knot_emit_ctx_t *ctx = (knot_emit_ctx_t *)ctx_vp;
+    bb_json_t obj = build_knot_peer_json(peer, ctx->now_us);
+    bb_http_resp_json_arr_emit(ctx->stream, obj);
+    bb_json_free(obj);
+    return ctx->stream->_err == BB_OK;
+}
+
 static bb_err_t knot_handler(bb_http_request_t *req)
 {
     set_common_headers(req);
 
-    /* Off-stack: 32 * sizeof(knot_peer_t) ≈ 9 KB blows the httpd task stack.
-     * Heap-allocate the peers buffer; httpd serializes per-handler so a
-     * static would also be safe, but heap keeps the lifetime explicit. */
-    knot_peer_t *peers = malloc(sizeof(knot_peer_t) * ROUTES_JSON_MAX_PEERS);
-    if (!peers) {
-        bb_http_resp_send_err(req, 500, "out of memory");
-        return BB_ERR_INVALID_ARG;
+    bb_http_json_stream_t stream;
+    bb_err_t err = bb_http_resp_json_arr_begin(req, &stream);
+    if (err != BB_OK) {
+        return err;
     }
-    size_t peer_count = knot_snapshot(peers, ROUTES_JSON_MAX_PEERS);
-    size_t n_peers = peer_count < ROUTES_JSON_MAX_PEERS ? peer_count : ROUTES_JSON_MAX_PEERS;
-    int64_t now_us = esp_timer_get_time();
 
-    bb_json_t root = bb_json_arr_new();
-    build_knot_json(peers, n_peers, now_us, root);
-    bb_err_t rc = bb_http_resp_send_json(req, root);
-    bb_json_free(root);
-    free(peers);
-    return rc;
+    int64_t now_us = esp_timer_get_time();
+    knot_emit_ctx_t ctx = {
+        .stream = &stream,
+        .now_us = now_us,
+    };
+
+    knot_walk(knot_emit_peer_cb, &ctx);
+    return bb_http_resp_json_arr_end(&stream);
 }
 
 static void taipan_info_extender(bb_json_t root)

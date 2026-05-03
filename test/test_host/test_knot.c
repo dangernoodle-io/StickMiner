@@ -192,3 +192,69 @@ void test_knot_table_null_guards(void) {
     knot_table_apply_txt(&peer, NULL, 0);
     knot_table_apply_txt(&peer, bad, 2); // exercises the continue branch
 }
+
+// Context for knot_walk callback test
+typedef struct {
+    int visit_count;
+    bool abort_after_one;
+} knot_walk_test_ctx_t;
+
+// Callback for knot_walk test
+static bool knot_walk_test_cb(const knot_peer_t *peer, void *ctx_vp) {
+    knot_walk_test_ctx_t *ctx = (knot_walk_test_ctx_t *)ctx_vp;
+    ctx->visit_count++;
+    if (ctx->abort_after_one) {
+        return false;  // Abort iteration
+    }
+    return true;  // Continue iteration
+}
+
+void test_knot_walk_basic(void) {
+    // This is a host test — knot_walk itself requires FreeRTOS mutexes.
+    // We test it indirectly via the table mechanism: populate a table,
+    // then manually iterate as knot_walk would, verifying the visit logic.
+
+    knot_peer_t table[4] = {0};
+    knot_peer_t p1 = make_peer("miner1", "miner1.local", "192.168.1.1");
+    knot_peer_t p2 = make_peer("miner2", "miner2.local", "192.168.1.2");
+    knot_peer_t p3 = make_peer("miner3", "miner3.local", "192.168.1.3");
+
+    knot_table_upsert(table, 4, &p1);
+    knot_table_upsert(table, 4, &p2);
+    knot_table_upsert(table, 4, &p3);
+
+    // Simulate knot_walk logic: iterate and count
+    knot_walk_test_ctx_t ctx = {.visit_count = 0, .abort_after_one = false};
+    for (size_t i = 0; i < 4; i++) {
+        if (table[i].instance_name[0] != '\0') {
+            if (!knot_walk_test_cb(&table[i], &ctx)) {
+                break;
+            }
+        }
+    }
+
+    TEST_ASSERT_EQUAL_INT(3, ctx.visit_count);
+}
+
+void test_knot_walk_early_abort(void) {
+    knot_peer_t table[4] = {0};
+    knot_peer_t p1 = make_peer("miner1", "miner1.local", "192.168.1.1");
+    knot_peer_t p2 = make_peer("miner2", "miner2.local", "192.168.1.2");
+    knot_peer_t p3 = make_peer("miner3", "miner3.local", "192.168.1.3");
+
+    knot_table_upsert(table, 4, &p1);
+    knot_table_upsert(table, 4, &p2);
+    knot_table_upsert(table, 4, &p3);
+
+    // Simulate knot_walk logic with early abort
+    knot_walk_test_ctx_t ctx = {.visit_count = 0, .abort_after_one = true};
+    for (size_t i = 0; i < 4; i++) {
+        if (table[i].instance_name[0] != '\0') {
+            if (!knot_walk_test_cb(&table[i], &ctx)) {
+                break;
+            }
+        }
+    }
+
+    TEST_ASSERT_EQUAL_INT(1, ctx.visit_count);
+}

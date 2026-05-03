@@ -472,6 +472,8 @@ void test_knot_table_snapshot(void);
 void test_knot_table_snapshot_cap(void);
 void test_knot_table_apply_txt(void);
 void test_knot_table_null_guards(void);
+void test_knot_walk_basic(void);
+void test_knot_walk_early_abort(void);
 
 // Forward declarations from test_routes_json_asic.c (TA-292)
 void test_power_all_sensors_populated(void);
@@ -513,6 +515,8 @@ void test_diag_asic_three_events(void);
 void test_diag_asic_future_ts_clamps_to_zero(void);
 void test_knot_empty(void);
 void test_knot_two_peers(void);
+void test_knot_peer_single_peer(void);
+void test_knot_peer_matches_array_builder(void);
 void test_settings_happy_path(void);
 void test_settings_empty_optional_fields(void);
 
@@ -1034,6 +1038,8 @@ int main(void) {
     RUN_TEST(test_knot_table_snapshot_cap);
     RUN_TEST(test_knot_table_apply_txt);
     RUN_TEST(test_knot_table_null_guards);
+    RUN_TEST(test_knot_walk_basic);
+    RUN_TEST(test_knot_walk_early_abort);
 
     // TA-291: route JSON builder golden tests
     RUN_TEST(test_stats_happy_path);
@@ -1053,6 +1059,8 @@ int main(void) {
     RUN_TEST(test_diag_asic_future_ts_clamps_to_zero);
     RUN_TEST(test_knot_empty);
     RUN_TEST(test_knot_two_peers);
+    RUN_TEST(test_knot_peer_single_peer);
+    RUN_TEST(test_knot_peer_matches_array_builder);
     RUN_TEST(test_settings_happy_path);
     RUN_TEST(test_settings_empty_optional_fields);
 
