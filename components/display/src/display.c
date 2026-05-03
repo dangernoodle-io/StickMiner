@@ -61,6 +61,20 @@ static void fmt_uptime(int64_t us, char *buf, size_t len)
 // Store the IO handle for sending vendor-specific commands after init
 static esp_lcd_panel_io_handle_t s_panel_io;
 
+// Shared scratch arena aliased across the ST7735 render paths. None overlap
+// in time — each function fully completes before the next runs, and the next
+// esp_lcd_panel_draw_bitmap call drains any in-flight DMA from the prior one
+// before reusing the buffer. Sized to the largest member (render_frame's
+// double-buffered row pair, 2 * LCD_WIDTH = 640 B). Net BSS saving vs the
+// previous four function-static buffers (s_line + s_char_buf + s_logo_row +
+// s_row_buf = 1696 B): ~1056 B (TA-302).
+static union {
+    uint16_t line[LCD_WIDTH];                 // clear_st7735
+    uint16_t char_buf[2][FONT_W * FONT_H];    // draw_text_st7735
+    uint16_t logo_row[2][LOGO_W];             // draw_logo_st7735
+    uint16_t row_buf[2][LCD_WIDTH];           // render_frame
+} s_st7735_scratch;
+
 // ST7735-specific vendor init commands (from official LilyGo T-Dongle S3 repo).
 // Sent after esp_lcd_panel_init() which handles basic ST7789-compatible setup.
 static esp_err_t st7735_vendor_init(void)
@@ -162,14 +176,14 @@ static esp_err_t init_st7735(void)
 
 static esp_err_t clear_st7735(uint16_t color)
 {
-    static uint16_t s_line[LCD_WIDTH];
+    uint16_t *line = s_st7735_scratch.line;
     uint16_t swapped = SWAP16(color);
     for (int x = 0; x < LCD_WIDTH; x++) {
-        s_line[x] = swapped;
+        line[x] = swapped;
     }
     for (int y = 0; y < LCD_HEIGHT; y++) {
         ESP_RETURN_ON_ERROR(
-            esp_lcd_panel_draw_bitmap(s_panel, 0, y, LCD_WIDTH, y + 1, s_line),
+            esp_lcd_panel_draw_bitmap(s_panel, 0, y, LCD_WIDTH, y + 1, line),
             TAG, "clear line");
     }
     return ESP_OK;
@@ -181,7 +195,6 @@ static esp_err_t clear_st7735(uint16_t color)
 static esp_err_t draw_text_st7735(int x, int y, const char *text,
                                    uint16_t fg, uint16_t bg, bool bold)
 {
-    static uint16_t s_char_buf[2][FONT_W * FONT_H];
     static int s_buf_idx;
     uint16_t fg_s = SWAP16(fg);
     uint16_t bg_s = SWAP16(bg);
@@ -191,7 +204,7 @@ static esp_err_t draw_text_st7735(int x, int y, const char *text,
         if (ch < 0x20 || ch > 0x7E) ch = 0x20;
         const uint8_t *glyph = g_font8x16[ch - 0x20];
 
-        uint16_t *buf = s_char_buf[s_buf_idx];
+        uint16_t *buf = s_st7735_scratch.char_buf[s_buf_idx];
         for (int row = 0; row < FONT_H; row++) {
             uint8_t bits = glyph[row];
             if (bold) bits |= (bits >> 1);
@@ -213,10 +226,9 @@ static esp_err_t draw_text_st7735(int x, int y, const char *text,
 static esp_err_t draw_logo_st7735(int x, int y)
 {
     // Double-buffer to avoid DMA race (same pattern as draw_text)
-    static uint16_t s_logo_row[2][LOGO_W];
     int buf_idx = 0;
     for (int row = 0; row < LOGO_H; row++) {
-        uint16_t *buf = s_logo_row[buf_idx];
+        uint16_t *buf = s_st7735_scratch.logo_row[buf_idx];
         for (int col = 0; col < LOGO_W; col++) {
             int idx = row * LOGO_W + col;
             bool fg = (g_logo_bits[idx / 8] >> (7 - (idx % 8))) & 1;
@@ -361,12 +373,11 @@ static void render_page_row(uint16_t *line, int page, int content_y,
 // offset: pixel offset into the virtual strip (0 = splash visible, wraps at 240).
 static esp_err_t render_frame(int offset, char stat_text[4][21], char net_text[5][21])
 {
-    static uint16_t s_row_buf[2][LCD_WIDTH];
     static int s_row_idx;
     int total = LCD_HEIGHT * 3;
 
     for (int sy = 0; sy < LCD_HEIGHT; sy++) {
-        uint16_t *line = s_row_buf[s_row_idx];
+        uint16_t *line = s_st7735_scratch.row_buf[s_row_idx];
         int content_y = (sy + offset) % total;
 
         int page;
