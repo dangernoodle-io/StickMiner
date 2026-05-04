@@ -25,6 +25,16 @@ void sha256_hw_dport_release(void);
  * Returns BB_OK on PASS, BB_ERR_INVALID_STATE on FAIL */
 bb_err_t sha256_hw_dport_self_test(void);
 
+/* SW-vs-HW lockstep self-test: N nonces of sha256d(header) vs
+ * sha256_hw_dport_per_nonce(). Logs byte divergence on mismatch.
+ * Caller MUST hold sha256_hw_dport_acquire().
+ * Returns BB_OK on PASS, BB_ERR_INVALID_STATE on mismatch. */
+bb_err_t sha256_hw_dport_self_test_lockstep(void);
+
+/* Boot probes bundle (calls lockstep self-test + logs result).
+ * Caller MUST hold sha256_hw_dport_acquire(). */
+void sha256_hw_dport_boot_probes(void);
+
 /* Returns true on potential hit (low 16 bits of last digest word == 0). Caller
  * proceeds to full target check. Returns false on early reject.
  * hash_out is written only on true. */
