@@ -95,64 +95,10 @@
   {#if saveMsg}<div class="msg">{saveMsg}</div>{/if}
 </form>
 
+<!-- Form structure styles live in ui-kit/utilities.css under "forms" so
+     FanEditDialog and other forms share the same look. -->
 <style>
-  .setup-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  section {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  h2 {
-    font-size: 14px;
-    margin: 0;
-    color: var(--accent);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .lbl-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  label {
-    font-size: 12px;
-    color: var(--label);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  input[type="text"], input[type="number"] {
-    padding: 7px 10px;
-    background: var(--input);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-    font-size: 12px;
-    font-family: inherit;
-    font-variant-numeric: tabular-nums;
-    box-sizing: border-box;
-    width: 100%;
-  }
-
-
-  input:focus { outline: none; border-color: var(--accent); }
-  input:disabled { opacity: 0.6; cursor: not-allowed; }
-
+  /* .options is pool-specific (collapsible advanced section). */
   .options {
     border-top: 1px dashed var(--border);
     padding-top: 12px;
@@ -189,37 +135,6 @@
   }
 
   .options[open] .opt-row + .opt-row {
-    margin-top: 6px;
-  }
-
-  .opt-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    text-transform: none;
-    letter-spacing: normal;
-    font-size: 13px;
-  }
-
-  .opt-label {
-    flex: 1;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--text);
-    font-weight: 600;
-  }
-
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 4px;
-  }
-
-  .msg {
-    font-size: 12px;
-    color: var(--success);
     margin-top: 6px;
   }
 </style>

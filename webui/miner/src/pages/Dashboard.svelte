@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { stats, power, fan, hasAsic } from '../lib/stores'
+  import { stats, power, fan, hasAsic, fanEditOpen } from '../lib/stores'
   import Hero from '../components/Hero.svelte'
   import ChipsCard from '../components/ChipsCard.svelte'
   import StatTile from '../components/StatTile.svelte'
   import PoolStrip from '../components/PoolStrip.svelte'
+
+  function openFanEdit() { fanEditOpen.set(true) }
 
   $: chips = $stats?.asic_chips ?? []
   $: expectedPerDomain = $stats?.asic_total_ghs && chips.length
@@ -36,8 +38,14 @@
       </div>
     </section>
 
-    <section class="card">
-      <h3>Fan</h3>
+    <section class="card clickable" on:click={openFanEdit} on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') openFanEdit() }} role="button" tabindex="0" title="Edit fan settings">
+      <h3>
+        Fan
+        {#if $fan?.autofan && $fan?.pid_input_src}
+          <span class="mode-badge" data-mode="auto" title="Autofan PID input source">PID: {$fan.pid_input_src.toUpperCase()}</span>
+        {/if}
+        <span class="edit-hint">edit</span>
+      </h3>
       <div class="tile-grid">
         <StatTile label="Fan Speed" value={$fan?.duty_pct ?? null} unit="%"   />
         <StatTile label="RPM"       value={$fan?.rpm ?? null}      unit="rpm" />
@@ -118,5 +126,26 @@
     height: 100%;
     background: var(--accent);
     transition: width 0.5s ease;
+  }
+
+  .clickable { cursor: pointer; transition: border-color 0.15s ease; }
+  .clickable:hover { border-color: var(--accent); }
+  .clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .edit-hint {
+    float: right;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .clickable:hover .edit-hint, .clickable:focus-visible .edit-hint { opacity: 1; }
+
+  /* mode-badge styles live in ui-kit/utilities.css; only positioning here. */
+  h3 :global(.mode-badge) {
+    margin-left: 8px;
+    vertical-align: middle;
   }
 </style>

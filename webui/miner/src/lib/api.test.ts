@@ -1,0 +1,50 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { patchFan } from './api'
+
+describe('patchFan', () => {
+  let fetchSpy: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    fetchSpy = vi.fn(async () => new Response('', { status: 200 }))
+    ;(globalThis as unknown as { fetch: typeof fetch }).fetch = fetchSpy as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('POSTs form-urlencoded to /api/fan', async () => {
+    await patchFan({ temp_target_c: 65 })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(url).toBe('/api/fan')
+    expect(init.method).toBe('POST')
+    expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded')
+    expect(init.body).toBe('temp_target_c=65')
+  })
+
+  // TA-351 firmware parser only treats literal '1' as true; '0' as false.
+  // Guard against the client regressing to URLSearchParams' default boolean coercion.
+  it('encodes autofan as 1 / 0, not true / false', async () => {
+    await patchFan({ autofan: true })
+    expect(fetchSpy.mock.calls[0][1].body).toBe('autofan=1')
+
+    await patchFan({ autofan: false })
+    expect(fetchSpy.mock.calls[1][1].body).toBe('autofan=0')
+  })
+
+  it('serializes multiple fields and skips undefined', async () => {
+    await patchFan({ autofan: true, temp_target_c: 70, min_pct: 40, manual_pct: undefined })
+    const body = fetchSpy.mock.calls[0][1].body as string
+    const params = new URLSearchParams(body)
+    expect(params.get('autofan')).toBe('1')
+    expect(params.get('temp_target_c')).toBe('70')
+    expect(params.get('min_pct')).toBe('40')
+    expect(params.has('manual_pct')).toBe(false)
+  })
+
+  it('throws on non-OK response', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response('', { status: 400 }))
+    await expect(patchFan({ temp_target_c: 65 })).rejects.toThrow(/400/)
+  })
+})

@@ -8,6 +8,7 @@
   import Nav from './components/Nav.svelte'
   import LiveTitle from './components/LiveTitle.svelte'
   import RebootOverlay from './components/RebootOverlay.svelte'
+  import FanEditDialog from './components/FanEditDialog.svelte'
   import Dashboard from './pages/Dashboard.svelte'
   import System from './pages/System.svelte'
   import Pool from './pages/Pool.svelte'
@@ -82,6 +83,7 @@
 </main>
 
 <RebootOverlay />
+<FanEditDialog />
 
 <style>
   main {
