@@ -202,6 +202,7 @@ void test_mining_compute_pool_effective_hps_typical(void);
 void test_mining_compute_pool_effective_hps_diff1_share(void);
 void test_mining_compute_pool_effective_hps_divide_by_zero_guard(void);
 void test_mining_get_pool_effective_hashrate_host_stub(void);
+void test_mining_get_pool_effective_rolling_host_stubs(void);
 
 // Forward declarations from test_stratum.c
 void test_format_submit_no_version(void);
@@ -789,6 +790,7 @@ int main(void) {
     RUN_TEST(test_mining_compute_pool_effective_hps_diff1_share);
     RUN_TEST(test_mining_compute_pool_effective_hps_divide_by_zero_guard);
     RUN_TEST(test_mining_get_pool_effective_hashrate_host_stub);
+    RUN_TEST(test_mining_get_pool_effective_rolling_host_stubs);
 
     // Stratum utils tests
     RUN_TEST(test_format_submit_no_version);

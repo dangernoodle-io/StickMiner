@@ -20,6 +20,7 @@
   $: acceptRate = accepted + rejected > 0 ? (100 * accepted) / (accepted + rejected) : null
   $: sharesPerHour = $stats && $stats.uptime_s > 60 ? (accepted * 3600) / $stats.uptime_s : null
   $: diffMult = $stats && $pool && $pool.current_difficulty > 0 ? $stats.best_diff / $pool.current_difficulty : null
+  $: poolEffShowSync = $stats && ($stats.uptime_s < 300 || $stats.hashrate_pool_effective == null)
 </script>
 
 {#if $stats}
@@ -38,7 +39,9 @@
           {:else}
             <div class="kv"><span class="k">Die Temp</span><span class="v" class:bad={$stats?.temp_c != null && $stats.temp_c > 75}>{$stats?.temp_c != null ? $stats.temp_c.toFixed(1) + '°C' : '—'}</span></div>
           {/if}
-          {#if poolEffectiveGhs != null}
+          {#if poolEffShowSync}
+            <div class="kv pool-effective"><span class="k">pool-effective</span><span class="v">syncing…</span></div>
+          {:else if poolEffectiveGhs != null}
             <div class="kv pool-effective"><span class="k">pool-effective</span><span class="v">{fmtGhsNum(poolEffectiveGhs)} {fmtGhsUnit(poolEffectiveGhs)}</span></div>
           {/if}
         </div>

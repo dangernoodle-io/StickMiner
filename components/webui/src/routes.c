@@ -384,6 +384,14 @@ static bb_err_t pool_handler(bb_http_request_t *req)
     double pool_eff_hr = mining_get_pool_effective_hashrate();
     s.pool_effective_hashrate = (pool_eff_hr > 0.0) ? pool_eff_hr : -1.0;
 
+    /* TA-363: rolling 1m/10m/1h pool-effective windows */
+    s.pool_effective_hashrate_1m = mining_get_pool_effective_1m();
+    s.pool_effective_hashrate_1m = (s.pool_effective_hashrate_1m > 0.0) ? s.pool_effective_hashrate_1m : -1.0;
+    s.pool_effective_hashrate_10m = mining_get_pool_effective_10m();
+    s.pool_effective_hashrate_10m = (s.pool_effective_hashrate_10m > 0.0) ? s.pool_effective_hashrate_10m : -1.0;
+    s.pool_effective_hashrate_1h = mining_get_pool_effective_1h();
+    s.pool_effective_hashrate_1h = (s.pool_effective_hashrate_1h > 0.0) ? s.pool_effective_hashrate_1h : -1.0;
+
     bb_json_t root = bb_json_obj_new();
     build_pool_json(&s, root);
     bb_err_t rc = bb_http_resp_send_json(req, root);

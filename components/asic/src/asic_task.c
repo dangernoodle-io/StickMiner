@@ -153,6 +153,15 @@ static float s_hw_err_10m[ASIC_AVG_10M_SIZE];
 static float s_hw_err_1h[ASIC_AVG_1H_SIZE];
 static float s_hw_err_10m_prev, s_hw_err_1h_prev;
 
+/* Pool-effective rolling sampler (TA-363) */
+static unsigned long s_pool_eff_poll_count = 0;
+static float s_pool_eff_1m[ASIC_AVG_1M_SIZE];
+static float s_pool_eff_10m[ASIC_AVG_10M_SIZE];
+static float s_pool_eff_1h[ASIC_AVG_1H_SIZE];
+static float s_pool_eff_10m_prev = NAN;
+static float s_pool_eff_1h_prev = NAN;
+static double s_pool_eff_prev_sum = 0.0;
+
 // Register addresses for 5s polling loop
 static const uint8_t s_poll_regs[] = {
     ASIC_REG_TOTAL_COUNT,
@@ -229,6 +238,13 @@ static void init_avg_buffers(void)
     s_total_1h_prev  = NAN;
     s_hw_err_10m_prev = NAN;
     s_hw_err_1h_prev  = NAN;
+    s_pool_eff_poll_count = 0;
+    for (int i = 0; i < ASIC_AVG_1M_SIZE; i++)  s_pool_eff_1m[i]  = NAN;
+    for (int i = 0; i < ASIC_AVG_10M_SIZE; i++) s_pool_eff_10m[i] = NAN;
+    for (int i = 0; i < ASIC_AVG_1H_SIZE; i++)  s_pool_eff_1h[i]  = NAN;
+    s_pool_eff_10m_prev = NAN;
+    s_pool_eff_1h_prev = NAN;
+    s_pool_eff_prev_sum = 0.0;
 }
 
 // --- asic_init ---
@@ -786,7 +802,25 @@ void asic_mining_task(void *arg)
                                    s_hw_err_1m, s_hw_err_10m, s_hw_err_1h,
                                    &s_hw_err_10m_prev, &s_hw_err_1h_prev,
                                    &h_1m, &h_10m, &h_1h);
+
+            /* TA-363: pool-effective rolling sampler (ASIC reuses the same 5s poll counter) */
+            double sum_now = 0.0;
+            if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
+                sum_now = mining_stats.session.accepted_diff_sum;
+                xSemaphoreGive(mining_stats.mutex);
+            }
+            double delta = sum_now - s_pool_eff_prev_sum;
+            if (delta < 0.0) delta = 0.0;  // pool reconnect resets sum
+            s_pool_eff_prev_sum = sum_now;
+            float pool_sample = (float)(delta * 4294967296.0 / 5.0);
+            float pe_1m = 0.0f, pe_10m = 0.0f, pe_1h = 0.0f;
+            mining_avg_update(s_pool_eff_poll_count, pool_sample,
+                                   s_pool_eff_1m, s_pool_eff_10m, s_pool_eff_1h,
+                                   &s_pool_eff_10m_prev, &s_pool_eff_1h_prev,
+                                   &pe_1m, &pe_10m, &pe_1h);
+
             s_avg_poll_count++;
+            s_pool_eff_poll_count++;
 
             if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
                 mining_stats.asic_total_ghs = total_sum;
@@ -797,6 +831,9 @@ void asic_mining_task(void *arg)
                 mining_stats.asic_hw_error_pct_1m = h_1m;
                 mining_stats.asic_hw_error_pct_10m = h_10m;
                 mining_stats.asic_hw_error_pct_1h = h_1h;
+                mining_stats.pool_eff_1m  = pe_1m;
+                mining_stats.pool_eff_10m = pe_10m;
+                mining_stats.pool_eff_1h  = pe_1h;
                 xSemaphoreGive(mining_stats.mutex);
             }
 

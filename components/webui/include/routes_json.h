@@ -139,6 +139,9 @@ typedef struct {
     bool     has_session_start;   /* false → emit null */
     double   current_difficulty;
     double   pool_effective_hashrate; /* < 0 = unavailable, emit null */
+    double   pool_effective_hashrate_1m;   /* TA-363: rolling 1m window (< 0 = unavailable, emit null) */
+    double   pool_effective_hashrate_10m;  /* < 0 = unavailable, emit null */
+    double   pool_effective_hashrate_1h;   /* < 0 = unavailable, emit null */
     int32_t  latency_ms;          /* -1 → emit null (TA-118) */
 
     /* extranonce / version_mask — valid only when extranonce1_len > 0 */
