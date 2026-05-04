@@ -226,6 +226,11 @@ bb_err_t sha256_hw_dport_self_test(void)
     abc_block[3]  = 0x80;  /* SHA padding bit */
     abc_block[63] = 0x18;  /* 64-bit BE bit-length = 24 */
 
+    /* Caller MUST hold sha256_hw_dport_acquire() — this function touches SHA
+     * peripheral registers directly. esp_crypto_sha_aes_lock is non-recursive,
+     * so we cannot re-acquire here; doing so would deadlock when called from
+     * sha256_hw_dport_init() which already holds the lock. */
+
     dport_wait_idle();
     dport_fill_block_raw(abc_block);
     DPORT_REG_WRITE(SHA_256_START_REG, 1);
