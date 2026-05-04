@@ -1,6 +1,6 @@
 <script lang="ts">
   import { stats, connected, hasAsic, pool } from '../lib/stores'
-  import { fmtDuration, fmtRelative, fmtHashGhs, fmtDiff, fmtPct } from '../lib/fmt'
+  import { fmtDuration, fmtRelative, fmtHashGhs, fmtDiff, fmtPct, fmtGhsNum, fmtGhsUnit } from '../lib/fmt'
   import RollingRates from './RollingRates.svelte'
   import RejectStrip from './RejectStrip.svelte'
 
@@ -10,6 +10,7 @@
   $: ghs1h = $stats?.asic_total_ghs_1h ?? ($stats?.hashrate_1h != null ? $stats.hashrate_1h / 1e9 : null)
   $: emaGhs = $stats?.asic_hashrate_avg ? $stats.asic_hashrate_avg / 1e9 : ($stats ? $stats.hashrate_avg / 1e9 : null)
   $: expectedGhs = $stats?.expected_ghs ?? null
+  $: poolEffectiveGhs = $stats?.hashrate_pool_effective != null ? $stats.hashrate_pool_effective / 1e9 : null
   $: err = $stats?.asic_hw_error_pct ?? null
   $: err1m = $stats?.asic_hw_error_pct_1m ?? null
   $: err10m = $stats?.asic_hw_error_pct_10m ?? null
@@ -36,6 +37,9 @@
             <div class="kv"><span class="k">err</span><span class="v" class:bad={err != null && err > 1}>{fmtPct(err)}</span></div>
           {:else}
             <div class="kv"><span class="k">Die Temp</span><span class="v" class:bad={$stats?.temp_c != null && $stats.temp_c > 75}>{$stats?.temp_c != null ? $stats.temp_c.toFixed(1) + '°C' : '—'}</span></div>
+          {/if}
+          {#if poolEffectiveGhs != null}
+            <div class="kv pool-effective"><span class="k">pool-effective</span><span class="v">{fmtGhsNum(poolEffectiveGhs)} {fmtGhsUnit(poolEffectiveGhs)}</span></div>
           {/if}
         </div>
       </div>
@@ -127,6 +131,8 @@
   }
 
   .kv .v.bad { color: var(--warning); }
+
+  .kv.pool-effective { opacity: 0.7; }
 
   .value {
     font-size: 34px;

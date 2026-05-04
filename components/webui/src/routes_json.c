@@ -58,9 +58,10 @@ void build_stats_json(const stats_snapshot_t *s, bb_json_t root)
         if ((s->field) >= 0.0) bb_json_obj_set_number(root, name, (double)(s->field)); \
         else                   bb_json_obj_set_null  (root, name); \
     } while (0)
-    EMIT_NULLABLE(hashrate_1m,      "hashrate_1m");
-    EMIT_NULLABLE(hashrate_10m,     "hashrate_10m");
-    EMIT_NULLABLE(hashrate_1h,      "hashrate_1h");
+    EMIT_NULLABLE(hashrate_1m,              "hashrate_1m");
+    EMIT_NULLABLE(hashrate_10m,             "hashrate_10m");
+    EMIT_NULLABLE(hashrate_1h,              "hashrate_1h");
+    EMIT_NULLABLE(hashrate_pool_effective,  "hashrate_pool_effective");
     EMIT_NULLABLE(hw_error_pct_1m,  "hw_error_pct_1m");
     EMIT_NULLABLE(hw_error_pct_10m, "hw_error_pct_10m");
     EMIT_NULLABLE(hw_error_pct_1h,  "hw_error_pct_1h");
@@ -102,6 +103,12 @@ void build_stats_json(const stats_snapshot_t *s, bb_json_t root)
         bb_json_obj_set_null(root, "asic_hw_error_pct_1m");
         bb_json_obj_set_null(root, "asic_hw_error_pct_10m");
         bb_json_obj_set_null(root, "asic_hw_error_pct_1h");
+    }
+
+    if (s->hashrate_pool_effective >= 0.0) {
+        bb_json_obj_set_number(root, "hashrate_pool_effective", (double)s->hashrate_pool_effective);
+    } else {
+        bb_json_obj_set_null(root, "hashrate_pool_effective");
     }
 
     bb_json_t chips_arr = bb_json_arr_new();
@@ -161,6 +168,12 @@ void build_pool_json(const pool_snapshot_t *s, bb_json_t root)
     }
 
     bb_json_obj_set_number(root, "current_difficulty", s->current_difficulty);
+
+    if (s->pool_effective_hashrate >= 0.0) {
+        bb_json_obj_set_number(root, "pool_effective_hashrate", (double)s->pool_effective_hashrate);
+    } else {
+        bb_json_obj_set_null(root, "pool_effective_hashrate");
+    }
 
     if (s->latency_ms >= 0) {
         bb_json_obj_set_number(root, "latency_ms", (double)s->latency_ms);

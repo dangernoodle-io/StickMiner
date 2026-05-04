@@ -59,6 +59,7 @@ typedef struct {
     double   hashrate_1m;
     double   hashrate_10m;
     double   hashrate_1h;
+    double   hashrate_pool_effective; /* < 0 = unavailable, emit null */
     /* No HW-error source on HW SHA path; always < 0 → null. Reserved for parity. */
     double   hw_error_pct_1m;
     double   hw_error_pct_10m;
@@ -80,6 +81,7 @@ typedef struct {
     float    asic_hw_error_pct_1m;
     float    asic_hw_error_pct_10m;
     float    asic_hw_error_pct_1h;
+    double   hashrate_pool_effective; /* < 0 = unavailable, emit null */
     bool     asic_total_valid;
     int      asic_small_cores;
     int      asic_count;
@@ -136,6 +138,7 @@ typedef struct {
     uint32_t session_start_ago_s; /* 0 if not connected */
     bool     has_session_start;   /* false → emit null */
     double   current_difficulty;
+    double   pool_effective_hashrate; /* < 0 = unavailable, emit null */
     int32_t  latency_ms;          /* -1 → emit null (TA-118) */
 
     /* extranonce / version_mask — valid only when extranonce1_len > 0 */

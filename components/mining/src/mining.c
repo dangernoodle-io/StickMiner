@@ -23,6 +23,18 @@ void mining_stats_update_ema(hashrate_ema_t *ema, double sample, int64_t now_us)
     ema->last_us = now_us;
 }
 
+// TA-344: pure math, no FreeRTOS — usable in host tests directly.
+double mining_compute_pool_effective_hps(double accepted_diff_sum, double uptime_s)
+{
+    if (accepted_diff_sum <= 0.0 || uptime_s < 1.0) return 0.0;
+    return accepted_diff_sum * 4294967296.0 / uptime_s;
+}
+
+#ifndef ESP_PLATFORM
+// Host-test stub — callers that need the live value use mining_compute_pool_effective_hps directly.
+double mining_get_pool_effective_hashrate(void) { return 0.0; }
+#endif
+
 // SHA self-test flag (process-static, exposed for host tests)
 static bool s_sha_self_test_failed = false;
 
@@ -218,10 +230,24 @@ temperature_sensor_handle_t mining_stats_temp_handle(void)
     return s_temp_handle;
 }
 
+// TA-344: live accessor — reads shared stats under mutex, then calls pure helper.
+double mining_get_pool_effective_hashrate(void)
+{
+    if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(10)) != pdTRUE) return 0.0;
+    double sum    = mining_stats.session.accepted_diff_sum;
+    int64_t start = mining_stats.session.start_us;
+    xSemaphoreGive(mining_stats.mutex);
+    if (sum <= 0.0 || start <= 0) return 0.0;
+    int64_t now = esp_timer_get_time();
+    double uptime_s = (double)(now - start) / 1e6;
+    return mining_compute_pool_effective_hps(sum, uptime_s);
+}
+
 void mining_stats_init(void)
 {
     mining_stats.mutex = xSemaphoreCreateMutex();
     mining_stats.session.start_us = esp_timer_get_time();
+    mining_stats.session.accepted_diff_sum = 0.0;
 #ifndef ASIC_CHIP
     mining_stats.hashrate_1m  = -1.0f;
     mining_stats.hashrate_10m = -1.0f;
@@ -529,6 +555,8 @@ bool mine_nonce_range(hash_backend_t *backend,
             }
 
             bb_log_i(TAG, "share found! (nonce=%08" PRIx32 ")", nonce);
+
+            result.share_diff = work->difficulty;  // TA-344: pool-assigned diff at issue time
 
             if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
                 if (share_diff > mining_stats.session.best_diff) {

@@ -193,6 +193,13 @@ void test_mining_get_expected_ghs_asic_freq_negative(void);
 void test_mining_get_expected_ghs_non_asic_with_microbench(void);
 void test_mining_get_expected_ghs_non_asic_no_microbench(void);
 #endif
+// TA-344: pool-effective hashrate tests
+void test_mining_compute_pool_effective_hps_empty(void);
+void test_mining_compute_pool_effective_hps_uptime_too_short(void);
+void test_mining_compute_pool_effective_hps_typical(void);
+void test_mining_compute_pool_effective_hps_diff1_share(void);
+void test_mining_compute_pool_effective_hps_divide_by_zero_guard(void);
+void test_mining_get_pool_effective_hashrate_host_stub(void);
 
 // Forward declarations from test_stratum.c
 void test_format_submit_no_version(void);
@@ -770,6 +777,14 @@ int main(void) {
     RUN_TEST(test_mining_get_expected_ghs_non_asic_with_microbench);
     RUN_TEST(test_mining_get_expected_ghs_non_asic_no_microbench);
 #endif
+
+    // TA-344: pool-effective hashrate tests
+    RUN_TEST(test_mining_compute_pool_effective_hps_empty);
+    RUN_TEST(test_mining_compute_pool_effective_hps_uptime_too_short);
+    RUN_TEST(test_mining_compute_pool_effective_hps_typical);
+    RUN_TEST(test_mining_compute_pool_effective_hps_diff1_share);
+    RUN_TEST(test_mining_compute_pool_effective_hps_divide_by_zero_guard);
+    RUN_TEST(test_mining_get_pool_effective_hashrate_host_stub);
 
     // Stratum utils tests
     RUN_TEST(test_format_submit_no_version);

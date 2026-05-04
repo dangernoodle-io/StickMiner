@@ -642,6 +642,7 @@ void asic_mining_task(void *arg)
 
             mining_result_t result;
             package_result(&result, orig, nonce_le, ver_bits);
+            result.share_diff = orig->difficulty;  // TA-344: pool-assigned diff at issue time
 
             if (!stratum_is_connected()) {
                 bb_log_d(TAG, "stratum disconnected, discarding share");
