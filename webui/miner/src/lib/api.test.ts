@@ -23,21 +23,20 @@ describe('patchFan', () => {
     expect(init.body).toBe('temp_target_c=65')
   })
 
-  // TA-351 firmware parser only treats literal '1' as true; '0' as false.
-  // Guard against the client regressing to URLSearchParams' default boolean coercion.
-  it('encodes autofan as 1 / 0, not true / false', async () => {
+  // TA-351 fixed: server-side parsing now accepts true/false/yes/no/on/off.
+  it('encodes autofan as true / false', async () => {
     await patchFan({ autofan: true })
-    expect(fetchSpy.mock.calls[0][1].body).toBe('autofan=1')
+    expect(fetchSpy.mock.calls[0][1].body).toBe('autofan=true')
 
     await patchFan({ autofan: false })
-    expect(fetchSpy.mock.calls[1][1].body).toBe('autofan=0')
+    expect(fetchSpy.mock.calls[1][1].body).toBe('autofan=false')
   })
 
   it('serializes multiple fields and skips undefined', async () => {
     await patchFan({ autofan: true, temp_target_c: 70, min_pct: 40, manual_pct: undefined })
     const body = fetchSpy.mock.calls[0][1].body as string
     const params = new URLSearchParams(body)
-    expect(params.get('autofan')).toBe('1')
+    expect(params.get('autofan')).toBe('true')
     expect(params.get('temp_target_c')).toBe('70')
     expect(params.get('min_pct')).toBe('40')
     expect(params.has('manual_pct')).toBe(false)

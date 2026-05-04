@@ -784,22 +784,42 @@ static bb_err_t fan_post_handler(bb_http_request_t *req)
 
     bb_url_decode_field(body, "autofan", val, sizeof(val));
     if (val[0] != '\0') {
-        taipan_config_set_autofan_enabled(val[0] == '1');
+        bool autofan = false;
+        if (!bb_url_parse_bool(val, &autofan)) {
+            bb_http_resp_send_err(req, 400, "Invalid autofan value");
+            return BB_ERR_INVALID_ARG;
+        }
+        taipan_config_set_autofan_enabled(autofan);
     }
 
     bb_url_decode_field(body, "temp_target_c", val, sizeof(val));
     if (val[0] != '\0') {
-        taipan_config_set_temp_target_c((uint16_t)strtoul(val, NULL, 10));
+        unsigned long temp = 0;
+        if (!bb_url_parse_uint(val, &temp)) {
+            bb_http_resp_send_err(req, 400, "Invalid temp_target_c value");
+            return BB_ERR_INVALID_ARG;
+        }
+        taipan_config_set_temp_target_c((uint16_t)temp);
     }
 
     bb_url_decode_field(body, "manual_pct", val, sizeof(val));
     if (val[0] != '\0') {
-        taipan_config_set_manual_fan_pct((uint16_t)strtoul(val, NULL, 10));
+        unsigned long pct = 0;
+        if (!bb_url_parse_uint(val, &pct)) {
+            bb_http_resp_send_err(req, 400, "Invalid manual_pct value");
+            return BB_ERR_INVALID_ARG;
+        }
+        taipan_config_set_manual_fan_pct((uint16_t)pct);
     }
 
     bb_url_decode_field(body, "min_pct", val, sizeof(val));
     if (val[0] != '\0') {
-        taipan_config_set_min_fan_pct((uint16_t)strtoul(val, NULL, 10));
+        unsigned long pct = 0;
+        if (!bb_url_parse_uint(val, &pct)) {
+            bb_http_resp_send_err(req, 400, "Invalid min_pct value");
+            return BB_ERR_INVALID_ARG;
+        }
+        taipan_config_set_min_fan_pct((uint16_t)pct);
     }
 
     bb_http_resp_set_status(req, 204);
