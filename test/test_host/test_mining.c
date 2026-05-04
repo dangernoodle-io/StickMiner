@@ -1,5 +1,8 @@
 #include "unity.h"
 #include "mining.h"
+#ifdef ASIC_CHIP
+#include "board.h"
+#endif
 #include "work.h"
 #include "sha256.h"
 #include <string.h>
@@ -409,3 +412,50 @@ void test_package_result_version_rolling_submits_ver_bits(void)
 
     TEST_ASSERT_EQUAL_STRING("00006000", result.version_hex);
 }
+
+// --- expected_ghs tests (TA-339) ---
+
+void test_mining_get_expected_ghs_null_out(void)
+{
+    TEST_ASSERT_FALSE(mining_get_expected_ghs(500.0f, NULL));
+}
+
+#ifdef ASIC_CHIP
+void test_mining_get_expected_ghs_asic_freq_set(void)
+{
+    double ghs = -1.0;
+    // bitaxe-601 (BM1370): 894 small_cores, 1 chip → 500 * 894 * 1 / 1000 = 447.0
+    bool ok = mining_get_expected_ghs(500.0f, &ghs);
+    TEST_ASSERT_TRUE(ok);
+    double expected = 500.0 * (double)BOARD_SMALL_CORES * (double)BOARD_ASIC_COUNT / 1000.0;
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, expected, ghs);
+}
+
+void test_mining_get_expected_ghs_asic_freq_zero(void)
+{
+    double ghs = -1.0;
+    TEST_ASSERT_FALSE(mining_get_expected_ghs(0.0f, &ghs));
+}
+
+void test_mining_get_expected_ghs_asic_freq_negative(void)
+{
+    double ghs = -1.0;
+    TEST_ASSERT_FALSE(mining_get_expected_ghs(-1.0f, &ghs));
+}
+#else
+void test_mining_get_expected_ghs_non_asic_with_microbench(void)
+{
+    mining_set_sha_microbench(1.631, 306.56);
+    double ghs = -1.0;
+    bool result = mining_get_expected_ghs(0.0f, &ghs);
+    TEST_ASSERT_TRUE(result);
+    TEST_ASSERT_FLOAT_WITHIN(1e-8, 0.00030656, ghs);
+}
+
+void test_mining_get_expected_ghs_non_asic_no_microbench(void)
+{
+    double ghs = -1.0;
+    bool result = mining_get_expected_ghs(0.0f, &ghs);
+    TEST_ASSERT_FALSE(result);
+}
+#endif

@@ -46,16 +46,13 @@ void build_stats_json(const stats_snapshot_t *s, bb_json_t root)
     bb_json_obj_set_number(root, "best_diff",         s->best_diff);
     bb_json_obj_set_number(root, "uptime_s",          (double)uptime_s);
 
-#ifdef ASIC_CHIP
-    if (s->asic_freq_cfg > 0) {
-        double expected_ghs = (double)s->asic_freq_cfg
-                              * (double)s->asic_small_cores
-                              * (double)s->asic_count / 1000.0;
-        bb_json_obj_set_number(root, "expected_ghs", expected_ghs);
+    if (s->expected_ghs >= 0.0) {
+        bb_json_obj_set_number(root, "expected_ghs", s->expected_ghs);
     } else {
         bb_json_obj_set_null(root, "expected_ghs");
     }
 
+#ifdef ASIC_CHIP
     bb_json_obj_set_number(root, "asic_hashrate",     s->asic_rate);
     bb_json_obj_set_number(root, "asic_hashrate_avg", s->asic_ema);
     bb_json_obj_set_number(root, "asic_shares",       s->asic_shares);
@@ -126,8 +123,6 @@ void build_stats_json(const stats_snapshot_t *s, bb_json_t root)
         bb_json_arr_append_obj(chips_arr, chip_obj);
     }
     bb_json_obj_set_arr(root, "asic_chips", chips_arr);
-#else
-    bb_json_obj_set_number(root, "expected_ghs", 0.000223);
 #endif
 }
 

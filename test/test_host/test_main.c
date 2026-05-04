@@ -184,6 +184,15 @@ void test_pack_target_word0_hard_diff(void);
 void test_build_block2_padding(void);
 void test_package_result_no_version_rolling(void);
 void test_package_result_version_rolling_submits_ver_bits(void);
+void test_mining_get_expected_ghs_null_out(void);
+#ifdef ASIC_CHIP
+void test_mining_get_expected_ghs_asic_freq_set(void);
+void test_mining_get_expected_ghs_asic_freq_zero(void);
+void test_mining_get_expected_ghs_asic_freq_negative(void);
+#else
+void test_mining_get_expected_ghs_non_asic_with_microbench(void);
+void test_mining_get_expected_ghs_non_asic_no_microbench(void);
+#endif
 
 // Forward declarations from test_stratum.c
 void test_format_submit_no_version(void);
@@ -496,7 +505,7 @@ void test_fan_thermal_sentinels_null(void);
 void test_stats_asic_total_valid_true(void);
 void test_stats_asic_total_valid_false(void);
 void test_stats_expected_ghs_populated(void);
-void test_stats_expected_ghs_null_when_freq_zero(void);
+void test_stats_expected_ghs_null_when_unavailable(void);
 void test_stats_freq_cfg_negative_emits_null(void);
 void test_stats_chip_array_two_chips(void);
 void test_stats_chip_array_empty(void);
@@ -751,6 +760,16 @@ int main(void) {
     // TA-274: package_result round-trip tests (test_work.c)
     RUN_TEST(test_package_result_round_trip_no_rolling);
     RUN_TEST(test_package_result_round_trip_with_rolling);
+
+    RUN_TEST(test_mining_get_expected_ghs_null_out);
+#ifdef ASIC_CHIP
+    RUN_TEST(test_mining_get_expected_ghs_asic_freq_set);
+    RUN_TEST(test_mining_get_expected_ghs_asic_freq_zero);
+    RUN_TEST(test_mining_get_expected_ghs_asic_freq_negative);
+#else
+    RUN_TEST(test_mining_get_expected_ghs_non_asic_with_microbench);
+    RUN_TEST(test_mining_get_expected_ghs_non_asic_no_microbench);
+#endif
 
     // Stratum utils tests
     RUN_TEST(test_format_submit_no_version);
@@ -1098,7 +1117,7 @@ int main(void) {
     RUN_TEST(test_stats_asic_total_valid_true);
     RUN_TEST(test_stats_asic_total_valid_false);
     RUN_TEST(test_stats_expected_ghs_populated);
-    RUN_TEST(test_stats_expected_ghs_null_when_freq_zero);
+    RUN_TEST(test_stats_expected_ghs_null_when_unavailable);
     RUN_TEST(test_stats_freq_cfg_negative_emits_null);
     RUN_TEST(test_stats_chip_array_two_chips);
     RUN_TEST(test_stats_chip_array_empty);
