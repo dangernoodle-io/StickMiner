@@ -5,6 +5,12 @@
 #include <ctype.h>
 #include <math.h>
 
+void mining_hash_from_state(const uint32_t state[8], uint8_t hash_out[32]) {
+    for (int i = 0; i < 8; i++) {
+        bb_store_be32(hash_out + i * 4, state[i]);
+    }
+}
+
 void build_coinbase_hash(const uint8_t *coinb1, size_t coinb1_len,
                          const uint8_t *extranonce1, size_t en1_len,
                          const uint8_t *extranonce2, size_t en2_len,

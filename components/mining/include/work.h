@@ -87,6 +87,12 @@ size_t hex_to_bytes(const char *hex, uint8_t *out, size_t max_out);
 // Bytes to hex string utility (null-terminated output expected to be at least 2*len+1)
 void bytes_to_hex(const uint8_t *data, size_t len, char *hex);
 
+// Convert 8 canonical SHA-256 state words (host uint32_t, where state[0] is the
+// most-significant word) into the 32-byte hash format used by meets_target /
+// difficulty_to_target. Format: hash[i*4..i*4+3] = canonical state[i] stored
+// big-endian (MSB first). Single source of truth across SW / HW SHA backends.
+void mining_hash_from_state(const uint32_t state[8], uint8_t hash_out[32]);
+
 // Iterate through BIP 320 version-rolling submask values.
 // Start with ver_bits=0. Returns next ver_bits; 0 when exhausted.
 static inline uint32_t next_version_roll(uint32_t ver_bits, uint32_t mask) {

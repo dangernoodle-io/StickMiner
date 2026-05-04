@@ -21,6 +21,8 @@ void test_sha256_check_abc_vector_rejects_one_byte_flip(void);
 // Forward declarations from test_work.c
 void test_hex_to_bytes(void);
 void test_bytes_to_hex(void);
+void test_mining_hash_from_state_abc_vector(void);
+void test_mining_hash_from_state_zero(void);
 void test_hex_roundtrip(void);
 void test_serialize_header_genesis(void);
 void test_set_header_nonce(void);
@@ -621,6 +623,8 @@ int main(void) {
     // Work module tests
     RUN_TEST(test_hex_to_bytes);
     RUN_TEST(test_bytes_to_hex);
+    RUN_TEST(test_mining_hash_from_state_abc_vector);
+    RUN_TEST(test_mining_hash_from_state_zero);
     RUN_TEST(test_hex_roundtrip);
     RUN_TEST(test_serialize_header_genesis);
     RUN_TEST(test_set_header_nonce);

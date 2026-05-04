@@ -7,6 +7,7 @@
 #include "sha256_hw_ahb.h"
 #include "sha256.h"
 #include "mining.h"
+#include "work.h"
 #include "bb_core.h"
 #include "soc/hwcrypto_reg.h"
 #include "soc/soc.h"
@@ -314,13 +315,9 @@ bb_err_t sha256_hw_ahb_self_test(void)
     /* Convert HW-format digest (each word bswapped) to canonical byte form
      * for the shared comparison helper. */
     uint8_t digest_bytes[32];
-    for (int i = 0; i < 8; i++) {
-        uint32_t w = __builtin_bswap32(digest_hw[i]);
-        digest_bytes[i*4 + 0] = (w >> 24) & 0xff;
-        digest_bytes[i*4 + 1] = (w >> 16) & 0xff;
-        digest_bytes[i*4 + 2] = (w >> 8)  & 0xff;
-        digest_bytes[i*4 + 3] =  w        & 0xff;
-    }
+    uint32_t state[8];
+    for (int i = 0; i < 8; i++) state[i] = __builtin_bswap32(digest_hw[i]);
+    mining_hash_from_state(state, digest_bytes);
     bb_err_t midstate_result = sha256_check_abc_vector("ahb", digest_bytes);
     if (midstate_result != BB_OK) {
         return midstate_result;
