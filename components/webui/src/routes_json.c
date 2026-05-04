@@ -12,6 +12,16 @@
 #include <string.h>
 
 /* ============================================================================
+ * EMIT_NULLABLE macro — sentinel-null for double/float fields (>= 0.0).
+ * ========================================================================= */
+
+#define EMIT_NULLABLE(field, name) \
+    do { \
+        if ((s->field) >= 0.0) bb_json_obj_set_number(root, name, (double)(s->field)); \
+        else                   bb_json_obj_set_null  (root, name); \
+    } while (0)
+
+/* ============================================================================
  * /api/stats
  * ========================================================================= */
 
@@ -53,19 +63,13 @@ void build_stats_json(const stats_snapshot_t *s, bb_json_t root)
     }
 
 #ifndef ASIC_CHIP
-#define EMIT_NULLABLE(field, name) \
-    do { \
-        if ((s->field) >= 0.0) bb_json_obj_set_number(root, name, (double)(s->field)); \
-        else                   bb_json_obj_set_null  (root, name); \
-    } while (0)
     EMIT_NULLABLE(hashrate_1m,              "hashrate_1m");
     EMIT_NULLABLE(hashrate_10m,             "hashrate_10m");
     EMIT_NULLABLE(hashrate_1h,              "hashrate_1h");
-    EMIT_NULLABLE(hashrate_pool_effective,  "hashrate_pool_effective");
+    EMIT_NULLABLE(pool_effective_hashrate,  "pool_effective_hashrate");
     EMIT_NULLABLE(hw_error_pct_1m,  "hw_error_pct_1m");
     EMIT_NULLABLE(hw_error_pct_10m, "hw_error_pct_10m");
     EMIT_NULLABLE(hw_error_pct_1h,  "hw_error_pct_1h");
-#undef EMIT_NULLABLE
 #endif
 
 #ifdef ASIC_CHIP
@@ -73,27 +77,19 @@ void build_stats_json(const stats_snapshot_t *s, bb_json_t root)
     bb_json_obj_set_number(root, "asic_hashrate_avg", s->asic_ema);
     bb_json_obj_set_number(root, "asic_shares",       s->asic_shares);
     bb_json_obj_set_number(root, "asic_temp_c",       (double)s->asic_temp_c);
-    if (s->asic_freq_cfg >= 0) {
-        bb_json_obj_set_number(root, "asic_freq_configured_mhz", (double)s->asic_freq_cfg);
-    } else {
-        bb_json_obj_set_null(root, "asic_freq_configured_mhz");
-    }
-    if (s->asic_freq_eff >= 0) {
-        bb_json_obj_set_number(root, "asic_freq_effective_mhz", (double)s->asic_freq_eff);
-    } else {
-        bb_json_obj_set_null(root, "asic_freq_effective_mhz");
-    }
+    EMIT_NULLABLE(asic_freq_cfg, "asic_freq_configured_mhz");
+    EMIT_NULLABLE(asic_freq_eff, "asic_freq_effective_mhz");
     bb_json_obj_set_number(root, "asic_small_cores", s->asic_small_cores);
     bb_json_obj_set_number(root, "asic_count",       s->asic_count);
     if (s->asic_total_valid) {
         bb_json_obj_set_number(root, "asic_total_ghs",      (double)s->asic_total_ghs);
         bb_json_obj_set_number(root, "asic_hw_error_pct",   (double)s->asic_hw_error_pct);
-        bb_json_obj_set_number(root, "asic_total_ghs_1m",   (double)s->asic_total_ghs_1m);
-        bb_json_obj_set_number(root, "asic_total_ghs_10m",  (double)s->asic_total_ghs_10m);
-        bb_json_obj_set_number(root, "asic_total_ghs_1h",   (double)s->asic_total_ghs_1h);
-        bb_json_obj_set_number(root, "asic_hw_error_pct_1m",  (double)s->asic_hw_error_pct_1m);
-        bb_json_obj_set_number(root, "asic_hw_error_pct_10m", (double)s->asic_hw_error_pct_10m);
-        bb_json_obj_set_number(root, "asic_hw_error_pct_1h",  (double)s->asic_hw_error_pct_1h);
+        EMIT_NULLABLE(asic_total_ghs_1m,   "asic_total_ghs_1m");
+        EMIT_NULLABLE(asic_total_ghs_10m,  "asic_total_ghs_10m");
+        EMIT_NULLABLE(asic_total_ghs_1h,   "asic_total_ghs_1h");
+        EMIT_NULLABLE(asic_hw_error_pct_1m,  "asic_hw_error_pct_1m");
+        EMIT_NULLABLE(asic_hw_error_pct_10m, "asic_hw_error_pct_10m");
+        EMIT_NULLABLE(asic_hw_error_pct_1h,  "asic_hw_error_pct_1h");
     } else {
         bb_json_obj_set_null(root, "asic_total_ghs");
         bb_json_obj_set_null(root, "asic_hw_error_pct");
@@ -105,11 +101,7 @@ void build_stats_json(const stats_snapshot_t *s, bb_json_t root)
         bb_json_obj_set_null(root, "asic_hw_error_pct_1h");
     }
 
-    if (s->hashrate_pool_effective >= 0.0) {
-        bb_json_obj_set_number(root, "hashrate_pool_effective", (double)s->hashrate_pool_effective);
-    } else {
-        bb_json_obj_set_null(root, "hashrate_pool_effective");
-    }
+    EMIT_NULLABLE(pool_effective_hashrate, "pool_effective_hashrate");
 
     bb_json_t chips_arr = bb_json_arr_new();
     for (int c = 0; c < s->n_chips; c++) {
@@ -169,28 +161,12 @@ void build_pool_json(const pool_snapshot_t *s, bb_json_t root)
 
     bb_json_obj_set_number(root, "current_difficulty", s->current_difficulty);
 
-    if (s->pool_effective_hashrate >= 0.0) {
-        bb_json_obj_set_number(root, "pool_effective_hashrate", (double)s->pool_effective_hashrate);
-    } else {
-        bb_json_obj_set_null(root, "pool_effective_hashrate");
-    }
+    EMIT_NULLABLE(pool_effective_hashrate, "pool_effective_hashrate");
 
     /* TA-363: rolling 1m/10m/1h pool-effective windows */
-    if (s->pool_effective_hashrate_1m >= 0.0) {
-        bb_json_obj_set_number(root, "pool_effective_hashrate_1m", (double)s->pool_effective_hashrate_1m);
-    } else {
-        bb_json_obj_set_null(root, "pool_effective_hashrate_1m");
-    }
-    if (s->pool_effective_hashrate_10m >= 0.0) {
-        bb_json_obj_set_number(root, "pool_effective_hashrate_10m", (double)s->pool_effective_hashrate_10m);
-    } else {
-        bb_json_obj_set_null(root, "pool_effective_hashrate_10m");
-    }
-    if (s->pool_effective_hashrate_1h >= 0.0) {
-        bb_json_obj_set_number(root, "pool_effective_hashrate_1h", (double)s->pool_effective_hashrate_1h);
-    } else {
-        bb_json_obj_set_null(root, "pool_effective_hashrate_1h");
-    }
+    EMIT_NULLABLE(pool_effective_hashrate_1m, "pool_effective_hashrate_1m");
+    EMIT_NULLABLE(pool_effective_hashrate_10m, "pool_effective_hashrate_10m");
+    EMIT_NULLABLE(pool_effective_hashrate_1h, "pool_effective_hashrate_1h");
 
     if (s->latency_ms >= 0) {
         bb_json_obj_set_number(root, "latency_ms", (double)s->latency_ms);
@@ -458,21 +434,9 @@ void build_fan_json(const fan_snapshot_t *s, bb_json_t root)
         bb_json_obj_set_null(root, "min_pct");
     }
     /* TA-141: thermal aggregation telemetry */
-    if (s->die_ema_c >= 0.0f) {
-        bb_json_obj_set_number(root, "die_ema_c", s->die_ema_c);
-    } else {
-        bb_json_obj_set_null(root, "die_ema_c");
-    }
-    if (s->vr_ema_c >= 0.0f) {
-        bb_json_obj_set_number(root, "vr_ema_c", s->vr_ema_c);
-    } else {
-        bb_json_obj_set_null(root, "vr_ema_c");
-    }
-    if (s->pid_input_c >= 0.0f) {
-        bb_json_obj_set_number(root, "pid_input_c", s->pid_input_c);
-    } else {
-        bb_json_obj_set_null(root, "pid_input_c");
-    }
+    EMIT_NULLABLE(die_ema_c, "die_ema_c");
+    EMIT_NULLABLE(vr_ema_c, "vr_ema_c");
+    EMIT_NULLABLE(pid_input_c, "pid_input_c");
     bb_json_obj_set_string(root, "pid_input_src", s->pid_input_src);
 }
 #endif /* ASIC_CHIP */

@@ -58,7 +58,7 @@ export interface Stats {
   hw_error_pct_1m: number | null
   hw_error_pct_10m: number | null
   hw_error_pct_1h: number | null
-  hashrate_pool_effective: number | null
+  pool_effective_hashrate: number | null
   asic_chips?: Chip[]
   rejected?: RejectedBreakdown
 }
