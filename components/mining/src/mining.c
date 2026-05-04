@@ -162,7 +162,12 @@ void mining_run_self_tests(void)
     }
     sha256_hw_ahb_boot_probes();
 #elif CONFIG_IDF_TARGET_ESP32
-    if (sha256_hw_dport_self_test() != BB_OK) {
+    /* DPORT self-test touches SHA peripheral registers and requires the
+     * peripheral clock to be enabled — caller must hold the SHA lock. */
+    sha256_hw_dport_acquire();
+    bb_err_t dport_rc = sha256_hw_dport_self_test();
+    sha256_hw_dport_release();
+    if (dport_rc != BB_OK) {
         bb_log_e(TAG, "SHA DPORT self-test FAILED — mining will not start");
         mining_set_sha_self_test_failed();
     }
