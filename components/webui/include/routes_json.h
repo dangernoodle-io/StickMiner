@@ -245,6 +245,11 @@ typedef struct {
     int  temp_target_c; /* -1 → null */
     int  manual_pct;    /* -1 → null */
     int  min_pct;       /* -1 → null */
+    /* TA-141: thermal aggregation telemetry */
+    float die_ema_c;    /* < 0 → null */
+    float vr_ema_c;     /* < 0 → null */
+    float pid_input_c;  /* < 0 → null */
+    const char *pid_input_src;  /* "die" or "vr" or empty; never null */
 } fan_snapshot_t;
 
 void build_fan_json(const fan_snapshot_t *s, bb_json_t root);

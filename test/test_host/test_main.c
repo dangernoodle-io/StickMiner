@@ -545,6 +545,14 @@ void test_set_manual_fan_pct_clamps_high(void);
 void test_set_min_fan_pct_in_range(void);
 void test_set_min_fan_pct_clamps_high(void);
 
+// TA-141: autofan thermal aggregation
+void test_autofan_die_greater_than_vr(void);
+void test_autofan_vr_greater_than_die(void);
+void test_autofan_vr_invalid_fallback_to_die(void);
+void test_autofan_independent_ema_updates(void);
+void test_autofan_source_switch_die_overtakes_vr(void);
+void test_autofan_ema_initialization(void);
+
 // TA-234: stratum_watchdogs
 void test_stratum_watchdog_job_drought_never_observed(void);
 void test_stratum_watchdog_job_drought_below_threshold(void);
@@ -1112,6 +1120,14 @@ int main(void) {
     RUN_TEST(test_set_manual_fan_pct_clamps_high);
     RUN_TEST(test_set_min_fan_pct_in_range);
     RUN_TEST(test_set_min_fan_pct_clamps_high);
+
+    // TA-141: autofan thermal aggregation tests
+    RUN_TEST(test_autofan_die_greater_than_vr);
+    RUN_TEST(test_autofan_vr_greater_than_die);
+    RUN_TEST(test_autofan_vr_invalid_fallback_to_die);
+    RUN_TEST(test_autofan_independent_ema_updates);
+    RUN_TEST(test_autofan_source_switch_die_overtakes_vr);
+    RUN_TEST(test_autofan_ema_initialization);
 
     // TA-234: stratum_watchdogs tests
     RUN_TEST(test_stratum_watchdog_job_drought_never_observed);

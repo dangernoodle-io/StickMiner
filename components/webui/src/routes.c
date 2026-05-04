@@ -739,6 +739,10 @@ static bb_err_t fan_handler(bb_http_request_t *req)
         .temp_target_c = (int)taipan_config_temp_target_c(),
         .manual_pct    = (int)taipan_config_manual_fan_pct(),
         .min_pct       = (int)taipan_config_min_fan_pct(),
+        .die_ema_c     = -1.0f,
+        .vr_ema_c      = -1.0f,
+        .pid_input_c   = -1.0f,
+        .pid_input_src = "",
     };
 
     if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
@@ -746,6 +750,9 @@ static bb_err_t fan_handler(bb_http_request_t *req)
         s.fan_duty_pct = mining_stats.fan_duty_pct;
         xSemaphoreGive(mining_stats.mutex);
     }
+
+    // TA-141: Fetch autofan telemetry (die/vr EMAs, PID input source)
+    asic_task_get_autofan_telemetry(&s.die_ema_c, &s.vr_ema_c, &s.pid_input_c, &s.pid_input_src);
 
     bb_json_t root = bb_json_obj_new();
     build_fan_json(&s, root);
@@ -1636,7 +1643,16 @@ static const bb_route_response_t s_fan_responses[] = {
       "\"properties\":{"
       "\"rpm\":{\"type\":[\"integer\",\"null\"]},"
       "\"duty_pct\":{\"type\":[\"integer\",\"null\"],"
-      "\"description\":\"curve-controlled duty %; null until first telemetry tick\"}}}",
+      "\"description\":\"curve-controlled duty %; null until first telemetry tick\"},"
+      "\"autofan\":{\"type\":\"boolean\",\"description\":\"autofan enabled (TA-315)\"},"
+      "\"temp_target_c\":{\"type\":[\"integer\",\"null\"],\"description\":\"target temperature setpoint (TA-315)\"},"
+      "\"manual_pct\":{\"type\":[\"integer\",\"null\"],\"description\":\"manual duty % when autofan disabled (TA-315)\"},"
+      "\"min_pct\":{\"type\":[\"integer\",\"null\"],\"description\":\"minimum fan duty % (TA-315)\"},"
+      "\"die_ema_c\":{\"type\":[\"number\",\"null\"],\"description\":\"filtered ASIC die temperature (TA-141)\"},"
+      "\"vr_ema_c\":{\"type\":[\"number\",\"null\"],\"description\":\"filtered VR temperature (TA-141)\"},"
+      "\"pid_input_c\":{\"type\":[\"number\",\"null\"],\"description\":\"PID input = max(die, vr) (TA-141)\"},"
+      "\"pid_input_src\":{\"type\":\"string\",\"description\":\"which sensor is driving PID: 'die' or 'vr' (TA-141)\"}"
+      "}}",
       "fan telemetry" },
     { 0 },
 };
