@@ -73,10 +73,14 @@
   let downloadProgress = $state<{ loaded: number; total: number } | null>(null)
   let flashProgress = $state<{ written: number; total: number } | null>(null)
 
-  const boardOptions = boards.map(b => ({
-    value: b.id,
-    label: `${b.label}${b.asic ? ` (${b.asic})` : ''}`
-  }))
+  const boardOptions = $derived(
+    boards
+      .filter(b => manifest?.assets[b.id])
+      .map(b => ({
+        value: b.id,
+        label: `${b.label}${b.asic ? ` (${b.asic})` : ''}`
+      }))
+  )
 
   $effect(() => {
     loadManifest()
