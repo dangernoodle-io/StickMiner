@@ -277,7 +277,7 @@
       </div>
       <div class="metrics">
         <div class="m">
-          <div class="v">{displayPool?.current_difficulty ?? '—'}</div>
+          <div class="v">{displayPool?.current_difficulty != null ? Math.round(displayPool.current_difficulty) : '—'}</div>
           <div class="k">diff</div>
         </div>
         <div class="m">

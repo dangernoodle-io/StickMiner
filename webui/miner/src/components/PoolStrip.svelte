@@ -23,7 +23,7 @@
   </div>
 
   <div class="right">
-    diff <strong>{$pool?.current_difficulty ?? '—'}</strong>
+    diff <strong>{$pool?.current_difficulty != null ? Math.round($pool.current_difficulty) : '—'}</strong>
   </div>
 </div>
 
