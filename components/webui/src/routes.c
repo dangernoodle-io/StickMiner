@@ -736,7 +736,8 @@ static bb_err_t fan_handler(bb_http_request_t *req)
         .fan_rpm      = -1,
         .fan_duty_pct = -1,
         .autofan      = taipan_config_autofan_enabled(),
-        .temp_target_c = (int)taipan_config_temp_target_c(),
+        .die_target_c = (int)taipan_config_die_target_c(),
+        .vr_target_c  = (int)taipan_config_vr_target_c(),
         .manual_pct    = (int)taipan_config_manual_fan_pct(),
         .min_pct       = (int)taipan_config_min_fan_pct(),
         .die_ema_c     = -1.0f,
@@ -792,14 +793,24 @@ static bb_err_t fan_post_handler(bb_http_request_t *req)
         taipan_config_set_autofan_enabled(autofan);
     }
 
-    bb_url_decode_field(body, "temp_target_c", val, sizeof(val));
+    bb_url_decode_field(body, "die_target_c", val, sizeof(val));
     if (val[0] != '\0') {
         unsigned long temp = 0;
         if (!bb_url_parse_uint(val, &temp)) {
-            bb_http_resp_send_err(req, 400, "Invalid temp_target_c value");
+            bb_http_resp_send_err(req, 400, "Invalid die_target_c value");
             return BB_ERR_INVALID_ARG;
         }
-        taipan_config_set_temp_target_c((uint16_t)temp);
+        taipan_config_set_die_target_c((uint16_t)temp);
+    }
+
+    bb_url_decode_field(body, "vr_target_c", val, sizeof(val));
+    if (val[0] != '\0') {
+        unsigned long temp = 0;
+        if (!bb_url_parse_uint(val, &temp)) {
+            bb_http_resp_send_err(req, 400, "Invalid vr_target_c value");
+            return BB_ERR_INVALID_ARG;
+        }
+        taipan_config_set_vr_target_c((uint16_t)temp);
     }
 
     bb_url_decode_field(body, "manual_pct", val, sizeof(val));
@@ -1665,12 +1676,13 @@ static const bb_route_response_t s_fan_responses[] = {
       "\"duty_pct\":{\"type\":[\"integer\",\"null\"],"
       "\"description\":\"curve-controlled duty %; null until first telemetry tick\"},"
       "\"autofan\":{\"type\":\"boolean\",\"description\":\"autofan enabled (TA-315)\"},"
-      "\"temp_target_c\":{\"type\":[\"integer\",\"null\"],\"description\":\"target temperature setpoint (TA-315)\"},"
+      "\"die_target_c\":{\"type\":[\"integer\",\"null\"],\"description\":\"ASIC die target temperature (TA-352)\"},"
+      "\"vr_target_c\":{\"type\":[\"integer\",\"null\"],\"description\":\"VR target temperature (TA-352)\"},"
       "\"manual_pct\":{\"type\":[\"integer\",\"null\"],\"description\":\"manual duty % when autofan disabled (TA-315)\"},"
       "\"min_pct\":{\"type\":[\"integer\",\"null\"],\"description\":\"minimum fan duty % (TA-315)\"},"
       "\"die_ema_c\":{\"type\":[\"number\",\"null\"],\"description\":\"filtered ASIC die temperature (TA-141)\"},"
       "\"vr_ema_c\":{\"type\":[\"number\",\"null\"],\"description\":\"filtered VR temperature (TA-141)\"},"
-      "\"pid_input_c\":{\"type\":[\"number\",\"null\"],\"description\":\"PID input = max(die, vr) (TA-141)\"},"
+      "\"pid_input_c\":{\"type\":[\"number\",\"null\"],\"description\":\"PID input selected by max(err/target) ratio (TA-352)\"},"
       "\"pid_input_src\":{\"type\":\"string\",\"description\":\"which sensor is driving PID: 'die' or 'vr' (TA-141)\"}"
       "}}",
       "fan telemetry" },

@@ -491,6 +491,7 @@ void test_fan_both_populated(void);
 void test_fan_rpm_null(void);
 void test_fan_duty_null(void);
 void test_fan_both_null(void);
+void test_fan_targets_null(void);
 void test_fan_thermal_sentinels_null(void);
 void test_stats_asic_total_valid_true(void);
 void test_stats_asic_total_valid_false(void);
@@ -536,11 +537,14 @@ void test_pid_initialize_clamps_output_sum(void);
 void test_pid_getters_return_display_values(void);
 void test_pid_set_output_limits_rejects_invalid(void);
 
-// TA-315: autofan setters
+// TA-315/TA-352: autofan setters
 void test_set_autofan_enabled_round_trip(void);
-void test_set_temp_target_in_range(void);
-void test_set_temp_target_clamps_low(void);
-void test_set_temp_target_clamps_high(void);
+void test_set_die_target_in_range(void);
+void test_set_die_target_clamps_low(void);
+void test_set_die_target_clamps_high(void);
+void test_set_vr_target_in_range(void);
+void test_set_vr_target_clamps_low(void);
+void test_set_vr_target_clamps_high(void);
 void test_set_manual_fan_pct_in_range(void);
 void test_set_manual_fan_pct_clamps_high(void);
 void test_set_min_fan_pct_in_range(void);
@@ -1089,6 +1093,7 @@ int main(void) {
     RUN_TEST(test_fan_rpm_null);
     RUN_TEST(test_fan_duty_null);
     RUN_TEST(test_fan_both_null);
+    RUN_TEST(test_fan_targets_null);
     RUN_TEST(test_fan_thermal_sentinels_null);
     RUN_TEST(test_stats_asic_total_valid_true);
     RUN_TEST(test_stats_asic_total_valid_false);
@@ -1115,9 +1120,12 @@ int main(void) {
     RUN_TEST(test_pid_getters_return_display_values);
     RUN_TEST(test_pid_set_output_limits_rejects_invalid);
     RUN_TEST(test_set_autofan_enabled_round_trip);
-    RUN_TEST(test_set_temp_target_in_range);
-    RUN_TEST(test_set_temp_target_clamps_low);
-    RUN_TEST(test_set_temp_target_clamps_high);
+    RUN_TEST(test_set_die_target_in_range);
+    RUN_TEST(test_set_die_target_clamps_low);
+    RUN_TEST(test_set_die_target_clamps_high);
+    RUN_TEST(test_set_vr_target_in_range);
+    RUN_TEST(test_set_vr_target_clamps_low);
+    RUN_TEST(test_set_vr_target_clamps_high);
     RUN_TEST(test_set_manual_fan_pct_in_range);
     RUN_TEST(test_set_manual_fan_pct_clamps_high);
     RUN_TEST(test_set_min_fan_pct_in_range);

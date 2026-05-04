@@ -145,7 +145,8 @@ export interface Fan {
   rpm: number | null
   duty_pct: number | null
   autofan: boolean
-  temp_target_c: number
+  die_target_c: number
+  vr_target_c: number
   manual_pct: number
   min_pct: number
   // TA-141 telemetry
@@ -157,7 +158,8 @@ export interface Fan {
 
 export interface FanPatch {
   autofan?: boolean
-  temp_target_c?: number
+  die_target_c?: number
+  vr_target_c?: number
   manual_pct?: number
   min_pct?: number
 }

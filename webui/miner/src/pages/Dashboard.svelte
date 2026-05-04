@@ -34,7 +34,7 @@
       <div class="tile-grid">
         <StatTile label="ASIC"  value={$stats?.asic_temp_c ?? null}     unit="°C" warn={70} danger={80} />
         <StatTile label="Board" value={$power?.board_temp_c ?? null}    unit="°C" warn={60} danger={75} />
-        <StatTile label="VR"    value={$power?.vr_temp_c ?? null}       unit="°C" warn={75} danger={90} />
+        <StatTile label="VR"    value={$power?.vr_temp_c ?? null}       unit="°C" warn={90} danger={105} />
       </div>
     </section>
 

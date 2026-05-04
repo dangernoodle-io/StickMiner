@@ -164,8 +164,11 @@ async function poll() {
         fetchFan().catch(() => null)
       ])
     }
-    power.set(powerData)
-    fan.set(fanData)
+    // Transient fetch failures leave power/fan at last value (matches pool
+    // semantics below) — otherwise a single dropped poll makes UI sections
+    // gated on $fan/$power vanish for 5s until the next tick.
+    if (powerData !== null) power.set(powerData)
+    if (fanData !== null) fan.set(fanData)
 
     // /api/pool — TA-281; transient failures leave the store at last value.
     try {

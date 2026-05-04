@@ -12,9 +12,10 @@
 static struct {
     taipan_pool_cfg_t pools[TAIPAN_POOL_COUNT];
     char hostname[33];
-    /* TA-315: autofan / PID fields */
+    /* TA-315/TA-352: autofan / PID fields */
     bool     autofan_enabled;
-    uint16_t temp_target_c;
+    uint16_t die_target_c;
+    uint16_t vr_target_c;
     uint16_t manual_fan_pct;
     uint16_t min_fan_pct;
 } s_config;
@@ -153,7 +154,7 @@ bb_err_t taipan_config_init(void)
     }
 #endif
 
-    /* TA-315: autofan / PID fields */
+    /* TA-315/TA-352: autofan / PID fields */
     {
         uint8_t v = 1;
         if (bb_nv_get_u8(TAIPAN_NS, "autofan", &v, 1) == BB_OK) {
@@ -161,14 +162,25 @@ bb_err_t taipan_config_init(void)
         } else {
             s_config.autofan_enabled = true;
         }
+        /* TA-352: die_target defaults to 60, vr_target defaults to 75.
+         * Old NVS key temp_target is abandoned; no migration. */
         uint16_t u16 = 60;
-        if (bb_nv_get_u16(TAIPAN_NS, "temp_target", &u16, 60) == BB_OK) {
+        if (bb_nv_get_u16(TAIPAN_NS, "die_target", &u16, 60) == BB_OK) {
             if (u16 < 35) u16 = 35;
             if (u16 > 85) u16 = 85;
         } else {
             u16 = 60;
         }
-        s_config.temp_target_c = u16;
+        s_config.die_target_c = u16;
+
+        u16 = 75;
+        if (bb_nv_get_u16(TAIPAN_NS, "vr_target", &u16, 75) == BB_OK) {
+            if (u16 < 50) u16 = 50;
+            if (u16 > 100) u16 = 100;
+        } else {
+            u16 = 75;
+        }
+        s_config.vr_target_c = u16;
 
         u16 = 100;
         if (bb_nv_get_u16(TAIPAN_NS, "manual_fan", &u16, 100) == BB_OK) {
@@ -201,9 +213,10 @@ bb_err_t taipan_config_init(void)
     /* Host default: decode_coinbase ON for both slots, matching ESP load. */
     s_config.pools[0].decode_coinbase = true;
     s_config.pools[1].decode_coinbase = true;
-    /* TA-315: autofan defaults for host */
+    /* TA-315/TA-352: autofan defaults for host */
     s_config.autofan_enabled = true;
-    s_config.temp_target_c   = 60;
+    s_config.die_target_c    = 60;
+    s_config.vr_target_c     = 75;
     s_config.manual_fan_pct  = 100;
     s_config.min_fan_pct     = 25;
     return 0;
@@ -445,9 +458,10 @@ bb_err_t taipan_config_set_hostname(const char *hostname)
     return BB_OK;
 }
 
-/* TA-315: autofan / PID getters */
+/* TA-315/TA-352: autofan / PID getters */
 bool     taipan_config_autofan_enabled(void) { return s_config.autofan_enabled; }
-uint16_t taipan_config_temp_target_c(void)   { return s_config.temp_target_c; }
+uint16_t taipan_config_die_target_c(void)    { return s_config.die_target_c; }
+uint16_t taipan_config_vr_target_c(void)     { return s_config.vr_target_c; }
 uint16_t taipan_config_manual_fan_pct(void)  { return s_config.manual_fan_pct; }
 uint16_t taipan_config_min_fan_pct(void)     { return s_config.min_fan_pct; }
 
@@ -461,15 +475,27 @@ bb_err_t taipan_config_set_autofan_enabled(bool enabled)
     return BB_OK;
 }
 
-bb_err_t taipan_config_set_temp_target_c(uint16_t val)
+bb_err_t taipan_config_set_die_target_c(uint16_t val)
 {
     if (val < 35) val = 35;
     if (val > 85) val = 85;
 #ifdef ESP_PLATFORM
-    bb_err_t err = bb_nv_set_u16(TAIPAN_NS, "temp_target", val);
+    bb_err_t err = bb_nv_set_u16(TAIPAN_NS, "die_target", val);
     if (err != BB_OK) return err;
 #endif
-    s_config.temp_target_c = val;
+    s_config.die_target_c = val;
+    return BB_OK;
+}
+
+bb_err_t taipan_config_set_vr_target_c(uint16_t val)
+{
+    if (val < 50) val = 50;
+    if (val > 100) val = 100;
+#ifdef ESP_PLATFORM
+    bb_err_t err = bb_nv_set_u16(TAIPAN_NS, "vr_target", val);
+    if (err != BB_OK) return err;
+#endif
+    s_config.vr_target_c = val;
     return BB_OK;
 }
 

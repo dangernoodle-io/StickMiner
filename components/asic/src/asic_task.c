@@ -339,10 +339,11 @@ void asic_mining_task(void *arg)
     TickType_t last_reg_poll = 0;
     uint32_t nonces_since_log = 0;
 
-    // TA-315: initialize PID autofan controller.
+    // TA-315/TA-352: initialize PID autofan controller.
     // Ticks at 5000 ms — our existing temp tick cadence (AxeOS uses 100 ms but
     // a separate task; we fold it into the existing 5s tick to keep the patch small).
-    s_pid_setpoint = (float)taipan_config_temp_target_c();
+    // Start with die target; actual setpoint is selected per-tick via ratio.
+    s_pid_setpoint = (float)taipan_config_die_target_c();
     s_pid_output   = (float)taipan_config_min_fan_pct();
     s_pid_input    = s_pid_setpoint;
     pid_init(&s_pid, &s_pid_input, &s_pid_output, &s_pid_setpoint,
@@ -669,9 +670,10 @@ void asic_mining_task(void *arg)
                 // Fail-safe: temp read failed → max cooling
                 fan_duty = 100;
             } else if (taipan_config_autofan_enabled()) {
-                // Refresh live-tunable setpoint and min from config each tick
-                s_pid_setpoint = (float)taipan_config_temp_target_c();
-                float new_min  = (float)taipan_config_min_fan_pct();
+                // Refresh live-tunable targets and min from config each tick
+                float die_target = (float)taipan_config_die_target_c();
+                float vr_target  = (float)taipan_config_vr_target_c();
+                float new_min    = (float)taipan_config_min_fan_pct();
                 pid_set_output_limits(&s_pid, new_min, 100.0f);
 
                 // TA-141: Apply independent EMA filter (alpha=0.2) to die temperature
@@ -699,12 +701,18 @@ void asic_mining_task(void *arg)
                     }
                 }
 
-                // TA-141: Compute PID input as max(die_ema, vr_ema) with source tracking
-                if (vr_temp_valid && s_vr_ema > s_die_ema) {
-                    s_pid_input = s_vr_ema;
+                // TA-352: Compute PID input and setpoint based on ratio of error over target.
+                // Whichever subsystem has the larger (error / target) ratio wins.
+                // If VR sensor is invalid, die wins by default.
+                float die_ratio = (s_die_ema - die_target) / die_target;
+                float vr_ratio  = vr_temp_valid ? (s_vr_ema - vr_target) / vr_target : -1e9f;
+                if (vr_ratio > die_ratio) {
+                    s_pid_input    = s_vr_ema;
+                    s_pid_setpoint = vr_target;
                     s_pid_input_src = "vr";
                 } else {
-                    s_pid_input = s_die_ema;
+                    s_pid_input    = s_die_ema;
+                    s_pid_setpoint = die_target;
                     s_pid_input_src = "die";
                 }
                 s_pid_input_c = s_pid_input;

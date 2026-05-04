@@ -131,8 +131,12 @@
         </div>
         {#if $fan?.autofan}
           <div class="row">
-            <span class="k">Target temperature</span>
-            <span>{$fan.temp_target_c}°C</span>
+            <span class="k">Die target</span>
+            <span>{$fan.die_target_c}°C</span>
+          </div>
+          <div class="row">
+            <span class="k">VR target</span>
+            <span>{$fan.vr_target_c}°C</span>
           </div>
           <div class="row">
             <span class="k">Minimum fan speed</span>
