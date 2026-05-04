@@ -144,6 +144,39 @@ export interface Power {
 export interface Fan {
   rpm: number | null
   duty_pct: number | null
+  autofan: boolean
+  temp_target_c: number
+  manual_pct: number
+  min_pct: number
+  // TA-141 telemetry
+  die_ema_c: number | null
+  vr_ema_c: number | null
+  pid_input_c: number | null
+  pid_input_src: 'die' | 'vr'
+}
+
+export interface FanPatch {
+  autofan?: boolean
+  temp_target_c?: number
+  manual_pct?: number
+  min_pct?: number
+}
+
+// POST /api/fan — form-urlencoded, partial. autofan must be '1'/'0'
+// (firmware parser only treats literal '1' as true; TA-351 fixes server-side).
+export async function patchFan(body: FanPatch): Promise<void> {
+  const params = new URLSearchParams()
+  for (const [k, v] of Object.entries(body)) {
+    if (v === undefined) continue
+    if (k === 'autofan') params.set(k, v ? '1' : '0')
+    else params.set(k, String(v))
+  }
+  const res = await fetch(`${baseUrl}/api/fan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString()
+  })
+  if (!res.ok) throw new Error(`fan patch failed: ${res.status}`)
 }
 
 export interface KnotPeer {

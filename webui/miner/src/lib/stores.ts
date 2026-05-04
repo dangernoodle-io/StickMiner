@@ -29,6 +29,9 @@ export const pool = writable<Pool | null>(null)
 export const hasAsic = writable<boolean>(false)
 export const connected = writable<boolean>(false)
 
+// TA-315: single FanEditDialog mounted at app root; pages flip this to open.
+export const fanEditOpen = writable<boolean>(false)
+
 // OTA UI state — persists across page navigations so a check result and install
 // progress remain visible when returning to the Update page.
 export type OtaKind = '' | 'ok' | 'avail' | 'err'

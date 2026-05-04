@@ -188,6 +188,7 @@ UI-only changes merged to `main` do NOT auto-deploy — run the workflow manuall
 - Host test scope: SHA-256, Stratum parsing, coinbase/merkle, header serialization, target, mining loop (nonce iteration, early reject, share finding), CRC, PLL, BM1370 framing
 - Device test scope: mining integration, NVS persistence, live pool handshake
 - Anonymize test data per workspace rules
+- **Verifying firmware fixes**: do not call a fix "worked" until the device has (1) survived the OTA mark-valid window (first share accepted OR the 15-min stratum-auth timer in `ota_validator`), (2) survived a full OTA from the previously-broken version on a device that historically reproduced the bug, and (3) shown no `abnormal reset count` increment after the test window. With only one of these, say "looks ok so far" — not "fixed."
 
 ## Releases
 

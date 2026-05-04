@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { fetchSettings, patchSettings, type Settings } from '../lib/api'
-  import { stats, info, hasAsic } from '../lib/stores'
+  import { stats, info, fan, hasAsic, fanEditOpen } from '../lib/stores'
   import Toggle from '../components/Toggle.svelte'
 
   let loading = true
@@ -119,24 +119,40 @@
         </p>
       </div>
 
-      <!-- Fan -->
-      <h2 class="section-head">Fan <span class="tag pending">TA-141</span></h2>
-      <div class="settings pending">
+      <!-- Fan (TA-315) -->
+      <h2 class="section-head">
+        Fan
+        <button class="btn outline sm" disabled={!$fan} on:click={() => fanEditOpen.set(true)}>Edit</button>
+      </h2>
+      <div class="settings">
         <div class="row">
           <span class="k">Mode</span>
-          <select disabled>
-            <option>Auto (target temp)</option>
-            <option>Manual duty</option>
-          </select>
+          <span>{$fan?.autofan ? 'Auto (target temp)' : 'Manual duty'}</span>
         </div>
-        <div class="row">
-          <span class="k">Target temperature</span>
-          <div class="unit-input">
-            <input type="number" value="65" disabled />
-            <span class="unit">°C</span>
+        {#if $fan?.autofan}
+          <div class="row">
+            <span class="k">Target temperature</span>
+            <span>{$fan.temp_target_c}°C</span>
           </div>
-        </div>
-        <p class="hint">Closed-loop fan control keeps the ASIC at a target temperature.</p>
+          <div class="row">
+            <span class="k">Minimum fan speed</span>
+            <span>{$fan.min_pct}%</span>
+          </div>
+        {:else if $fan}
+          <div class="row">
+            <span class="k">Fan speed</span>
+            <span>{$fan.manual_pct}%</span>
+          </div>
+        {/if}
+        {#if $fan}
+          <p class="hint">
+            Live: {$fan.duty_pct ?? '—'}% · {$fan.rpm ?? '—'} rpm
+            {#if $fan.autofan && $fan.pid_input_src}
+              · PID following {$fan.pid_input_src.toUpperCase()}
+              {#if $fan.pid_input_c != null} ({$fan.pid_input_c.toFixed(1)}°C){/if}
+            {/if}
+          </p>
+        {/if}
       </div>
     {/if}
 
@@ -228,7 +244,7 @@
     gap: 12px;
   }
 
-  input[type="text"], input[type="password"], input[type="number"], select {
+  input[type="text"], input[type="password"], input[type="number"] {
     padding: 7px 10px;
     background: var(--input);
     color: var(--text);
@@ -239,8 +255,8 @@
     font-variant-numeric: tabular-nums;
   }
 
-  input:focus, select:focus { outline: none; border-color: var(--accent); }
-  input:disabled, select:disabled { opacity: 0.6; cursor: not-allowed; }
+  input:focus { outline: none; border-color: var(--accent); }
+  input:disabled { opacity: 0.6; cursor: not-allowed; }
 
   input[type="number"] { width: 90px; }
 
@@ -307,4 +323,10 @@
   }
 
   .error { color: var(--danger); }
+
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
 </style>
