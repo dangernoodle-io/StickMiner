@@ -62,6 +62,13 @@ export function fmtNetDiff(d: number): string {
   return d.toFixed(0)
 }
 
+// Pool difficulty: whole number when >= 1, else 2 sig figs (preserves sub-1 values like 0.01).
+export function fmtPoolDiff(d: number | null | undefined): string {
+  if (d == null || !Number.isFinite(d)) return '—'
+  if (d >= 1) return Math.round(d).toString()
+  return d.toPrecision(2)
+}
+
 // Compact difficulty formatter without sign check (used for share diffs).
 export function fmtDiff(d: number): string {
   if (d >= 1e9) return (d / 1e9).toFixed(2) + 'G'
@@ -104,11 +111,19 @@ export function fmtPct(v: number | null): string {
 }
 
 export function fmtGhsNum(v: number | null): string {
-  return v == null ? '—' : v >= 1000 ? (v/1000).toFixed(2) : v.toFixed(0)
+  if (v == null) return '—'
+  if (v >= 1000) return (v / 1000).toFixed(2)
+  if (v >= 1) return v.toFixed(0)
+  if (v >= 0.001) return (v * 1000).toFixed(1)
+  return (v * 1e6).toFixed(1)
 }
 
 export function fmtGhsUnit(v: number | null): string {
-  return v == null ? '' : v >= 1000 ? 'TH/s' : 'GH/s'
+  if (v == null) return ''
+  if (v >= 1000) return 'TH/s'
+  if (v >= 1) return 'GH/s'
+  if (v >= 0.001) return 'MH/s'
+  return 'kH/s'
 }
 
 export function rssiBars(r: number | null | undefined): string {

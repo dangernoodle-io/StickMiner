@@ -1,5 +1,6 @@
 <script lang="ts">
   import { pool } from '../lib/stores'
+  import { fmtPoolDiff } from '../lib/fmt'
 
   // Connection indicator: green=connected, red=not connected, gray=unknown.
   $: dotClass =
@@ -23,7 +24,7 @@
   </div>
 
   <div class="right">
-    diff <strong>{$pool?.current_difficulty != null ? Math.round($pool.current_difficulty) : '—'}</strong>
+    diff <strong>{fmtPoolDiff($pool?.current_difficulty)}</strong>
   </div>
 </div>
 
