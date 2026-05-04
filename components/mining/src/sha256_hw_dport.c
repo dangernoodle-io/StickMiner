@@ -133,10 +133,6 @@ static inline bool dport_read_digest_swap_if(uint8_t out[32])
 {
     DPORT_INTERRUPT_DISABLE();                     /* mining.cpp:907 */
     uint32_t fin = DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 7 * 4); /* mining.cpp:908 */
-    if ((uint32_t)(fin & 0xFFFF) != 0) {           /* mining.cpp:909 */
-        DPORT_INTERRUPT_RESTORE();                 /* mining.cpp:911 */
-        return false;                              /* mining.cpp:912 */
-    }
     bb_store_be32(out + 7 * 4, __builtin_bswap32(fin)); /* mining.cpp:914 */
     bb_store_be32(out + 0 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 0 * 4))); /* mining.cpp:915 */
     bb_store_be32(out + 1 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 1 * 4))); /* mining.cpp:916 */
