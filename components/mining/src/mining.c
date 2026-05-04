@@ -95,6 +95,7 @@ sha_overlap_state_t mining_get_sha_hwrite_state(void) {
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_task_wdt.h"
+#include "mining_avg.h"
 #if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
 #include "sha256_hw_ahb.h"
 #elif CONFIG_IDF_TARGET_ESP32
@@ -112,6 +113,34 @@ QueueHandle_t result_queue = NULL;
 mining_stats_t mining_stats = {0};
 
 static temperature_sensor_handle_t s_temp_handle = NULL;
+
+#ifndef ASIC_CHIP
+/* Non-ASIC rolling 1m/10m/1h hashrate sampler. ASIC builds feed their own
+ * buffers from asic_task.c via the same mining_avg helper. */
+static unsigned long    s_hw_avg_poll_count = 0;
+static float            s_hw_hr_1m[MINING_AVG_1M_SIZE];
+static float            s_hw_hr_10m[MINING_AVG_10M_SIZE];
+static float            s_hw_hr_1h[MINING_AVG_1H_SIZE];
+static float            s_hw_hr_10m_prev = NAN;
+static float            s_hw_hr_1h_prev  = NAN;
+static esp_timer_handle_t s_hw_avg_timer = NULL;
+
+static void hw_avg_timer_cb(void *arg)
+{
+    (void)arg;
+    if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(50)) != pdTRUE) return;
+    float sample = (float)mining_stats.hw_hashrate;
+    float out_1m = 0.0f, out_10m = 0.0f, out_1h = 0.0f;
+    mining_avg_update(s_hw_avg_poll_count++, sample,
+                      s_hw_hr_1m, s_hw_hr_10m, s_hw_hr_1h,
+                      &s_hw_hr_10m_prev, &s_hw_hr_1h_prev,
+                      &out_1m, &out_10m, &out_1h);
+    mining_stats.hashrate_1m  = out_1m;
+    mining_stats.hashrate_10m = out_10m;
+    mining_stats.hashrate_1h  = out_1h;
+    xSemaphoreGive(mining_stats.mutex);
+}
+#endif
 
 // TA-341 + TA-320f: run SHA self-tests + boot probes synchronously in
 // app_main, before any task starts. Self-tests gate mining (failure flag
@@ -185,6 +214,23 @@ void mining_stats_init(void)
 {
     mining_stats.mutex = xSemaphoreCreateMutex();
     mining_stats.session.start_us = esp_timer_get_time();
+#ifndef ASIC_CHIP
+    mining_stats.hashrate_1m  = -1.0f;
+    mining_stats.hashrate_10m = -1.0f;
+    mining_stats.hashrate_1h  = -1.0f;
+    mining_stats.hw_error_pct_1m  = -1.0f;
+    mining_stats.hw_error_pct_10m = -1.0f;
+    mining_stats.hw_error_pct_1h  = -1.0f;
+    for (size_t i = 0; i < MINING_AVG_1M_SIZE;  i++) s_hw_hr_1m[i]  = NAN;
+    for (size_t i = 0; i < MINING_AVG_10M_SIZE; i++) s_hw_hr_10m[i] = NAN;
+    for (size_t i = 0; i < MINING_AVG_1H_SIZE;  i++) s_hw_hr_1h[i]  = NAN;
+    const esp_timer_create_args_t hw_avg_args = {
+        .callback = &hw_avg_timer_cb,
+        .name = "hw_avg",
+    };
+    BB_ERROR_CHECK(esp_timer_create(&hw_avg_args, &s_hw_avg_timer));
+    BB_ERROR_CHECK(esp_timer_start_periodic(s_hw_avg_timer, 5000000ULL));
+#endif
 #ifdef ASIC_CHIP
     mining_stats.vcore_mv = -1;
     mining_stats.icore_ma = -1;

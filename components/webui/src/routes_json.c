@@ -52,6 +52,21 @@ void build_stats_json(const stats_snapshot_t *s, bb_json_t root)
         bb_json_obj_set_null(root, "expected_ghs");
     }
 
+#ifndef ASIC_CHIP
+#define EMIT_NULLABLE(field, name) \
+    do { \
+        if ((s->field) >= 0.0) bb_json_obj_set_number(root, name, (double)(s->field)); \
+        else                   bb_json_obj_set_null  (root, name); \
+    } while (0)
+    EMIT_NULLABLE(hashrate_1m,      "hashrate_1m");
+    EMIT_NULLABLE(hashrate_10m,     "hashrate_10m");
+    EMIT_NULLABLE(hashrate_1h,      "hashrate_1h");
+    EMIT_NULLABLE(hw_error_pct_1m,  "hw_error_pct_1m");
+    EMIT_NULLABLE(hw_error_pct_10m, "hw_error_pct_10m");
+    EMIT_NULLABLE(hw_error_pct_1h,  "hw_error_pct_1h");
+#undef EMIT_NULLABLE
+#endif
+
 #ifdef ASIC_CHIP
     bb_json_obj_set_number(root, "asic_hashrate",     s->asic_rate);
     bb_json_obj_set_number(root, "asic_hashrate_avg", s->asic_ema);

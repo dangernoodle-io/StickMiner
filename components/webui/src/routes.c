@@ -173,6 +173,14 @@ static bb_err_t stats_handler(bb_http_request_t *req)
     stats_snapshot_t s = {0};
     s.session_rejected_other_last_code = -1;
     s.expected_ghs = -1.0;
+#ifndef ASIC_CHIP
+    s.hashrate_1m = -1.0;
+    s.hashrate_10m = -1.0;
+    s.hashrate_1h = -1.0;
+    s.hw_error_pct_1m = -1.0;
+    s.hw_error_pct_10m = -1.0;
+    s.hw_error_pct_1h = -1.0;
+#endif
 #ifdef ASIC_CHIP
     s.asic_freq_cfg = -1.0f;
     s.asic_freq_eff = -1.0f;
@@ -195,6 +203,14 @@ static bb_err_t stats_handler(bb_http_request_t *req)
         s.session_start_us = mining_stats.session.start_us;
         s.best_diff        = mining_stats.session.best_diff;
         s.lifetime_shares  = mining_stats.lifetime.total_shares;
+#ifndef ASIC_CHIP
+        s.hashrate_1m       = (double)mining_stats.hashrate_1m;
+        s.hashrate_10m      = (double)mining_stats.hashrate_10m;
+        s.hashrate_1h       = (double)mining_stats.hashrate_1h;
+        s.hw_error_pct_1m   = (double)mining_stats.hw_error_pct_1m;
+        s.hw_error_pct_10m  = (double)mining_stats.hw_error_pct_10m;
+        s.hw_error_pct_1h   = (double)mining_stats.hw_error_pct_1h;
+#endif
 #ifdef ASIC_CHIP
         s.asic_rate         = mining_stats.asic_hashrate;
         s.asic_ema          = mining_stats.asic_ema.value;

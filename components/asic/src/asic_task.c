@@ -5,7 +5,7 @@
 #include "asic_proto.h"
 #include "asic_internal.h"
 #include "asic_pause_coalesce.h"
-#include "asic_metric_avg.h"
+#include "mining_avg.h"
 #include "asic_drop_detect.h"
 #include "asic_drop_log.h"
 #include "asic_chip_routing.h"
@@ -137,11 +137,11 @@ static asic_drop_log_t s_drop_log;
 
 // TA-196: rolling-window averages mirroring ESP-Miner's hashrate_monitor_task.c
 #define ASIC_POLL_PERIOD_MS 5000
-#define ASIC_AVG_1M_SIZE    ASIC_METRIC_AVG_1M_SIZE
-#define ASIC_AVG_10M_SIZE   ASIC_METRIC_AVG_10M_SIZE
-#define ASIC_AVG_1H_SIZE    ASIC_METRIC_AVG_1H_SIZE
-#define ASIC_AVG_DIV_10M    ASIC_METRIC_AVG_DIV_10M
-#define ASIC_AVG_DIV_1H     ASIC_METRIC_AVG_DIV_1H
+#define ASIC_AVG_1M_SIZE    MINING_AVG_1M_SIZE
+#define ASIC_AVG_10M_SIZE   MINING_AVG_10M_SIZE
+#define ASIC_AVG_1H_SIZE    MINING_AVG_1H_SIZE
+#define ASIC_AVG_DIV_10M    MINING_AVG_DIV_10M
+#define ASIC_AVG_DIV_1H     MINING_AVG_DIV_1H
 
 static unsigned long s_avg_poll_count;
 static float s_total_1m[ASIC_AVG_1M_SIZE];
@@ -777,11 +777,11 @@ void asic_mining_task(void *arg)
 
             float t_1m = 0.0f, t_10m = 0.0f, t_1h = 0.0f;
             float h_1m = 0.0f, h_10m = 0.0f, h_1h = 0.0f;
-            asic_metric_avg_update(s_avg_poll_count, total_sum,
+            mining_avg_update(s_avg_poll_count, total_sum,
                                    s_total_1m, s_total_10m, s_total_1h,
                                    &s_total_10m_prev, &s_total_1h_prev,
                                    &t_1m, &t_10m, &t_1h);
-            asic_metric_avg_update(s_avg_poll_count, hw_err_pct,
+            mining_avg_update(s_avg_poll_count, hw_err_pct,
                                    s_hw_err_1m, s_hw_err_10m, s_hw_err_1h,
                                    &s_hw_err_10m_prev, &s_hw_err_1h_prev,
                                    &h_1m, &h_10m, &h_1h);

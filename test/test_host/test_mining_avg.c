@@ -1,54 +1,54 @@
 #include "unity.h"
-#include "asic_metric_avg.h"
+#include "mining_avg.h"
 
 #include <math.h>
 
-// TA-234: asic_metric_avg
+// TA-234: mining_avg
 
 void test_avg_nan_safe_empty_all_nan(void)
 {
     float buf[4] = {NAN, NAN, NAN, NAN};
-    float result = asic_metric_avg_nan_safe(buf, 4);
+    float result = mining_avg_nan_safe(buf, 4);
     TEST_ASSERT_EQUAL_FLOAT(0.0f, result);
 }
 
 void test_avg_nan_safe_single_value(void)
 {
     float buf[4] = {5.0f, NAN, NAN, NAN};
-    float result = asic_metric_avg_nan_safe(buf, 4);
+    float result = mining_avg_nan_safe(buf, 4);
     TEST_ASSERT_EQUAL_FLOAT(5.0f, result);
 }
 
 void test_avg_nan_safe_partial_nan(void)
 {
     float buf[4] = {2.0f, NAN, 4.0f, NAN};
-    float result = asic_metric_avg_nan_safe(buf, 4);
+    float result = mining_avg_nan_safe(buf, 4);
     TEST_ASSERT_FLOAT_WITHIN(0.001f, 3.0f, result);
 }
 
 void test_avg_nan_safe_all_populated(void)
 {
     float buf[4] = {1.0f, 2.0f, 3.0f, 4.0f};
-    float result = asic_metric_avg_nan_safe(buf, 4);
+    float result = mining_avg_nan_safe(buf, 4);
     TEST_ASSERT_FLOAT_WITHIN(0.001f, 2.5f, result);
 }
 
 void test_update_warmup_1m(void)
 {
-    float buf_1m[ASIC_METRIC_AVG_1M_SIZE];
-    float buf_10m[ASIC_METRIC_AVG_10M_SIZE];
-    float buf_1h[ASIC_METRIC_AVG_1H_SIZE];
+    float buf_1m[MINING_AVG_1M_SIZE];
+    float buf_10m[MINING_AVG_10M_SIZE];
+    float buf_1h[MINING_AVG_1H_SIZE];
     float prev_10m = NAN, prev_1h = NAN;
     float out_1m, out_10m, out_1h;
 
-    for (int i = 0; i < ASIC_METRIC_AVG_1M_SIZE; i++) {
+    for (int i = 0; i < MINING_AVG_1M_SIZE; i++) {
         buf_1m[i] = NAN;
         buf_10m[i] = NAN;
         buf_1h[i] = NAN;
     }
 
     // First call: sample 10.0
-    asic_metric_avg_update(0, 10.0f,
+    mining_avg_update(0, 10.0f,
                            buf_1m, buf_10m, buf_1h,
                            &prev_10m, &prev_1h,
                            &out_1m, &out_10m, &out_1h);
@@ -59,13 +59,13 @@ void test_update_warmup_1m(void)
 
 void test_update_full_1m_window(void)
 {
-    float buf_1m[ASIC_METRIC_AVG_1M_SIZE];
-    float buf_10m[ASIC_METRIC_AVG_10M_SIZE];
-    float buf_1h[ASIC_METRIC_AVG_1H_SIZE];
+    float buf_1m[MINING_AVG_1M_SIZE];
+    float buf_10m[MINING_AVG_10M_SIZE];
+    float buf_1h[MINING_AVG_1H_SIZE];
     float prev_10m = NAN, prev_1h = NAN;
     float out_1m, out_10m, out_1h;
 
-    for (int i = 0; i < ASIC_METRIC_AVG_1M_SIZE; i++) {
+    for (int i = 0; i < MINING_AVG_1M_SIZE; i++) {
         buf_1m[i] = NAN;
         buf_10m[i] = NAN;
         buf_1h[i] = NAN;
@@ -73,8 +73,8 @@ void test_update_full_1m_window(void)
 
     // Feed 12 samples of constant value 100.0
     float sample_val = 100.0f;
-    for (unsigned long pc = 0; pc < ASIC_METRIC_AVG_1M_SIZE; pc++) {
-        asic_metric_avg_update(pc, sample_val,
+    for (unsigned long pc = 0; pc < MINING_AVG_1M_SIZE; pc++) {
+        mining_avg_update(pc, sample_val,
                                buf_1m, buf_10m, buf_1h,
                                &prev_10m, &prev_1h,
                                &out_1m, &out_10m, &out_1h);
@@ -86,21 +86,21 @@ void test_update_full_1m_window(void)
 
 void test_update_step_change(void)
 {
-    float buf_1m[ASIC_METRIC_AVG_1M_SIZE];
-    float buf_10m[ASIC_METRIC_AVG_10M_SIZE];
-    float buf_1h[ASIC_METRIC_AVG_1H_SIZE];
+    float buf_1m[MINING_AVG_1M_SIZE];
+    float buf_10m[MINING_AVG_10M_SIZE];
+    float buf_1h[MINING_AVG_1H_SIZE];
     float prev_10m = NAN, prev_1h = NAN;
     float out_1m, out_10m, out_1h;
 
-    for (int i = 0; i < ASIC_METRIC_AVG_1M_SIZE; i++) {
+    for (int i = 0; i < MINING_AVG_1M_SIZE; i++) {
         buf_1m[i] = NAN;
         buf_10m[i] = NAN;
         buf_1h[i] = NAN;
     }
 
     // Feed 12 samples of 50.0
-    for (unsigned long pc = 0; pc < ASIC_METRIC_AVG_1M_SIZE; pc++) {
-        asic_metric_avg_update(pc, 50.0f,
+    for (unsigned long pc = 0; pc < MINING_AVG_1M_SIZE; pc++) {
+        mining_avg_update(pc, 50.0f,
                                buf_1m, buf_10m, buf_1h,
                                &prev_10m, &prev_1h,
                                &out_1m, &out_10m, &out_1h);
@@ -108,8 +108,8 @@ void test_update_step_change(void)
     TEST_ASSERT_FLOAT_WITHIN(0.001f, 50.0f, out_1m);
 
     // Now feed 12 samples of 100.0 (step change)
-    for (unsigned long pc = ASIC_METRIC_AVG_1M_SIZE; pc < 2 * ASIC_METRIC_AVG_1M_SIZE; pc++) {
-        asic_metric_avg_update(pc, 100.0f,
+    for (unsigned long pc = MINING_AVG_1M_SIZE; pc < 2 * MINING_AVG_1M_SIZE; pc++) {
+        mining_avg_update(pc, 100.0f,
                                buf_1m, buf_10m, buf_1h,
                                &prev_10m, &prev_1h,
                                &out_1m, &out_10m, &out_1h);
@@ -125,13 +125,13 @@ void test_update_step_change(void)
 
 void test_update_ring_wraparound(void)
 {
-    float buf_1m[ASIC_METRIC_AVG_1M_SIZE];
-    float buf_10m[ASIC_METRIC_AVG_10M_SIZE];
-    float buf_1h[ASIC_METRIC_AVG_1H_SIZE];
+    float buf_1m[MINING_AVG_1M_SIZE];
+    float buf_10m[MINING_AVG_10M_SIZE];
+    float buf_1h[MINING_AVG_1H_SIZE];
     float prev_10m = NAN, prev_1h = NAN;
     float out_1m, out_10m, out_1h;
 
-    for (int i = 0; i < ASIC_METRIC_AVG_1M_SIZE; i++) {
+    for (int i = 0; i < MINING_AVG_1M_SIZE; i++) {
         buf_1m[i] = NAN;
         buf_10m[i] = NAN;
         buf_1h[i] = NAN;
@@ -140,7 +140,7 @@ void test_update_ring_wraparound(void)
     // Feed > 12 samples (wrap around the 1m ring buffer)
     for (unsigned long pc = 0; pc < 20; pc++) {
         float val = (float)(pc + 1);
-        asic_metric_avg_update(pc, val,
+        mining_avg_update(pc, val,
                                buf_1m, buf_10m, buf_1h,
                                &prev_10m, &prev_1h,
                                &out_1m, &out_10m, &out_1h);
@@ -154,21 +154,21 @@ void test_update_ring_wraparound(void)
 
 void test_update_10m_blend_formula(void)
 {
-    float buf_1m[ASIC_METRIC_AVG_1M_SIZE];
-    float buf_10m[ASIC_METRIC_AVG_10M_SIZE];
-    float buf_1h[ASIC_METRIC_AVG_1H_SIZE];
+    float buf_1m[MINING_AVG_1M_SIZE];
+    float buf_10m[MINING_AVG_10M_SIZE];
+    float buf_1h[MINING_AVG_1H_SIZE];
     float prev_10m = NAN, prev_1h = NAN;
     float out_1m, out_10m, out_1h;
 
-    for (int i = 0; i < ASIC_METRIC_AVG_1M_SIZE; i++) {
+    for (int i = 0; i < MINING_AVG_1M_SIZE; i++) {
         buf_1m[i] = NAN;
         buf_10m[i] = NAN;
         buf_1h[i] = NAN;
     }
 
     // Fill 1m with value A = 50.0
-    for (unsigned long pc = 0; pc < ASIC_METRIC_AVG_1M_SIZE; pc++) {
-        asic_metric_avg_update(pc, 50.0f,
+    for (unsigned long pc = 0; pc < MINING_AVG_1M_SIZE; pc++) {
+        mining_avg_update(pc, 50.0f,
                                buf_1m, buf_10m, buf_1h,
                                &prev_10m, &prev_1h,
                                &out_1m, &out_10m, &out_1h);
@@ -181,8 +181,8 @@ void test_update_10m_blend_formula(void)
     // so out_10m should reflect that one value
 
     // Check that at poll_count boundary transitions are smooth
-    for (unsigned long pc = ASIC_METRIC_AVG_1M_SIZE; pc < 2 * ASIC_METRIC_AVG_1M_SIZE; pc++) {
-        asic_metric_avg_update(pc, 50.0f,
+    for (unsigned long pc = MINING_AVG_1M_SIZE; pc < 2 * MINING_AVG_1M_SIZE; pc++) {
+        mining_avg_update(pc, 50.0f,
                                buf_1m, buf_10m, buf_1h,
                                &prev_10m, &prev_1h,
                                &out_1m, &out_10m, &out_1h);
@@ -195,13 +195,13 @@ void test_update_10m_blend_formula(void)
 
 void test_update_1h_accumulation(void)
 {
-    float buf_1m[ASIC_METRIC_AVG_1M_SIZE];
-    float buf_10m[ASIC_METRIC_AVG_10M_SIZE];
-    float buf_1h[ASIC_METRIC_AVG_1H_SIZE];
+    float buf_1m[MINING_AVG_1M_SIZE];
+    float buf_10m[MINING_AVG_10M_SIZE];
+    float buf_1h[MINING_AVG_1H_SIZE];
     float prev_10m = NAN, prev_1h = NAN;
     float out_1m, out_10m, out_1h;
 
-    for (int i = 0; i < ASIC_METRIC_AVG_1M_SIZE; i++) {
+    for (int i = 0; i < MINING_AVG_1M_SIZE; i++) {
         buf_1m[i] = NAN;
         buf_10m[i] = NAN;
         buf_1h[i] = NAN;
@@ -212,7 +212,7 @@ void test_update_1h_accumulation(void)
     // At pc == 120, blend_1h == 0, so prev_1h is set and 1h blend begins
     unsigned long target_pc = 120;
     for (unsigned long pc = 0; pc <= target_pc; pc++) {
-        asic_metric_avg_update(pc, 75.0f,
+        mining_avg_update(pc, 75.0f,
                                buf_1m, buf_10m, buf_1h,
                                &prev_10m, &prev_1h,
                                &out_1m, &out_10m, &out_1h);
@@ -226,21 +226,21 @@ void test_update_1h_accumulation(void)
 
 void test_update_with_zero_samples(void)
 {
-    float buf_1m[ASIC_METRIC_AVG_1M_SIZE];
-    float buf_10m[ASIC_METRIC_AVG_10M_SIZE];
-    float buf_1h[ASIC_METRIC_AVG_1H_SIZE];
+    float buf_1m[MINING_AVG_1M_SIZE];
+    float buf_10m[MINING_AVG_10M_SIZE];
+    float buf_1h[MINING_AVG_1H_SIZE];
     float prev_10m = NAN, prev_1h = NAN;
     float out_1m, out_10m, out_1h;
 
-    for (int i = 0; i < ASIC_METRIC_AVG_1M_SIZE; i++) {
+    for (int i = 0; i < MINING_AVG_1M_SIZE; i++) {
         buf_1m[i] = NAN;
         buf_10m[i] = NAN;
         buf_1h[i] = NAN;
     }
 
     // Feed zeros (not NAN, but zero value)
-    for (unsigned long pc = 0; pc < ASIC_METRIC_AVG_1M_SIZE; pc++) {
-        asic_metric_avg_update(pc, 0.0f,
+    for (unsigned long pc = 0; pc < MINING_AVG_1M_SIZE; pc++) {
+        mining_avg_update(pc, 0.0f,
                                buf_1m, buf_10m, buf_1h,
                                &prev_10m, &prev_1h,
                                &out_1m, &out_10m, &out_1h);
@@ -251,13 +251,13 @@ void test_update_with_zero_samples(void)
 
 void test_update_mixed_values(void)
 {
-    float buf_1m[ASIC_METRIC_AVG_1M_SIZE];
-    float buf_10m[ASIC_METRIC_AVG_10M_SIZE];
-    float buf_1h[ASIC_METRIC_AVG_1H_SIZE];
+    float buf_1m[MINING_AVG_1M_SIZE];
+    float buf_10m[MINING_AVG_10M_SIZE];
+    float buf_1h[MINING_AVG_1H_SIZE];
     float prev_10m = NAN, prev_1h = NAN;
     float out_1m, out_10m, out_1h;
 
-    for (int i = 0; i < ASIC_METRIC_AVG_1M_SIZE; i++) {
+    for (int i = 0; i < MINING_AVG_1M_SIZE; i++) {
         buf_1m[i] = NAN;
         buf_10m[i] = NAN;
         buf_1h[i] = NAN;
@@ -266,8 +266,8 @@ void test_update_mixed_values(void)
     // Alternate between 10.0 and 20.0
     float values[] = {10.0f, 20.0f, 10.0f, 20.0f, 10.0f, 20.0f,
                       10.0f, 20.0f, 10.0f, 20.0f, 10.0f, 20.0f};
-    for (unsigned long pc = 0; pc < ASIC_METRIC_AVG_1M_SIZE; pc++) {
-        asic_metric_avg_update(pc, values[pc % 2],
+    for (unsigned long pc = 0; pc < MINING_AVG_1M_SIZE; pc++) {
+        mining_avg_update(pc, values[pc % 2],
                                buf_1m, buf_10m, buf_1h,
                                &prev_10m, &prev_1h,
                                &out_1m, &out_10m, &out_1h);
