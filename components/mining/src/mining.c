@@ -1,4 +1,5 @@
 #include "mining.h"
+#include "share_validate.h"
 #include "diag.h"
 #ifdef ASIC_CHIP
 #include "board.h"
@@ -587,45 +588,61 @@ bool mine_nonce_range(hash_backend_t *backend,
         hash_result_t hr = backend->hash_nonce(backend, nonce, hash);
 #endif
 
-        if (hr == HASH_CHECK && meets_target(hash, work->target)) {
-            mining_result_t result;
-            package_result(&result, work, nonce, params->ver_bits);
-
+        if (hr == HASH_CHECK) {
 #ifdef ESP_PLATFORM
-            double share_diff = hash_to_difficulty(hash);
+            // On device: full ordered validation — is_target_valid first to avoid
+            // operating on corrupt targets (fixes SW-path ordering bug).
+            double share_diff = 0.0;
+            share_verdict_t verdict = share_validate(work, hash, &share_diff);
 
-            // Sanity check: target/difficulty must be valid and share must meet pool diff
-            if (work->difficulty < 0.001 || !is_target_valid(work->target) ||
-                share_diff < work->difficulty * 0.5) {
+            if (verdict == SHARE_BELOW_TARGET) {
+                // Normal miss — hash passed HW pre-filter but missed the real target.
+            } else if (verdict == SHARE_INVALID_TARGET || verdict == SHARE_LOW_DIFFICULTY) {
                 bb_log_e(TAG, "share sanity fail: share_diff=%.4f pool_diff=%.4f, skipping",
                          share_diff, work->difficulty);
-                continue;
-            }
+            } else {
+                // SHARE_VALID
+                mining_result_t result;
+                package_result(&result, work, nonce, params->ver_bits);
+                bb_log_i(TAG, "share found! (nonce=%08" PRIx32 ")", nonce);
 
-            bb_log_i(TAG, "share found! (nonce=%08" PRIx32 ")", nonce);
+                result.share_diff = work->difficulty;  // TA-344: pool-assigned diff at issue time
 
-            result.share_diff = work->difficulty;  // TA-344: pool-assigned diff at issue time
-
-            if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
-                if (share_diff > mining_stats.session.best_diff) {
-                    mining_stats.session.best_diff = share_diff;
+                if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
+                    if (share_diff > mining_stats.session.best_diff) {
+                        mining_stats.session.best_diff = share_diff;
+                    }
+                    xSemaphoreGive(mining_stats.mutex);
                 }
-                xSemaphoreGive(mining_stats.mutex);
-            }
 
-            if (!stratum_is_connected()) {
-                bb_log_d(TAG, "stratum disconnected, discarding share");
-            } else if (xQueueSend(result_queue, &result, 0) != pdTRUE) {
-                bb_log_w(TAG, "result queue full, share dropped");
+                if (result_out) {
+                    *result_out = result;
+                }
+                if (found_out) {
+                    *found_out = true;
+                    return false;  // device tests: stop after first hit
+                }
+
+                if (!stratum_is_connected()) {
+                    bb_log_d(TAG, "stratum disconnected, discarding share");
+                } else if (xQueueSend(result_queue, &result, 0) != pdTRUE) {
+                    bb_log_w(TAG, "result queue full, share dropped");
+                }
+            }
+#else
+            // In host tests: lightweight check — meets_target only (no FreeRTOS/stratum).
+            if (meets_target(hash, work->target)) {
+                mining_result_t result;
+                package_result(&result, work, nonce, params->ver_bits);
+                if (result_out) {
+                    *result_out = result;
+                }
+                if (found_out) {
+                    *found_out = true;
+                    return false;  // in tests, stop after first hit
+                }
             }
 #endif
-            if (result_out) {
-                *result_out = result;
-            }
-            if (found_out) {
-                *found_out = true;
-                return false;  // in tests, stop after first hit
-            }
         }
 
 #ifdef ESP_PLATFORM

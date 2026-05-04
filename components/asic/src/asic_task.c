@@ -10,7 +10,7 @@
 #include "asic_drop_log.h"
 #include "asic_chip_routing.h"
 #include "asic_nonce_dedup.h"
-#include "asic_share_validator.h"
+#include "share_validate.h"
 #include "crc.h"
 #include "tps546.h"
 #include "emc2101.h"
@@ -623,20 +623,33 @@ void asic_mining_task(void *arg)
 
             nonces_since_log++;
 
-            double share_diff = 0.0;
+            // Reconstruct the header with version rolling and nonce applied,
+            // then SHA256d it — mirroring the logic formerly in asic_share_validate.
+            uint8_t header_copy[80];
+            memcpy(header_copy, orig->header, 80);
+            if (ver_bits != 0 && orig->version_mask != 0) {
+                uint32_t rolled = (orig->version & ~orig->version_mask) | (ver_bits & orig->version_mask);
+                header_copy[0] = (uint8_t)(rolled);
+                header_copy[1] = (uint8_t)(rolled >> 8);
+                header_copy[2] = (uint8_t)(rolled >> 16);
+                header_copy[3] = (uint8_t)(rolled >> 24);
+            }
+            header_copy[76] = (uint8_t)(nonce_le);
+            header_copy[77] = (uint8_t)(nonce_le >> 8);
+            header_copy[78] = (uint8_t)(nonce_le >> 16);
+            header_copy[79] = (uint8_t)(nonce_le >> 24);
+
             uint8_t hash[32];
-            asic_share_verdict_t verdict = asic_share_validate(orig, nonce_le, ver_bits, &share_diff, hash);
-            if (verdict == ASIC_SHARE_BELOW_TARGET) {
+            sha256d(header_copy, 80, hash);
+
+            double share_diff = 0.0;
+            share_verdict_t verdict = share_validate(orig, hash, &share_diff);
+            if (verdict == SHARE_BELOW_TARGET) {
                 s_nonce_verify_fail++;
                 continue;
             }
             s_nonce_verify_pass++;
-            if (verdict == ASIC_SHARE_INVALID_TARGET) {
-                bb_log_e(TAG, "share sanity fail: share_diff=%.4f pool_diff=%.4f, skipping",
-                         share_diff, orig->difficulty);
-                continue;
-            }
-            if (verdict == ASIC_SHARE_LOW_DIFFICULTY) {
+            if (verdict == SHARE_INVALID_TARGET || verdict == SHARE_LOW_DIFFICULTY) {
                 bb_log_e(TAG, "share sanity fail: share_diff=%.4f pool_diff=%.4f, skipping",
                          share_diff, orig->difficulty);
                 continue;
