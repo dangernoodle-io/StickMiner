@@ -25,9 +25,10 @@ static char *serialize_and_free(bb_json_t root)
 }
 
 /* ============================================================================
- * /api/stats — ASIC path (host build now defines ASIC_CHIP)
+ * /api/stats — ASIC path only (JSON layout differs without ASIC_CHIP)
  * ========================================================================= */
 
+#ifdef ASIC_CHIP
 void test_stats_happy_path(void)
 {
     stats_snapshot_t s = {0};
@@ -142,6 +143,7 @@ void test_stats_no_share_yet(void)
     TEST_ASSERT_EQUAL_STRING(expected, json);
     bb_json_free_str(json);
 }
+#endif /* ASIC_CHIP */
 
 /* ============================================================================
  * /api/pool

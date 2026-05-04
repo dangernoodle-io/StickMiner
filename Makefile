@@ -15,8 +15,9 @@ check: ## Static analysis (cppcheck) for all default envs
 check-%: ## Static analysis for one env (e.g. make check-bitaxe-601)
 	$(PIO) check --skip-packages -e $*
 
-test: ## Run host unit tests
+test: ## Run host unit tests (ASIC and non-ASIC envs)
 	$(PIO) test -e native
+	$(PIO) test -e native-noasic
 
 coverage: test ## Coverage report (gcovr)
 	gcovr --root . --filter 'components/' --print-summary --coveralls gcovr-coveralls.json

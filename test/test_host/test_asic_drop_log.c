@@ -1,3 +1,4 @@
+#ifdef ASIC_CHIP
 #include "unity.h"
 #include "asic_drop_log.h"
 #include <string.h>
@@ -93,3 +94,4 @@ void test_drop_log_max_out_smaller_than_cap(void)
     TEST_ASSERT_EQUAL_UINT64(9, out[1].ts_us);
     TEST_ASSERT_EQUAL_UINT64(8, out[2].ts_us);
 }
+#endif /* ASIC_CHIP */

@@ -19,8 +19,8 @@ Import("env")
 
 env_name = env.subst("$PIOENV")
 
-# native env doesn't compile partition_fixup_data.c — nothing to generate.
-if env_name == "native":
+# native envs don't compile partition_fixup_data.c — nothing to generate.
+if env_name.startswith("native"):
     Return()
 
 build_dir = os.path.join(".pio", "build", env_name)

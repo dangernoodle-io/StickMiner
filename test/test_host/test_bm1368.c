@@ -1,3 +1,4 @@
+#ifdef ASIC_CHIP
 #include "unity.h"
 #include "pll.h"
 #include "asic_proto.h"
@@ -40,3 +41,4 @@ void test_asic_ticket_mask_256_bm1368(void) {
     // mask should be non-zero
     TEST_ASSERT_TRUE((mask[0] || mask[1] || mask[2] || mask[3]));
 }
+#endif /* ASIC_CHIP */

@@ -1,3 +1,4 @@
+#ifdef ASIC_CHIP
 #include "unity.h"
 #include "asic_proto.h"
 #include <math.h>
@@ -161,3 +162,4 @@ void test_asic_ticket_mask_boundary_512_1(void) {
     asic_difficulty_to_mask(512.1, mask);
     TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, mask, 4);
 }
+#endif /* ASIC_CHIP */
