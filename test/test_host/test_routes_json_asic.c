@@ -487,7 +487,7 @@ void test_stats_asic_total_valid_false(void)
 
 void test_stats_expected_ghs_populated(void)
 {
-    /* asic_freq_cfg > 0 → expected_ghs = freq_cfg * small_cores * count / 1000 */
+    /* expected_ghs field directly populated in snapshot */
     stats_snapshot_t s;
     make_stats_base(&s);
     s.asic_freq_cfg    = 500.0f;  /* MHz */
@@ -496,7 +496,7 @@ void test_stats_expected_ghs_populated(void)
     s.asic_count       = 1;
     s.asic_total_valid = false;
     s.n_chips          = 0;
-    /* expected_ghs = 500 * 2000 * 1 / 1000 = 1000 */
+    s.expected_ghs     = 1000.0;  /* precomputed by routes.c:mining_get_expected_ghs() */
 
     bb_json_t root = bb_json_obj_new();
     build_stats_json(&s, root);
@@ -506,9 +506,9 @@ void test_stats_expected_ghs_populated(void)
     bb_json_free_str(json);
 }
 
-void test_stats_expected_ghs_null_when_freq_zero(void)
+void test_stats_expected_ghs_null_when_unavailable(void)
 {
-    /* asic_freq_cfg = 0 → expected_ghs = null */
+    /* expected_ghs < 0 → emit null */
     stats_snapshot_t s;
     make_stats_base(&s);
     s.asic_freq_cfg    = 0.0f;
@@ -517,6 +517,7 @@ void test_stats_expected_ghs_null_when_freq_zero(void)
     s.asic_count       = 1;
     s.asic_total_valid = false;
     s.n_chips          = 0;
+    s.expected_ghs     = -1.0;  /* unavailable sentinel from routes.c */
 
     bb_json_t root = bb_json_obj_new();
     build_stats_json(&s, root);

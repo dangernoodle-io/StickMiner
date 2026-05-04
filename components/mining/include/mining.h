@@ -121,6 +121,13 @@ void mining_run_self_tests(void);
 void mining_set_sha_microbench(double us_per_op, double khs_ceiling);
 bool mining_get_sha_microbench(double *us_per_op, double *khs_ceiling);
 
+// Per-board expected hashrate ceiling in GH/s.
+// ASIC: asic_freq_mhz × BOARD_SMALL_CORES × BOARD_ASIC_COUNT / 1000.
+// Non-ASIC: HW SHA microbench ceiling (sha_khs_ceiling / 1e6); param ignored.
+// Returns false when no source is available (microbench not yet run, or
+// ASIC freq not yet configured / <= 0).
+bool mining_get_expected_ghs(float asic_freq_mhz, double *out_ghs);
+
 // SHA TEXT-overlap canary state (TA-320a). Set by sha256_hw_overlap_canary
 // at boot; read by /api/info. UNKNOWN means probe never ran (D0/ASIC boards).
 typedef enum {

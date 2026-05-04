@@ -172,6 +172,7 @@ static bb_err_t stats_handler(bb_http_request_t *req)
 
     stats_snapshot_t s = {0};
     s.session_rejected_other_last_code = -1;
+    s.expected_ghs = -1.0;
 #ifdef ASIC_CHIP
     s.asic_freq_cfg = -1.0f;
     s.asic_freq_eff = -1.0f;
@@ -214,6 +215,18 @@ static bb_err_t stats_handler(bb_http_request_t *req)
         s.asic_count        = BOARD_ASIC_COUNT;
 #endif
         xSemaphoreGive(mining_stats.mutex);
+    }
+
+    double expected = -1.0;
+#ifdef ASIC_CHIP
+    float expected_freq = s.asic_freq_cfg;
+#else
+    float expected_freq = 0.0f;
+#endif
+    if (mining_get_expected_ghs(expected_freq, &expected)) {
+        s.expected_ghs = expected;
+    } else {
+        s.expected_ghs = -1.0;
     }
 
     s.now_us = esp_timer_get_time();

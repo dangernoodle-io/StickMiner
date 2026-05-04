@@ -47,6 +47,7 @@ void test_stats_happy_path(void)
     s.session_start_us = 5000000LL;    /* 5 s ago */
     s.best_diff        = 131072.0;
     s.lifetime_shares  = 42;
+    s.expected_ghs     = -1.0;         /* unavailable */
     s.now_us           = 15000000LL;   /* "now" */
 
     bb_json_t root = bb_json_obj_new();
@@ -78,9 +79,10 @@ void test_stats_happy_path(void)
 
 void test_stats_zeroed(void)
 {
-    /* All-zero snapshot: uptime=0, last_share_ago_s=-1, expected_ghs=0.000223 */
+    /* All-zero snapshot: uptime=0, last_share_ago_s=-1, expected_ghs=null (unavailable) */
     stats_snapshot_t s = {0};
     s.session_rejected_other_last_code = -1;
+    s.expected_ghs = -1.0;
 
     bb_json_t root = bb_json_obj_new();
     build_stats_json(&s, root);
@@ -110,6 +112,7 @@ void test_stats_no_share_yet(void)
     /* last_share_us=0 → last_share_ago_s should be -1 */
     stats_snapshot_t s = {0};
     s.session_rejected_other_last_code = -1;
+    s.expected_ghs = -1.0;
     s.last_share_us    = 0;
     s.session_start_us = 1000000LL;
     s.now_us           = 61000000LL;  /* 60 s uptime */

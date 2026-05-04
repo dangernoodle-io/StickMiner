@@ -50,6 +50,25 @@ bool mining_get_sha_microbench(double *us_per_op, double *khs_ceiling) {
     return true;
 }
 
+// Per-board expected hashrate ceiling in GH/s (TA-339).
+// ASIC: configured freq × small_cores × asic_count / 1000.
+// Non-ASIC: sha_khs_ceiling / 1e6 from boot microbench.
+// Returns false when no source is available.
+bool mining_get_expected_ghs(float asic_freq_mhz, double *out_ghs) {
+    if (!out_ghs) return false;
+#ifdef ASIC_CHIP
+    (void)s_sha_microbench_valid;
+    if (asic_freq_mhz <= 0.0f) return false;
+    *out_ghs = (double)asic_freq_mhz * (double)BOARD_SMALL_CORES * (double)BOARD_ASIC_COUNT / 1000.0;
+    return true;
+#else
+    (void)asic_freq_mhz;
+    if (!s_sha_microbench_valid) return false;
+    *out_ghs = s_sha_khs_ceiling / 1e6;
+    return true;
+#endif
+}
+
 // TA-320a: SHA TEXT-overlap canary state.
 static sha_overlap_state_t s_sha_overlap_state = SHA_OVERLAP_UNKNOWN;
 
