@@ -131,8 +131,8 @@ if (isFixtures) {
       // Find asset by name
       const asset = release.assets.find(a => a.name === board.factoryAsset)
       if (!asset) {
-        console.error(`gen-assets: asset ${board.factoryAsset} not found in ${tag}`)
-        process.exit(1)
+        console.warn(`gen-assets: ${board.factoryAsset} not found in ${tag}`)
+        continue
       }
 
       const filePath = resolve(firmwareDir, board.factoryAsset)
