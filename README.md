@@ -72,7 +72,7 @@ npm ci                  # install dependencies
 npm run dev             # start dev server (proxies /api/* to a miner on the network)
 ```
 
-Set `VITE_MINER_URL=http://<miner-ip>` in `webui/.env` to target a live device. Run tests with `npm test -- --run`.
+Set `VITE_MINER_URL=http://<miner-ip>` in `webui/miner/.env.development` to target a live device. Run tests with `npm test -- --run`. (Use `.env.development`, not plain `.env` — Vite loads `.env` in production builds and bakes the URL into firmware.)
 
 ## License
 

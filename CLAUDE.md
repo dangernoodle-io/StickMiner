@@ -146,7 +146,7 @@ TaipanMiner consumes shared infrastructure components from the breadboard librar
 
 **Theme**: `theme.css` in `components/webui/` is provisioning-only now; SPA has its own theme baked in.
 
-**Dev loop**: `cd webui && npm run dev` with `VITE_MINER_URL=http://<miner-host>` in `webui/.env` — dev server proxies `/api/*` to the miner. Run against any tdongle/bitaxe on the network without reflashing. Works side-by-side with `--port 5174` for multi-device compare.
+**Dev loop**: `cd webui && npm run dev` with `VITE_MINER_URL=http://<miner-host>` in `webui/miner/.env.development` — dev server proxies `/api/*` to the miner. Run against any tdongle/bitaxe on the network without reflashing. Works side-by-side with `--port 5174` for multi-device compare. **Never use plain `.env`** — Vite loads it in production builds too, baking the dev URL into firmware so deployed devices phone home to the dev target.
 
 **Tests**: `cd webui && npm test -- --run` (vitest).
 
