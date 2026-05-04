@@ -165,15 +165,12 @@ static void hw_avg_timer_cb(void *arg)
 
     /* TA-363: pool-effective rolling sampler */
     double sum_now = mining_stats.session.accepted_diff_sum;
-    double delta = sum_now - s_pool_eff_prev_sum;
-    if (delta < 0.0) delta = 0.0;  // pool reconnect resets sum
-    s_pool_eff_prev_sum = sum_now;
-    float pool_sample = (float)(delta * 4294967296.0 / 5.0);
     float pe_1m = 0.0f, pe_10m = 0.0f, pe_1h = 0.0f;
-    mining_avg_update(s_pool_eff_poll_count++, pool_sample,
-                      s_pool_eff_1m, s_pool_eff_10m, s_pool_eff_1h,
-                      &s_pool_eff_10m_prev, &s_pool_eff_1h_prev,
-                      &pe_1m, &pe_10m, &pe_1h);
+    mining_pool_eff_tick(sum_now, 5.0,
+                         &s_pool_eff_prev_sum, s_pool_eff_poll_count++,
+                         s_pool_eff_1m, s_pool_eff_10m, s_pool_eff_1h,
+                         &s_pool_eff_10m_prev, &s_pool_eff_1h_prev,
+                         &pe_1m, &pe_10m, &pe_1h);
     mining_stats.pool_eff_1m  = pe_1m;
     mining_stats.pool_eff_10m = pe_10m;
     mining_stats.pool_eff_1h  = pe_1h;

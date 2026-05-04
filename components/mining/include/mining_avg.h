@@ -24,3 +24,16 @@ void mining_avg_update(unsigned long poll_count,
                        float *buf_1m, float *buf_10m, float *buf_1h,
                        float *prev_10m, float *prev_1h,
                        float *out_1m, float *out_10m, float *out_1h);
+
+// Pool-effective rolling sampler. Computes the per-tick rate as
+//   (accepted_diff_sum - *prev_sum) * 2^32 / period_s
+// (clamped to 0 on pool-reconnect/sum-decrease), feeds it through the
+// same NaN-safe smoother as mining_avg_update, and updates *prev_sum
+// for the next tick. Caller owns all storage; this fn touches no globals.
+void mining_pool_eff_tick(double accepted_diff_sum,
+                          double period_s,
+                          double *prev_sum,
+                          unsigned long poll_count,
+                          float *buf_1m,  float *buf_10m, float *buf_1h,
+                          float *prev_10m, float *prev_1h,
+                          float *out_1m, float *out_10m, float *out_1h);

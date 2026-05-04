@@ -809,15 +809,12 @@ void asic_mining_task(void *arg)
                 sum_now = mining_stats.session.accepted_diff_sum;
                 xSemaphoreGive(mining_stats.mutex);
             }
-            double delta = sum_now - s_pool_eff_prev_sum;
-            if (delta < 0.0) delta = 0.0;  // pool reconnect resets sum
-            s_pool_eff_prev_sum = sum_now;
-            float pool_sample = (float)(delta * 4294967296.0 / 5.0);
             float pe_1m = 0.0f, pe_10m = 0.0f, pe_1h = 0.0f;
-            mining_avg_update(s_pool_eff_poll_count, pool_sample,
-                                   s_pool_eff_1m, s_pool_eff_10m, s_pool_eff_1h,
-                                   &s_pool_eff_10m_prev, &s_pool_eff_1h_prev,
-                                   &pe_1m, &pe_10m, &pe_1h);
+            mining_pool_eff_tick(sum_now, (double)ASIC_POLL_PERIOD_MS / 1000.0,
+                                 &s_pool_eff_prev_sum, s_pool_eff_poll_count,
+                                 s_pool_eff_1m, s_pool_eff_10m, s_pool_eff_1h,
+                                 &s_pool_eff_10m_prev, &s_pool_eff_1h_prev,
+                                 &pe_1m, &pe_10m, &pe_1h);
 
             s_avg_poll_count++;
             s_pool_eff_poll_count++;
