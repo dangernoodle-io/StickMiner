@@ -432,6 +432,9 @@ void test_update_10m_blend_formula(void);
 void test_update_1h_accumulation(void);
 void test_update_with_zero_samples(void);
 void test_update_mixed_values(void);
+void test_mining_pool_eff_tick_zero_delta(void);
+void test_mining_pool_eff_tick_typical(void);
+void test_mining_pool_eff_tick_sum_decrease_clamps_to_zero(void);
 
 // TA-234: stratum_backoff
 void test_stratum_backoff_init(void);
@@ -1032,6 +1035,9 @@ int main(void) {
     RUN_TEST(test_update_1h_accumulation);
     RUN_TEST(test_update_with_zero_samples);
     RUN_TEST(test_update_mixed_values);
+    RUN_TEST(test_mining_pool_eff_tick_zero_delta);
+    RUN_TEST(test_mining_pool_eff_tick_typical);
+    RUN_TEST(test_mining_pool_eff_tick_sum_decrease_clamps_to_zero);
 
     // TA-234: stratum_backoff tests
     RUN_TEST(test_stratum_backoff_init);

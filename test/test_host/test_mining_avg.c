@@ -276,3 +276,85 @@ void test_update_mixed_values(void)
     // Mean of alternating 10 and 20 should be 15.0
     TEST_ASSERT_FLOAT_WITHIN(0.001f, 15.0f, out_1m);
 }
+
+// TA-363: mining_pool_eff_tick
+void test_mining_pool_eff_tick_zero_delta(void)
+{
+    float buf_1m[MINING_AVG_1M_SIZE];
+    float buf_10m[MINING_AVG_10M_SIZE];
+    float buf_1h[MINING_AVG_1H_SIZE];
+    float prev_10m = NAN, prev_1h = NAN;
+    float out_1m, out_10m, out_1h;
+    double prev_sum = 100.0;
+
+    for (int i = 0; i < MINING_AVG_1M_SIZE; i++) {
+        buf_1m[i] = NAN;
+        buf_10m[i] = NAN;
+        buf_1h[i] = NAN;
+    }
+
+    // Sum doesn't change → sample 0 → all outputs 0
+    mining_pool_eff_tick(100.0, 5.0, &prev_sum, 0,
+                         buf_1m, buf_10m, buf_1h,
+                         &prev_10m, &prev_1h,
+                         &out_1m, &out_10m, &out_1h);
+
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, out_1m);
+}
+
+void test_mining_pool_eff_tick_typical(void)
+{
+    float buf_1m[MINING_AVG_1M_SIZE];
+    float buf_10m[MINING_AVG_10M_SIZE];
+    float buf_1h[MINING_AVG_1H_SIZE];
+    float prev_10m = NAN, prev_1h = NAN;
+    float out_1m, out_10m, out_1h;
+    double prev_sum = 0.0;
+
+    for (int i = 0; i < MINING_AVG_1M_SIZE; i++) {
+        buf_1m[i] = NAN;
+        buf_10m[i] = NAN;
+        buf_1h[i] = NAN;
+    }
+
+    // Constant diff per tick: 100.0 diff over 5s
+    // sample = 100.0 * 2^32 / 5.0 = 100.0 * 858993459.2 ≈ 85.9e9
+    double D = 100.0;
+    for (unsigned long pc = 0; pc < MINING_AVG_1M_SIZE; pc++) {
+        mining_pool_eff_tick(D * (pc + 1), 5.0, &prev_sum, pc,
+                             buf_1m, buf_10m, buf_1h,
+                             &prev_10m, &prev_1h,
+                             &out_1m, &out_10m, &out_1h);
+    }
+
+    // After 12 ticks at constant 100.0/5s, 1m should be stable at that rate
+    float expected = (float)(100.0 * 4294967296.0 / 5.0);
+    TEST_ASSERT_FLOAT_WITHIN(0.1f * expected, expected, out_1m);
+}
+
+void test_mining_pool_eff_tick_sum_decrease_clamps_to_zero(void)
+{
+    float buf_1m[MINING_AVG_1M_SIZE];
+    float buf_10m[MINING_AVG_10M_SIZE];
+    float buf_1h[MINING_AVG_1H_SIZE];
+    float prev_10m = NAN, prev_1h = NAN;
+    float out_1m, out_10m, out_1h;
+    double prev_sum = 1000.0;
+
+    for (int i = 0; i < MINING_AVG_1M_SIZE; i++) {
+        buf_1m[i] = NAN;
+        buf_10m[i] = NAN;
+        buf_1h[i] = NAN;
+    }
+
+    // Pool reconnect: sum drops from 1000 to 500 (delta would be negative)
+    // Should clamp to 0, so sample = 0
+    mining_pool_eff_tick(500.0, 5.0, &prev_sum, 0,
+                         buf_1m, buf_10m, buf_1h,
+                         &prev_10m, &prev_1h,
+                         &out_1m, &out_10m, &out_1h);
+
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, out_1m);
+    // prev_sum should be updated to 500.0
+    TEST_ASSERT_DOUBLE_WITHIN(0.001, 500.0, prev_sum);
+}

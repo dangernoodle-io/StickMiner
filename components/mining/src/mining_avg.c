@@ -56,3 +56,21 @@ void mining_avg_update(unsigned long poll_count,
     buf_1h[(poll_count / MINING_AVG_DIV_1H) % MINING_AVG_1H_SIZE] = v_1h;
     *out_1h = mining_avg_nan_safe(buf_1h, MINING_AVG_1H_SIZE);
 }
+
+// Pool-effective rolling sampler. Computes delta from diff sum, applies
+// rate conversion formula, then feeds through the standard smoother.
+void mining_pool_eff_tick(double sum, double period_s, double *prev_sum,
+                          unsigned long poll_count,
+                          float *buf_1m, float *buf_10m, float *buf_1h,
+                          float *prev_10m, float *prev_1h,
+                          float *out_1m, float *out_10m, float *out_1h)
+{
+    double delta = sum - *prev_sum;
+    if (delta < 0.0) delta = 0.0;  /* pool reconnect resets sum */
+    *prev_sum = sum;
+    float sample = (float)(delta * 4294967296.0 / period_s);
+    mining_avg_update(poll_count, sample,
+                      buf_1m, buf_10m, buf_1h,
+                      prev_10m, prev_1h,
+                      out_1m, out_10m, out_1h);
+}
