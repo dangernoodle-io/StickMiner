@@ -9,6 +9,7 @@
   import ConfirmDialog from '../components/ConfirmDialog.svelte'
   import ModalSpinner from '../components/ModalSpinner.svelte'
   import Tooltip from '../components/Tooltip.svelte'
+  import RollingRates from '../components/RollingRates.svelte'
 
   const POOL_IDXS: (0 | 1)[] = [0, 1]
 
@@ -275,39 +276,44 @@
           worker {displayPool?.worker ?? '—'}
         </div>
       </div>
-      <div class="metrics">
-        <div class="m">
-          <div class="v">{fmtPoolDiff(displayPool?.current_difficulty)}</div>
-          <div class="k">diff</div>
-        </div>
-        <div class="m">
-          <div class="v">{displayPool?.session_start_ago_s != null ? fmtRelative(displayPool.session_start_ago_s) : '—'}</div>
-          <div class="k">session</div>
-        </div>
-        <div class="m">
-          <div class="v">{displayPool?.latency_ms != null ? `${displayPool.latency_ms} ms` : '—'}</div>
-          <div class="k">latency</div>
-        </div>
+      <div class="rolling-eff-wrap">
+        <div class="rolling-eff-label">pool-effective</div>
+        <RollingRates
+          ghs1m={displayPool?.pool_effective_hashrate_1m != null ? displayPool.pool_effective_hashrate_1m / 1e9 : null}
+          ghs10m={displayPool?.pool_effective_hashrate_10m != null ? displayPool.pool_effective_hashrate_10m / 1e9 : null}
+          ghs1h={displayPool?.pool_effective_hashrate_1h != null ? displayPool.pool_effective_hashrate_1h / 1e9 : null}
+          showErr={false}
+        />
       </div>
     </div>
-    {#if displayPool?.extranonce1 || displayPool?.version_mask}
-      <div class="card-footer">
-        {#if displayPool?.extranonce1}
-          <div class="sf">
-            <div class="field-key">extranonce1</div>
-            <div class="field-val mono" title="server-assigned per-session nonce prefix">
-              {displayPool.extranonce1}{displayPool.extranonce2_size != null ? ` · ${displayPool.extranonce2_size}B en2` : ''}
-            </div>
-          </div>
-        {/if}
-        {#if displayPool?.version_mask}
-          <div class="sf">
-            <div class="field-key">version mask</div>
-            <div class="field-val mono" title="BIP-320 version-rolling bits">0x{displayPool.version_mask}</div>
-          </div>
-        {/if}
+    <div class="card-footer">
+      <div class="sf">
+        <div class="field-key">diff</div>
+        <div class="field-val mono">{fmtPoolDiff(displayPool?.current_difficulty)}</div>
       </div>
-    {/if}
+      {#if displayPool?.extranonce1}
+        <div class="sf">
+          <div class="field-key">extranonce1</div>
+          <div class="field-val mono" title="server-assigned per-session nonce prefix">
+            {displayPool.extranonce1}{displayPool.extranonce2_size != null ? ` · ${displayPool.extranonce2_size}B en2` : ''}
+          </div>
+        </div>
+      {/if}
+      <div class="sf">
+        <div class="field-key">latency</div>
+        <div class="field-val mono">{displayPool?.latency_ms != null ? `${displayPool.latency_ms} ms` : '—'}</div>
+      </div>
+      <div class="sf">
+        <div class="field-key">session</div>
+        <div class="field-val mono">{displayPool?.session_start_ago_s != null ? fmtRelative(displayPool.session_start_ago_s) : '—'}</div>
+      </div>
+      {#if displayPool?.version_mask}
+        <div class="sf">
+          <div class="field-key">version mask</div>
+          <div class="field-val mono" title="BIP-320 version-rolling bits">0x{displayPool.version_mask}</div>
+        </div>
+      {/if}
+    </div>
   </section>
 
   <!-- Stratum notify preview (TA-288). -->
@@ -584,22 +590,15 @@
     margin-top: 4px;
   }
 
-  .metrics { display: flex; gap: 24px; }
+  .status-row :global(.rolling) { min-width: 200px; max-width: 260px; }
 
-  .m .v {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text);
-    font-variant-numeric: tabular-nums;
-    line-height: 1.1;
-  }
-
-  .m .k {
+  .rolling-eff-label {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--label);
-    margin-top: 2px;
+    color: var(--muted);
+    text-align: right;
+    margin-bottom: 2px;
   }
 
 

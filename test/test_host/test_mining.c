@@ -502,3 +502,12 @@ void test_mining_get_pool_effective_hashrate_host_stub(void)
     // Host stub returns 0.0 — live FreeRTOS path is ESP-only. Covers the stub.
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, mining_get_pool_effective_hashrate());
 }
+
+// TA-363: rolling-window accessor host stubs all return 0.0; ESP-only live path
+// is exercised in firmware. Direct stub call covers the host build.
+void test_mining_get_pool_effective_rolling_host_stubs(void)
+{
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, mining_get_pool_effective_1m());
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, mining_get_pool_effective_10m());
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, mining_get_pool_effective_1h());
+}

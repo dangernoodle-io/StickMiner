@@ -158,6 +158,9 @@ void test_pool_disconnected(void)
     s.has_session_start = false;
     s.current_difficulty = 512.0;
     s.pool_effective_hashrate = -1.0; /* no shares yet → null */
+    s.pool_effective_hashrate_1m = -1.0;  /* TA-363: rolling windows unavailable */
+    s.pool_effective_hashrate_10m = -1.0;
+    s.pool_effective_hashrate_1h = -1.0;
     s.latency_ms        = -1;  /* no sample yet */
     s.active_pool_idx   = -1;  /* not connected */
     /* extranonce1_len=0, has_notify=false */
@@ -170,7 +173,7 @@ void test_pool_disconnected(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"test-worker\",\"wallet\":\"tb1qtest000\","
         "\"connected\":false,\"session_start_ago_s\":null,"
-        "\"current_difficulty\":512,\"pool_effective_hashrate\":null,\"latency_ms\":null,"
+        "\"current_difficulty\":512,\"pool_effective_hashrate\":null,\"pool_effective_hashrate_1m\":null,\"pool_effective_hashrate_10m\":null,\"pool_effective_hashrate_1h\":null,\"latency_ms\":null,"
         "\"extranonce1\":null,\"extranonce2_size\":null,\"version_mask\":null,"
         "\"notify\":null,\"active_pool_idx\":null,"
         "\"extranonce_subscribe_status\":\"off\","
@@ -314,7 +317,7 @@ void test_pool_connected_with_notify(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"test-worker\",\"wallet\":\"tb1qtest000\","
         "\"connected\":true,\"session_start_ago_s\":120,"
-        "\"current_difficulty\":8192,\"pool_effective_hashrate\":0,\"latency_ms\":42,"
+        "\"current_difficulty\":8192,\"pool_effective_hashrate\":0,\"pool_effective_hashrate_1m\":0,\"pool_effective_hashrate_10m\":0,\"pool_effective_hashrate_1h\":0,\"latency_ms\":42,"
         "\"extranonce1\":\"aabb\",\"extranonce2_size\":4,\"version_mask\":\"1fffe000\","
         "\"notify\":{"
         "\"job_id\":\"abc123\","
@@ -359,7 +362,7 @@ void test_pool_version_mask_zero(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"\",\"wallet\":\"\","
         "\"connected\":true,\"session_start_ago_s\":5,"
-        "\"current_difficulty\":512,\"pool_effective_hashrate\":0,\"latency_ms\":null,"
+        "\"current_difficulty\":512,\"pool_effective_hashrate\":0,\"pool_effective_hashrate_1m\":0,\"pool_effective_hashrate_10m\":0,\"pool_effective_hashrate_1h\":0,\"latency_ms\":null,"
         "\"extranonce1\":\"dead\",\"extranonce2_size\":4,\"version_mask\":null,"
         "\"notify\":null,\"active_pool_idx\":null,"
         "\"extranonce_subscribe_status\":\"off\","
@@ -391,7 +394,7 @@ void test_pool_latency_positive(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"\",\"wallet\":\"\","
         "\"connected\":true,\"session_start_ago_s\":10,"
-        "\"current_difficulty\":512,\"pool_effective_hashrate\":0,\"latency_ms\":42,"
+        "\"current_difficulty\":512,\"pool_effective_hashrate\":0,\"pool_effective_hashrate_1m\":0,\"pool_effective_hashrate_10m\":0,\"pool_effective_hashrate_1h\":0,\"latency_ms\":42,"
         "\"extranonce1\":null,\"extranonce2_size\":null,\"version_mask\":null,"
         "\"notify\":null,\"active_pool_idx\":null,"
         "\"extranonce_subscribe_status\":\"off\","
@@ -423,7 +426,7 @@ void test_pool_latency_negative(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"\",\"wallet\":\"\","
         "\"connected\":true,\"session_start_ago_s\":5,"
-        "\"current_difficulty\":512,\"pool_effective_hashrate\":0,\"latency_ms\":null,"
+        "\"current_difficulty\":512,\"pool_effective_hashrate\":0,\"pool_effective_hashrate_1m\":0,\"pool_effective_hashrate_10m\":0,\"pool_effective_hashrate_1h\":0,\"latency_ms\":null,"
         "\"extranonce1\":null,\"extranonce2_size\":null,\"version_mask\":null,"
         "\"notify\":null,\"active_pool_idx\":null,"
         "\"extranonce_subscribe_status\":\"off\","

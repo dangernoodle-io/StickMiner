@@ -185,6 +185,12 @@ double mining_compute_pool_effective_hps(double accepted_diff_sum, double uptime
 // ESP_PLATFORM only (reads FreeRTOS mutex + esp_timer).
 double mining_get_pool_effective_hashrate(void);
 
+// TA-363: Rolling 1m/10m/1h pool-effective hashrate windows.
+// Returns 0.0 if value < 0 (unavailable) or mutex unavailable.
+double mining_get_pool_effective_1m(void);
+double mining_get_pool_effective_10m(void);
+double mining_get_pool_effective_1h(void);
+
 #ifdef ESP_PLATFORM
 // Queues (created by main, used by stratum + mining tasks)
 extern QueueHandle_t work_queue;
@@ -214,6 +220,10 @@ typedef struct {
     float               hw_error_pct_10m;
     float               hw_error_pct_1h;
 #endif
+    /* TA-363: rolling pool-effective windows (both non-ASIC and ASIC builds) */
+    float               pool_eff_1m;       // Rolling 1m avg of pool-effective hashrate (-1 = unavailable)
+    float               pool_eff_10m;      // Rolling 10m avg of pool-effective hashrate (-1 = unavailable)
+    float               pool_eff_1h;       // Rolling 1h avg of pool-effective hashrate (-1 = unavailable)
 #ifdef ASIC_CHIP
     double              asic_hashrate;
     hashrate_ema_t      asic_ema;

@@ -31,8 +31,11 @@ double mining_compute_pool_effective_hps(double accepted_diff_sum, double uptime
 }
 
 #ifndef ESP_PLATFORM
-// Host-test stub — callers that need the live value use mining_compute_pool_effective_hps directly.
+// Host-test stubs — callers that need the live value use mining_compute_pool_effective_hps directly.
 double mining_get_pool_effective_hashrate(void) { return 0.0; }
+double mining_get_pool_effective_1m(void) { return 0.0; }
+double mining_get_pool_effective_10m(void) { return 0.0; }
+double mining_get_pool_effective_1h(void) { return 0.0; }
 #endif
 
 // SHA self-test flag (process-static, exposed for host tests)
@@ -137,6 +140,15 @@ static float            s_hw_hr_10m_prev = NAN;
 static float            s_hw_hr_1h_prev  = NAN;
 static esp_timer_handle_t s_hw_avg_timer = NULL;
 
+/* Pool-effective rolling sampler (TA-363) */
+static unsigned long    s_pool_eff_poll_count = 0;
+static float            s_pool_eff_1m[MINING_AVG_1M_SIZE];
+static float            s_pool_eff_10m[MINING_AVG_10M_SIZE];
+static float            s_pool_eff_1h[MINING_AVG_1H_SIZE];
+static float            s_pool_eff_10m_prev = NAN;
+static float            s_pool_eff_1h_prev  = NAN;
+static double           s_pool_eff_prev_sum = 0.0;
+
 static void hw_avg_timer_cb(void *arg)
 {
     (void)arg;
@@ -150,6 +162,22 @@ static void hw_avg_timer_cb(void *arg)
     mining_stats.hashrate_1m  = out_1m;
     mining_stats.hashrate_10m = out_10m;
     mining_stats.hashrate_1h  = out_1h;
+
+    /* TA-363: pool-effective rolling sampler */
+    double sum_now = mining_stats.session.accepted_diff_sum;
+    double delta = sum_now - s_pool_eff_prev_sum;
+    if (delta < 0.0) delta = 0.0;  // pool reconnect resets sum
+    s_pool_eff_prev_sum = sum_now;
+    float pool_sample = (float)(delta * 4294967296.0 / 5.0);
+    float pe_1m = 0.0f, pe_10m = 0.0f, pe_1h = 0.0f;
+    mining_avg_update(s_pool_eff_poll_count++, pool_sample,
+                      s_pool_eff_1m, s_pool_eff_10m, s_pool_eff_1h,
+                      &s_pool_eff_10m_prev, &s_pool_eff_1h_prev,
+                      &pe_1m, &pe_10m, &pe_1h);
+    mining_stats.pool_eff_1m  = pe_1m;
+    mining_stats.pool_eff_10m = pe_10m;
+    mining_stats.pool_eff_1h  = pe_1h;
+
     xSemaphoreGive(mining_stats.mutex);
 }
 #endif
@@ -243,6 +271,31 @@ double mining_get_pool_effective_hashrate(void)
     return mining_compute_pool_effective_hps(sum, uptime_s);
 }
 
+// TA-363: rolling 1m/10m/1h pool-effective hashrate accessors
+double mining_get_pool_effective_1m(void)
+{
+    if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(10)) != pdTRUE) return 0.0;
+    float v = mining_stats.pool_eff_1m;
+    xSemaphoreGive(mining_stats.mutex);
+    return v >= 0.0f ? (double)v : 0.0;
+}
+
+double mining_get_pool_effective_10m(void)
+{
+    if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(10)) != pdTRUE) return 0.0;
+    float v = mining_stats.pool_eff_10m;
+    xSemaphoreGive(mining_stats.mutex);
+    return v >= 0.0f ? (double)v : 0.0;
+}
+
+double mining_get_pool_effective_1h(void)
+{
+    if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(10)) != pdTRUE) return 0.0;
+    float v = mining_stats.pool_eff_1h;
+    xSemaphoreGive(mining_stats.mutex);
+    return v >= 0.0f ? (double)v : 0.0;
+}
+
 void mining_stats_init(void)
 {
     mining_stats.mutex = xSemaphoreCreateMutex();
@@ -255,9 +308,16 @@ void mining_stats_init(void)
     mining_stats.hw_error_pct_1m  = -1.0f;
     mining_stats.hw_error_pct_10m = -1.0f;
     mining_stats.hw_error_pct_1h  = -1.0f;
+    mining_stats.pool_eff_1m  = -1.0f;
+    mining_stats.pool_eff_10m = -1.0f;
+    mining_stats.pool_eff_1h  = -1.0f;
     for (size_t i = 0; i < MINING_AVG_1M_SIZE;  i++) s_hw_hr_1m[i]  = NAN;
     for (size_t i = 0; i < MINING_AVG_10M_SIZE; i++) s_hw_hr_10m[i] = NAN;
     for (size_t i = 0; i < MINING_AVG_1H_SIZE;  i++) s_hw_hr_1h[i]  = NAN;
+    for (size_t i = 0; i < MINING_AVG_1M_SIZE;  i++) s_pool_eff_1m[i]  = NAN;
+    for (size_t i = 0; i < MINING_AVG_10M_SIZE; i++) s_pool_eff_10m[i] = NAN;
+    for (size_t i = 0; i < MINING_AVG_1H_SIZE;  i++) s_pool_eff_1h[i]  = NAN;
+    s_pool_eff_prev_sum = 0.0;
     const esp_timer_create_args_t hw_avg_args = {
         .callback = &hw_avg_timer_cb,
         .name = "hw_avg",

@@ -7,6 +7,7 @@
   export let err1m: number | null = null
   export let err10m: number | null = null
   export let err1h: number | null = null
+  export let showErr: boolean = true
 
   $: sparkPts = [ghs1m ?? 0, ghs10m ?? 0, ghs1h ?? 0]
   $: sparkMax = Math.max(...sparkPts, 0.0001)
@@ -24,11 +25,13 @@
     <div class="cell"><span class="n">{fmtGhsNum(ghs10m)}</span><span class="u">{fmtGhsUnit(ghs10m)}</span></div>
     <div class="cell"><span class="n">{fmtGhsNum(ghs1h)}</span><span class="u">{fmtGhsUnit(ghs1h)}</span></div>
   </div>
-  <div class="rolling-row err">
-    <div class="cell"><span class="p" class:bad={err1m != null && err1m > 1}>{fmtPct(err1m)}</span></div>
-    <div class="cell"><span class="p" class:bad={err10m != null && err10m > 1}>{fmtPct(err10m)}</span></div>
-    <div class="cell"><span class="p" class:bad={err1h != null && err1h > 1}>{fmtPct(err1h)}</span></div>
-  </div>
+  {#if showErr}
+    <div class="rolling-row err">
+      <div class="cell"><span class="p" class:bad={err1m != null && err1m > 1}>{fmtPct(err1m)}</span></div>
+      <div class="cell"><span class="p" class:bad={err10m != null && err10m > 1}>{fmtPct(err10m)}</span></div>
+      <div class="cell"><span class="p" class:bad={err1h != null && err1h > 1}>{fmtPct(err1h)}</span></div>
+    </div>
+  {/if}
   <svg class="rolling-spark" width="100%" height="16" preserveAspectRatio="none">
     <line x1="9%"      y1={sparkY[0]} x2="16.67%" y2={sparkY[0]} stroke="var(--accent)" stroke-width="1.5" />
     <line x1="16.67%"  y1={sparkY[0]} x2="50%"    y2={sparkY[1]} stroke="var(--accent)" stroke-width="1.5" />

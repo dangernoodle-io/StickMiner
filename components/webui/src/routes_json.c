@@ -175,6 +175,23 @@ void build_pool_json(const pool_snapshot_t *s, bb_json_t root)
         bb_json_obj_set_null(root, "pool_effective_hashrate");
     }
 
+    /* TA-363: rolling 1m/10m/1h pool-effective windows */
+    if (s->pool_effective_hashrate_1m >= 0.0) {
+        bb_json_obj_set_number(root, "pool_effective_hashrate_1m", (double)s->pool_effective_hashrate_1m);
+    } else {
+        bb_json_obj_set_null(root, "pool_effective_hashrate_1m");
+    }
+    if (s->pool_effective_hashrate_10m >= 0.0) {
+        bb_json_obj_set_number(root, "pool_effective_hashrate_10m", (double)s->pool_effective_hashrate_10m);
+    } else {
+        bb_json_obj_set_null(root, "pool_effective_hashrate_10m");
+    }
+    if (s->pool_effective_hashrate_1h >= 0.0) {
+        bb_json_obj_set_number(root, "pool_effective_hashrate_1h", (double)s->pool_effective_hashrate_1h);
+    } else {
+        bb_json_obj_set_null(root, "pool_effective_hashrate_1h");
+    }
+
     if (s->latency_ms >= 0) {
         bb_json_obj_set_number(root, "latency_ms", (double)s->latency_ms);
     } else {

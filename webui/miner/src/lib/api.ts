@@ -243,6 +243,9 @@ export interface Pool {
   session_start_ago_s: number | null
   current_difficulty: number
   pool_effective_hashrate: number | null
+  pool_effective_hashrate_1m: number | null
+  pool_effective_hashrate_10m: number | null
+  pool_effective_hashrate_1h: number | null
   latency_ms: number | null
   extranonce1: string | null
   extranonce2_size: number | null
