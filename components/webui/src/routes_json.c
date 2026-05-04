@@ -412,5 +412,22 @@ void build_fan_json(const fan_snapshot_t *s, bb_json_t root)
     } else {
         bb_json_obj_set_null(root, "min_pct");
     }
+    /* TA-141: thermal aggregation telemetry */
+    if (s->die_ema_c >= 0.0f) {
+        bb_json_obj_set_number(root, "die_ema_c", s->die_ema_c);
+    } else {
+        bb_json_obj_set_null(root, "die_ema_c");
+    }
+    if (s->vr_ema_c >= 0.0f) {
+        bb_json_obj_set_number(root, "vr_ema_c", s->vr_ema_c);
+    } else {
+        bb_json_obj_set_null(root, "vr_ema_c");
+    }
+    if (s->pid_input_c >= 0.0f) {
+        bb_json_obj_set_number(root, "pid_input_c", s->pid_input_c);
+    } else {
+        bb_json_obj_set_null(root, "pid_input_c");
+    }
+    bb_json_obj_set_string(root, "pid_input_src", s->pid_input_src);
 }
 #endif /* ASIC_CHIP */

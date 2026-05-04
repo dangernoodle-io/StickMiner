@@ -53,6 +53,12 @@ static float         s_pid_output;
 static float         s_pid_setpoint;
 static float         s_pid_filtered = -1.0f; // <0 = uninitialized EMA
 
+// TA-141: VR-aware autofan — independent EMA filters for die + VR temps
+static float         s_die_ema = -1.0f;      // <0 = uninitialized
+static float         s_vr_ema = -1.0f;       // <0 = uninitialized
+static float         s_pid_input_c = -1.0f;  // Last computed PID input (for telemetry)
+static const char   *s_pid_input_src = "";   // "die" or "vr" (for telemetry)
+
 static unsigned long s_pid_now_ms(void)
 {
     return (unsigned long)(esp_timer_get_time() / 1000ULL);
@@ -668,13 +674,40 @@ void asic_mining_task(void *arg)
                 float new_min  = (float)taipan_config_min_fan_pct();
                 pid_set_output_limits(&s_pid, new_min, 100.0f);
 
-                // EMA filter: alpha=0.2 reduces sensor jitter
-                if (s_pid_filtered < 0.0f) {
-                    s_pid_filtered = temp;
+                // TA-141: Apply independent EMA filter (alpha=0.2) to die temperature
+                if (s_die_ema < 0.0f) {
+                    s_die_ema = temp;
                 } else {
-                    s_pid_filtered = 0.2f * temp + 0.8f * s_pid_filtered;
+                    s_die_ema = 0.2f * temp + 0.8f * s_die_ema;
                 }
-                s_pid_input = s_pid_filtered;
+
+                // TA-141: Apply independent EMA filter to VR temperature (if valid)
+                // Read VR temp from cached mining_stats (already read ~5s tick at line ~699)
+                // Note: vr_temp is captured below (~line 699), so we peek it from mining_stats
+                float vr_temp_raw = -1.0f;
+                bool vr_temp_valid = false;
+                if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(2)) == pdTRUE) {
+                    vr_temp_raw = mining_stats.vr_temp_c;
+                    xSemaphoreGive(mining_stats.mutex);
+                }
+                if (vr_temp_raw >= 0.0f) {
+                    vr_temp_valid = true;
+                    if (s_vr_ema < 0.0f) {
+                        s_vr_ema = vr_temp_raw;
+                    } else {
+                        s_vr_ema = 0.2f * vr_temp_raw + 0.8f * s_vr_ema;
+                    }
+                }
+
+                // TA-141: Compute PID input as max(die_ema, vr_ema) with source tracking
+                if (vr_temp_valid && s_vr_ema > s_die_ema) {
+                    s_pid_input = s_vr_ema;
+                    s_pid_input_src = "vr";
+                } else {
+                    s_pid_input = s_die_ema;
+                    s_pid_input_src = "die";
+                }
+                s_pid_input_c = s_pid_input;
 
                 // Arm PID on first valid reading
                 if (pid_get_mode(&s_pid) == MANUAL) {
@@ -886,6 +919,15 @@ int asic_task_get_chip_telemetry(asic_chip_telemetry_t *out, int max_chips)
 size_t asic_task_get_drop_log(asic_drop_event_t *out, size_t max_out)
 {
     return asic_drop_log_snapshot(&s_drop_log, out, max_out);
+}
+
+// TA-141: Autofan thermal aggregation telemetry accessors
+void asic_task_get_autofan_telemetry(float *die_ema_c, float *vr_ema_c, float *pid_input_c, const char **pid_input_src)
+{
+    if (die_ema_c) *die_ema_c = s_die_ema;
+    if (vr_ema_c) *vr_ema_c = s_vr_ema;
+    if (pid_input_c) *pid_input_c = s_pid_input_c;
+    if (pid_input_src) *pid_input_src = s_pid_input_src;
 }
 
 #endif // ASIC_BM1370 || ASIC_BM1368
