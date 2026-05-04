@@ -219,12 +219,7 @@ bb_err_t sha256_hw_dport_self_test(void)
     /* Known-vector test: SHA-256("abc"). Byte form matches how BTC headers
      * are stored — fill_raw will bswap each word on the way to the peripheral. */
     uint8_t abc_block[64];
-    memset(abc_block, 0, sizeof(abc_block));
-    abc_block[0]  = 0x61;  /* 'a' */
-    abc_block[1]  = 0x62;  /* 'b' */
-    abc_block[2]  = 0x63;  /* 'c' */
-    abc_block[3]  = 0x80;  /* SHA padding bit */
-    abc_block[63] = 0x18;  /* 64-bit BE bit-length = 24 */
+    sha256_build_abc_block(abc_block);
 
     /* Caller MUST hold sha256_hw_dport_acquire() — this function touches SHA
      * peripheral registers directly. esp_crypto_sha_aes_lock is non-recursive,
