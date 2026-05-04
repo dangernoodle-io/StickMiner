@@ -1,3 +1,4 @@
+#ifdef ASIC_CHIP
 #include "unity.h"
 #include "asic_pause_coalesce.h"
 
@@ -37,3 +38,4 @@ void test_asic_pause_full_check_install_resume_sequence(void) {
     TEST_ASSERT_EQUAL(ASIC_PAUSE_ACTION_RESUME, asic_pause_coalesce_next(false, &q));
     TEST_ASSERT_FALSE(q);
 }
+#endif /* ASIC_CHIP */

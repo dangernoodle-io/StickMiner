@@ -1,3 +1,4 @@
+#ifdef ASIC_CHIP
 #include "unity.h"
 #include "share_validate.h"
 #include "work.h"
@@ -238,3 +239,4 @@ void test_share_validate_meets_target_with_invalid_target_still_fails(void)
     TEST_ASSERT_EQUAL_INT(SHARE_INVALID_TARGET, v);
     TEST_ASSERT_EQUAL_DOUBLE(0.0, diff);  // out_diff must not be set
 }
+#endif /* ASIC_CHIP */

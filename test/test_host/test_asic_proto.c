@@ -1,3 +1,4 @@
+#ifdef ASIC_CHIP
 #include "unity.h"
 #include "asic_proto.h"
 #include "crc.h"
@@ -152,3 +153,4 @@ void test_decode_version_bits_max(void) {
     uint32_t bits = asic_decode_version_bits(&nonce);
     TEST_ASSERT_EQUAL_HEX32(0xFFFF << 13, bits);
 }
+#endif /* ASIC_CHIP */

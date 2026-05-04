@@ -1,3 +1,4 @@
+#ifdef ASIC_CHIP
 #include "unity.h"
 #include "asic_drop_detect.h"
 
@@ -78,3 +79,4 @@ void test_drop_detect_zero_cooldown_always_warns(void)
     TEST_ASSERT_TRUE(step.should_warn);
     TEST_ASSERT_EQUAL_UINT64(now, step.new_last_warn_us);
 }
+#endif /* ASIC_CHIP */

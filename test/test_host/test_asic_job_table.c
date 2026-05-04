@@ -1,3 +1,4 @@
+#ifdef ASIC_CHIP
 #include "unity.h"
 #include "asic_proto.h"
 #include <string.h>
@@ -125,3 +126,4 @@ void test_job_slot_all_stride24_ids_are_distinct_slots(void) {
     TEST_ASSERT_TRUE(asic_job_slot_stale(/*seen=*/48, /*work_id0=*/'x', /*real=*/0));
     TEST_ASSERT_FALSE(asic_job_slot_stale(/*seen=*/48, /*work_id0=*/'x', /*real=*/48));
 }
+#endif /* ASIC_CHIP */

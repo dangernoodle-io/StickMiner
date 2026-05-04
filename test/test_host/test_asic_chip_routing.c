@@ -1,3 +1,4 @@
+#ifdef ASIC_CHIP
 #include "unity.h"
 #include "asic_chip_routing.h"
 
@@ -64,3 +65,4 @@ void test_chip_routing_invalid_chip_count_too_large(void)
 {
     TEST_ASSERT_EQUAL_INT(-1, asic_chip_routing_index(0x00, 257));
 }
+#endif /* ASIC_CHIP */

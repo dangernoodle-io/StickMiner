@@ -1,3 +1,4 @@
+#ifdef ASIC_CHIP
 #include "unity.h"
 #include "asic_nonce_dedup.h"
 
@@ -127,3 +128,4 @@ void test_nonce_dedup_next_idx_advances_cyclically(void)
     // After 16 inserts, next_idx should be back at 0
     TEST_ASSERT_EQUAL_UINT8(0, d.next_idx);
 }
+#endif /* ASIC_CHIP */

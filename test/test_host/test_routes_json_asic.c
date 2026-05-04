@@ -6,6 +6,7 @@
  * env now defines ASIC_CHIP (see [env:native] build_flags in platformio.ini),
  * so all three builders are reachable on the host.
  */
+#ifdef ASIC_CHIP
 #include "unity.h"
 #include "routes_json.h"
 #include "bb_json.h"
@@ -678,3 +679,4 @@ void test_stats_last_drop_nonzero_computes_age(void)
     TEST_ASSERT_NOT_NULL(strstr(json, "\"last_drop_ago_s\":30"));
     bb_json_free_str(json);
 }
+#endif /* ASIC_CHIP */
