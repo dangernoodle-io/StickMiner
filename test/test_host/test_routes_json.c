@@ -72,7 +72,7 @@ void test_stats_happy_path(void)
         "\"asic_total_ghs\":null,\"asic_hw_error_pct\":null,"
         "\"asic_total_ghs_1m\":null,\"asic_total_ghs_10m\":null,\"asic_total_ghs_1h\":null,"
         "\"asic_hw_error_pct_1m\":null,\"asic_hw_error_pct_10m\":null,\"asic_hw_error_pct_1h\":null,"
-        "\"asic_chips\":[]}",
+        "\"hashrate_pool_effective\":0,\"asic_chips\":[]}",
         json);
     bb_json_free_str(json);
 }
@@ -102,7 +102,7 @@ void test_stats_zeroed(void)
         "\"asic_total_ghs\":null,\"asic_hw_error_pct\":null,"
         "\"asic_total_ghs_1m\":null,\"asic_total_ghs_10m\":null,\"asic_total_ghs_1h\":null,"
         "\"asic_hw_error_pct_1m\":null,\"asic_hw_error_pct_10m\":null,\"asic_hw_error_pct_1h\":null,"
-        "\"asic_chips\":[]}",
+        "\"hashrate_pool_effective\":0,\"asic_chips\":[]}",
         json);
     bb_json_free_str(json);
 }
@@ -116,6 +116,7 @@ void test_stats_no_share_yet(void)
     s.last_share_us    = 0;
     s.session_start_us = 1000000LL;
     s.now_us           = 61000000LL;  /* 60 s uptime */
+    s.hashrate_pool_effective = -1.0; /* no shares yet → null */
 
     bb_json_t root = bb_json_obj_new();
     build_stats_json(&s, root);
@@ -137,7 +138,7 @@ void test_stats_no_share_yet(void)
         "\"asic_total_ghs\":null,\"asic_hw_error_pct\":null,"
         "\"asic_total_ghs_1m\":null,\"asic_total_ghs_10m\":null,\"asic_total_ghs_1h\":null,"
         "\"asic_hw_error_pct_1m\":null,\"asic_hw_error_pct_10m\":null,\"asic_hw_error_pct_1h\":null,"
-        "\"asic_chips\":[]}";
+        "\"hashrate_pool_effective\":null,\"asic_chips\":[]}";
     TEST_ASSERT_EQUAL_STRING(expected, json);
     bb_json_free_str(json);
 }
@@ -156,6 +157,7 @@ void test_pool_disconnected(void)
     s.connected         = false;
     s.has_session_start = false;
     s.current_difficulty = 512.0;
+    s.pool_effective_hashrate = -1.0; /* no shares yet → null */
     s.latency_ms        = -1;  /* no sample yet */
     s.active_pool_idx   = -1;  /* not connected */
     /* extranonce1_len=0, has_notify=false */
@@ -168,7 +170,7 @@ void test_pool_disconnected(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"test-worker\",\"wallet\":\"tb1qtest000\","
         "\"connected\":false,\"session_start_ago_s\":null,"
-        "\"current_difficulty\":512,\"latency_ms\":null,"
+        "\"current_difficulty\":512,\"pool_effective_hashrate\":null,\"latency_ms\":null,"
         "\"extranonce1\":null,\"extranonce2_size\":null,\"version_mask\":null,"
         "\"notify\":null,\"active_pool_idx\":null,"
         "\"extranonce_subscribe_status\":\"off\","
@@ -312,7 +314,7 @@ void test_pool_connected_with_notify(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"test-worker\",\"wallet\":\"tb1qtest000\","
         "\"connected\":true,\"session_start_ago_s\":120,"
-        "\"current_difficulty\":8192,\"latency_ms\":42,"
+        "\"current_difficulty\":8192,\"pool_effective_hashrate\":0,\"latency_ms\":42,"
         "\"extranonce1\":\"aabb\",\"extranonce2_size\":4,\"version_mask\":\"1fffe000\","
         "\"notify\":{"
         "\"job_id\":\"abc123\","
@@ -357,7 +359,7 @@ void test_pool_version_mask_zero(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"\",\"wallet\":\"\","
         "\"connected\":true,\"session_start_ago_s\":5,"
-        "\"current_difficulty\":512,\"latency_ms\":null,"
+        "\"current_difficulty\":512,\"pool_effective_hashrate\":0,\"latency_ms\":null,"
         "\"extranonce1\":\"dead\",\"extranonce2_size\":4,\"version_mask\":null,"
         "\"notify\":null,\"active_pool_idx\":null,"
         "\"extranonce_subscribe_status\":\"off\","
@@ -389,7 +391,7 @@ void test_pool_latency_positive(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"\",\"wallet\":\"\","
         "\"connected\":true,\"session_start_ago_s\":10,"
-        "\"current_difficulty\":512,\"latency_ms\":42,"
+        "\"current_difficulty\":512,\"pool_effective_hashrate\":0,\"latency_ms\":42,"
         "\"extranonce1\":null,\"extranonce2_size\":null,\"version_mask\":null,"
         "\"notify\":null,\"active_pool_idx\":null,"
         "\"extranonce_subscribe_status\":\"off\","
@@ -421,7 +423,7 @@ void test_pool_latency_negative(void)
         "{\"host\":\"pool.example.com\",\"port\":3333,"
         "\"worker\":\"\",\"wallet\":\"\","
         "\"connected\":true,\"session_start_ago_s\":5,"
-        "\"current_difficulty\":512,\"latency_ms\":null,"
+        "\"current_difficulty\":512,\"pool_effective_hashrate\":0,\"latency_ms\":null,"
         "\"extranonce1\":null,\"extranonce2_size\":null,\"version_mask\":null,"
         "\"notify\":null,\"active_pool_idx\":null,"
         "\"extranonce_subscribe_status\":\"off\","

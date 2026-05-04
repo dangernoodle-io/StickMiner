@@ -18,6 +18,7 @@ typedef struct {
     char     ntime_hex[9];
     char     nonce_hex[9];
     char     version_hex[9];   // BIP 320: rolled version as hex; empty if no rolling
+    double   share_diff;       // TA-344: pool-assigned difficulty at job-build time
 } mining_result_t;
 
 // Hash backend result
@@ -163,6 +164,7 @@ typedef struct {
     int64_t  start_us;
     int64_t  last_share_us;   // 0 = no share yet
     double   best_diff;       // highest share difficulty (raw value)
+    double   accepted_diff_sum; // TA-344: running total of accepted-share difficulties
 } mining_session_t;
 
 // Lifetime stats (persisted to NVS)
@@ -173,6 +175,15 @@ typedef struct {
 
 // Update EMA with a new hashrate sample (pure math, no FreeRTOS)
 void mining_stats_update_ema(hashrate_ema_t *ema, double sample, int64_t now_us);
+
+// TA-344: Pure math helper — pool-effective H/s from accepted diff sum + uptime.
+// Returns 0.0 if sum <= 0 or uptime_s < 1.
+double mining_compute_pool_effective_hps(double accepted_diff_sum, double uptime_s);
+
+// TA-344: Returns pool-effective H/s (accepted_diff_sum * 2^32 / uptime_s).
+// Returns 0.0 when no shares yet, uptime < 1s, or mutex unavailable.
+// ESP_PLATFORM only (reads FreeRTOS mutex + esp_timer).
+double mining_get_pool_effective_hashrate(void);
 
 #ifdef ESP_PLATFORM
 // Queues (created by main, used by stratum + mining tasks)

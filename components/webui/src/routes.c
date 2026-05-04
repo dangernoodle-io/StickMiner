@@ -177,11 +177,13 @@ static bb_err_t stats_handler(bb_http_request_t *req)
     s.hashrate_1m = -1.0;
     s.hashrate_10m = -1.0;
     s.hashrate_1h = -1.0;
+    s.hashrate_pool_effective = -1.0;
     s.hw_error_pct_1m = -1.0;
     s.hw_error_pct_10m = -1.0;
     s.hw_error_pct_1h = -1.0;
 #endif
 #ifdef ASIC_CHIP
+    s.hashrate_pool_effective = -1.0;
     s.asic_freq_cfg = -1.0f;
     s.asic_freq_eff = -1.0f;
 #endif
@@ -244,6 +246,9 @@ static bb_err_t stats_handler(bb_http_request_t *req)
     } else {
         s.expected_ghs = -1.0;
     }
+
+    double pool_eff_hr = mining_get_pool_effective_hashrate();
+    s.hashrate_pool_effective = (pool_eff_hr > 0.0) ? pool_eff_hr : -1.0;
 
     s.now_us = esp_timer_get_time();
 
@@ -375,6 +380,9 @@ static bb_err_t pool_handler(bb_http_request_t *req)
     }
     s.active_pool_idx = stratum_get_active_pool_idx();
     s.extranonce_subscribe_status = (int)stratum_get_extranonce_subscribe_status();
+
+    double pool_eff_hr = mining_get_pool_effective_hashrate();
+    s.pool_effective_hashrate = (pool_eff_hr > 0.0) ? pool_eff_hr : -1.0;
 
     bb_json_t root = bb_json_obj_new();
     build_pool_json(&s, root);

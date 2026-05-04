@@ -58,6 +58,8 @@ static stratum_wifi_kick_cb_t s_wifi_kick_cb = NULL;
 // Pool RTT tracking (TA-118)
 #define STRATUM_INFLIGHT_MAX 32
 static int64_t s_inflight_send_us[STRATUM_INFLIGHT_MAX] = {0};
+// TA-344: per-inflight share difficulty (parallels s_inflight_send_us)
+static double  s_inflight_diff[STRATUM_INFLIGHT_MAX] = {0};
 static double s_pool_rtt_ms_ema = 0.0;
 static bool s_pool_rtt_initialized = false;
 
@@ -358,6 +360,8 @@ static int stratum_connect(const char *host, uint16_t port)
     // Reset RTT tracking on new connection (TA-118)
     memset(s_inflight_send_us, 0, sizeof(s_inflight_send_us));
     s_pool_rtt_initialized = false;
+    // TA-344: reset inflight diff slots on new connection
+    memset(s_inflight_diff, 0, sizeof(s_inflight_diff));
 
     bb_log_i(TAG, "connected to %s:%d", host, port);
     return 0;
@@ -478,6 +482,9 @@ static int submit_share(mining_result_t *result)
     int rc = stratum_request("mining.submit", params);
     if (rc >= 0) {
         s_last_share_tick = xTaskGetTickCount();
+        // TA-344: read pool-assigned diff stamped at job-issue time
+        double share_diff = result->share_diff;
+        s_inflight_diff[rc % STRATUM_INFLIGHT_MAX] = share_diff;
     }
     return rc < 0 ? -1 : 0;
 }
@@ -583,6 +590,8 @@ static void process_message(const char *line)
                     bb_log_e(TAG, "share rejected: %s", err_str);
                     bb_json_free_str(err_str);
                 }
+                // TA-344: clear inflight diff slot so stale values don't accumulate
+                s_inflight_diff[id % STRATUM_INFLIGHT_MAX] = 0.0;
                 int code = stratum_parse_error_code(error_item);
                 stratum_reject_kind_t kind = stratum_machine_classify_reject(code);
                 if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
@@ -601,7 +610,11 @@ static void process_message(const char *line)
                     xSemaphoreGive(mining_stats.mutex);
                 }
             } else if (result_item && bb_json_item_is_true(result_item)) {
-                bb_log_i(TAG, "share accepted");
+                // TA-344: read diff from inflight slot before taking mutex (slot is set before send, consumed once here)
+                double share_diff = s_inflight_diff[id % STRATUM_INFLIGHT_MAX];
+                s_inflight_diff[id % STRATUM_INFLIGHT_MAX] = 0.0;
+                bb_log_i(TAG, "share accepted (diff=%.2f cum_diff=%.2f)", share_diff,
+                         mining_stats.session.accepted_diff_sum + share_diff);
                 if (s_last_submit_us) {
                     bb_log_i(DIAG, "share ack: %lldms",
                              (esp_timer_get_time() - s_last_submit_us) / 1000);
@@ -613,6 +626,7 @@ static void process_message(const char *line)
                     mining_stats.hw_shares++;
                     mining_stats.session.shares++;
                     mining_stats.session.last_share_us = now_us;
+                    mining_stats.session.accepted_diff_sum += share_diff;  // TA-344
                     mining_stats.lifetime.total_shares++;
 #ifdef ASIC_CHIP
                     mining_stats.asic_shares++;

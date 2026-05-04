@@ -58,6 +58,7 @@ export interface Stats {
   hw_error_pct_1m: number | null
   hw_error_pct_10m: number | null
   hw_error_pct_1h: number | null
+  hashrate_pool_effective: number | null
   asic_chips?: Chip[]
   rejected?: RejectedBreakdown
 }
@@ -241,6 +242,7 @@ export interface Pool {
   connected: boolean
   session_start_ago_s: number | null
   current_difficulty: number
+  pool_effective_hashrate: number | null
   latency_ms: number | null
   extranonce1: string | null
   extranonce2_size: number | null

@@ -459,3 +459,46 @@ void test_mining_get_expected_ghs_non_asic_no_microbench(void)
     TEST_ASSERT_FALSE(result);
 }
 #endif
+
+// --- pool-effective hashrate tests (TA-344) ---
+
+void test_mining_compute_pool_effective_hps_empty(void)
+{
+    double result = mining_compute_pool_effective_hps(0.0, 100.0);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, result);
+}
+
+void test_mining_compute_pool_effective_hps_uptime_too_short(void)
+{
+    double result = mining_compute_pool_effective_hps(1024.0, 0.5);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, result);
+}
+
+void test_mining_compute_pool_effective_hps_typical(void)
+{
+    // 1024 diff * 2^32 / 60 seconds = 1024 * 4294967296 / 60 = ~73243789312 H/s = ~73 GH/s
+    double result = mining_compute_pool_effective_hps(1024.0, 60.0);
+    double expected = 1024.0 * 4294967296.0 / 60.0;
+    TEST_ASSERT_DOUBLE_WITHIN(expected * 1e-6, expected, result);
+}
+
+void test_mining_compute_pool_effective_hps_diff1_share(void)
+{
+    // 1 diff * 2^32 / 60 seconds = 4294967296 / 60 = ~71582787 H/s = ~71.6 MH/s
+    double result = mining_compute_pool_effective_hps(1.0, 60.0);
+    double expected = 1.0 * 4294967296.0 / 60.0;
+    TEST_ASSERT_DOUBLE_WITHIN(expected * 1e-6, expected, result);
+}
+
+void test_mining_compute_pool_effective_hps_divide_by_zero_guard(void)
+{
+    // Zero uptime should return 0.0 (guard against division by zero)
+    double result = mining_compute_pool_effective_hps(100.0, 0.0);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, result);
+}
+
+void test_mining_get_pool_effective_hashrate_host_stub(void)
+{
+    // Host stub returns 0.0 — live FreeRTOS path is ESP-only. Covers the stub.
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, mining_get_pool_effective_hashrate());
+}
