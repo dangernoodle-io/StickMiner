@@ -122,6 +122,7 @@ void test_pll_vdo_scale_high(void);
 void test_pll_vdo_scale_low(void);
 void test_pll_postdiv_byte(void);
 
+#ifdef ASIC_CHIP
 // Forward declarations from test_asic_job_table.c (TA-297)
 void test_job_slot_id_zero_maps_to_zero(void);
 void test_job_slot_id_below_table_size_maps_to_itself(void);
@@ -171,6 +172,7 @@ void test_asic_ticket_mask_diff_64(void);
 void test_asic_ticket_mask_diff_128(void);
 void test_asic_ticket_mask_boundary_513_5(void);
 void test_asic_ticket_mask_boundary_512_1(void);
+#endif
 
 // Forward declarations from test_mining.c
 void test_sw_backend_finds_block1_share(void);
@@ -325,6 +327,7 @@ void test_hash_to_difficulty_easy(void);
 void test_hash_to_difficulty_six_zeros(void);
 void test_best_diff_only_increases(void);
 
+#ifdef ASIC_CHIP
 // Forward declarations from test_asic_share_validator.c (TA-274 / Track-3)
 void test_asic_share_validate_null_work(void);
 void test_asic_share_validate_null_out_difficulty(void);
@@ -335,18 +338,21 @@ void test_asic_share_validate_invalid_target_all_ff(void);
 void test_asic_share_validate_low_difficulty_sanity(void);
 void test_asic_share_validate_version_rolling_applied(void);
 void test_asic_share_validate_nonce_patching_position(void);
-void test_share_validate_target_invalid_returns_fail(void);
-void test_share_validate_meets_target_with_invalid_target_still_fails(void);
+#endif
 
 // Forward declarations from test_work.c (TA-274 additions)
+void test_share_validate_target_invalid_returns_fail(void);
+void test_share_validate_meets_target_with_invalid_target_still_fails(void);
 void test_package_result_round_trip_no_rolling(void);
 void test_package_result_round_trip_with_rolling(void);
 
+#ifdef ASIC_CHIP
 // Forward declarations from test_bm1368.c
 void test_bm1368_pll_fb_range(void);
 void test_bm1368_pll_490mhz(void);
 void test_bm1368_pll_vdo_scale(void);
 void test_asic_ticket_mask_256_bm1368(void);
+#endif
 
 // Forward declarations from test_tps546_decode.c
 void test_ulinear16_typical_vout(void);
@@ -378,12 +384,14 @@ void test_ota_validator_on_timer_fired_pending(void);
 void test_ota_validator_happy_path_share_accepted(void);
 void test_ota_validator_happy_path_timeout(void);
 
+#ifdef ASIC_CHIP
 // Forward declarations from test_asic_pause_coalesce.c
 void test_asic_pause_idle_when_not_pending_and_not_quiesced(void);
 void test_asic_pause_first_pause_quiesces_and_acks(void);
 void test_asic_pause_second_pause_only_acks(void);
 void test_asic_pause_resume_when_clear_and_quiesced(void);
 void test_asic_pause_full_check_install_resume_sequence(void);
+#endif
 
 // TA-234B: mining_pause_io (coordinator seam tests)
 void test_init_stores_ops_and_inits_state(void);
@@ -411,6 +419,7 @@ void test_mining_pause_state_on_done_timeout(void);
 void test_mining_pause_state_full_happy_path(void);
 void test_mining_pause_state_resume_before_check(void);
 
+#ifdef ASIC_CHIP
 // TA-234: asic_nonce_dedup
 void test_nonce_dedup_fresh_state_has_no_dups(void);
 void test_nonce_dedup_immediate_redundant_insert_returns_true(void);
@@ -420,6 +429,7 @@ void test_nonce_dedup_different_ver_is_not_dup(void);
 void test_nonce_dedup_ring_wraparound_evicts_oldest(void);
 void test_nonce_dedup_reset_clears_all(void);
 void test_nonce_dedup_next_idx_advances_cyclically(void);
+#endif
 
 // TA-234: mining_avg
 void test_avg_nan_safe_empty_all_nan(void);
@@ -446,6 +456,7 @@ void test_stratum_backoff_caps_at_60s(void);
 void test_stratum_backoff_reset_on_success(void);
 void test_stratum_backoff_post_kick_restarts_clean(void);
 
+#ifdef ASIC_CHIP
 // TA-234: asic_drop_detect
 void test_drop_detect_accepts_below_sanity(void);
 void test_drop_detect_rejects_at_or_above_sanity(void);
@@ -474,6 +485,7 @@ void test_chip_routing_four_chips(void);
 void test_chip_routing_invalid_chip_count_zero(void);
 void test_chip_routing_invalid_chip_count_negative(void);
 void test_chip_routing_invalid_chip_count_too_large(void);
+#endif
 
 // TA-234: partition_fixup_decision
 void test_pfd_skip_when_expected_empty(void);
@@ -499,6 +511,7 @@ void test_knot_table_null_guards(void);
 void test_knot_walk_basic(void);
 void test_knot_walk_early_abort(void);
 
+#ifdef ASIC_CHIP
 // Forward declarations from test_routes_json_asic.c (TA-292)
 void test_power_all_sensors_populated(void);
 void test_power_all_sensors_null(void);
@@ -526,6 +539,7 @@ void test_stats_chip_array_two_chips(void);
 void test_stats_chip_array_empty(void);
 void test_stats_last_drop_null_when_zero(void);
 void test_stats_last_drop_nonzero_computes_age(void);
+#endif
 
 // Forward declarations from test_routes_json.c (TA-291)
 void test_stats_happy_path(void);
@@ -710,6 +724,7 @@ int main(void) {
     RUN_TEST(test_pll_vdo_scale_low);
     RUN_TEST(test_pll_postdiv_byte);
 
+#ifdef ASIC_CHIP
     // TA-297: ASIC job-table slot-mapping and staleness guard tests
     RUN_TEST(test_job_slot_id_zero_maps_to_zero);
     RUN_TEST(test_job_slot_id_below_table_size_maps_to_itself);
@@ -759,6 +774,7 @@ int main(void) {
     RUN_TEST(test_asic_ticket_mask_diff_128);
     RUN_TEST(test_asic_ticket_mask_boundary_513_5);
     RUN_TEST(test_asic_ticket_mask_boundary_512_1);
+#endif
 
     // Mining loop tests
     RUN_TEST(test_sw_backend_finds_block1_share);
@@ -934,11 +950,13 @@ int main(void) {
     RUN_TEST(test_is_target_valid_diff512);
     RUN_TEST(test_is_target_valid_diff_001);
 
+#ifdef ASIC_CHIP
     // BM1368 tests
     RUN_TEST(test_bm1368_pll_fb_range);
     RUN_TEST(test_bm1368_pll_490mhz);
     RUN_TEST(test_bm1368_pll_vdo_scale);
     RUN_TEST(test_asic_ticket_mask_256_bm1368);
+#endif
 
     // TPS546 decode tests
     RUN_TEST(test_ulinear16_typical_vout);
@@ -970,12 +988,14 @@ int main(void) {
     RUN_TEST(test_ota_validator_happy_path_share_accepted);
     RUN_TEST(test_ota_validator_happy_path_timeout);
 
+#ifdef ASIC_CHIP
     // ASIC pause/resume coalesce tests
     RUN_TEST(test_asic_pause_idle_when_not_pending_and_not_quiesced);
     RUN_TEST(test_asic_pause_first_pause_quiesces_and_acks);
     RUN_TEST(test_asic_pause_second_pause_only_acks);
     RUN_TEST(test_asic_pause_resume_when_clear_and_quiesced);
     RUN_TEST(test_asic_pause_full_check_install_resume_sequence);
+#endif
 
     // TA-234B: mining_pause_io coordinator tests
     RUN_TEST(test_init_stores_ops_and_inits_state);
@@ -1003,6 +1023,7 @@ int main(void) {
     RUN_TEST(test_mining_pause_state_full_happy_path);
     RUN_TEST(test_mining_pause_state_resume_before_check);
 
+#ifdef ASIC_CHIP
     // TA-234: asic_nonce_dedup tests
     RUN_TEST(test_nonce_dedup_fresh_state_has_no_dups);
     RUN_TEST(test_nonce_dedup_immediate_redundant_insert_returns_true);
@@ -1023,6 +1044,7 @@ int main(void) {
     RUN_TEST(test_asic_share_validate_low_difficulty_sanity);
     RUN_TEST(test_asic_share_validate_version_rolling_applied);
     RUN_TEST(test_asic_share_validate_nonce_patching_position);
+#endif
     RUN_TEST(test_share_validate_target_invalid_returns_fail);
     RUN_TEST(test_share_validate_meets_target_with_invalid_target_still_fails);
 
@@ -1051,6 +1073,7 @@ int main(void) {
     RUN_TEST(test_stratum_backoff_reset_on_success);
     RUN_TEST(test_stratum_backoff_post_kick_restarts_clean);
 
+#ifdef ASIC_CHIP
     // TA-234: asic_drop_detect tests
     RUN_TEST(test_drop_detect_accepts_below_sanity);
     RUN_TEST(test_drop_detect_rejects_at_or_above_sanity);
@@ -1079,6 +1102,7 @@ int main(void) {
     RUN_TEST(test_chip_routing_invalid_chip_count_zero);
     RUN_TEST(test_chip_routing_invalid_chip_count_negative);
     RUN_TEST(test_chip_routing_invalid_chip_count_too_large);
+#endif
 
     // TA-234: partition_fixup_decision tests
     RUN_TEST(test_pfd_skip_when_expected_empty);
@@ -1127,6 +1151,7 @@ int main(void) {
     RUN_TEST(test_settings_happy_path);
     RUN_TEST(test_settings_empty_optional_fields);
 
+#ifdef ASIC_CHIP
     // TA-292: ASIC-gated JSON builder tests
     RUN_TEST(test_power_all_sensors_populated);
     RUN_TEST(test_power_all_sensors_null);
@@ -1154,6 +1179,7 @@ int main(void) {
     RUN_TEST(test_stats_chip_array_empty);
     RUN_TEST(test_stats_last_drop_null_when_zero);
     RUN_TEST(test_stats_last_drop_nonzero_computes_age);
+#endif
 
     // TA-315: PID autofan controller tests
     RUN_TEST(test_pid_high_temp_drives_output_near_max);

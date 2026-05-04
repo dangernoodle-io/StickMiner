@@ -15,10 +15,10 @@ check: ## Static analysis (cppcheck) for all default envs
 check-%: ## Static analysis for one env (e.g. make check-bitaxe-601)
 	$(PIO) check --skip-packages -e $*
 
-test: ## Run host unit tests
-	$(PIO) test -e native
+test: ## Run host unit tests (both ASIC and non-ASIC paths)
+	$(PIO) test -e native && $(PIO) test -e native-noasic
 
-coverage: test ## Coverage report (gcovr)
+coverage: test ## Coverage report (gcovr) — aggregates both native envs
 	gcovr --root . --filter 'components/' --print-summary --coveralls gcovr-coveralls.json
 
 build: ## Build default envs (tdongle-s3 + bitaxe-601)
