@@ -1,4 +1,5 @@
 #include "sha256.h"
+#include "work.h"
 #include "bb_core.h"
 #include "bb_log.h"
 #include "bb_byte_order.h"
@@ -330,10 +331,8 @@ void sha256_final(sha256_ctx_t *ctx, uint8_t hash[32]) {
 
     sha256_update(ctx, padbuf, padlen + 8);
 
-    // Output final hash (big-endian)
-    for (int i = 0; i < 8; i++) {
-        bb_store_be32(hash + i * 4, ctx->state[i]);
-    }
+    // Output final hash (big-endian) via shared serialization helper
+    mining_hash_from_state(ctx->state, hash);
 }
 
 void sha256(const uint8_t *data, size_t len, uint8_t hash[32]) {

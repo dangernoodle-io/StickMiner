@@ -374,14 +374,7 @@ hash_result_t sw_hash_nonce(hash_backend_t *b,
 
     // Early reject: check MSB word
     if (state[7] <= ctx->target_word0) {
-        bb_store_be32(hash_out,      state[0]);
-        bb_store_be32(hash_out + 4,  state[1]);
-        bb_store_be32(hash_out + 8,  state[2]);
-        bb_store_be32(hash_out + 12, state[3]);
-        bb_store_be32(hash_out + 16, state[4]);
-        bb_store_be32(hash_out + 20, state[5]);
-        bb_store_be32(hash_out + 24, state[6]);
-        bb_store_be32(hash_out + 28, state[7]);
+        mining_hash_from_state(state, hash_out);
         return HASH_CHECK;
     }
     return HASH_MISS;
@@ -435,10 +428,9 @@ static hash_result_t hw_hash_nonce(hash_backend_t *b,
                                            nonce, digest_hw);
 
     if ((h7_raw >> 16) == 0) {
-        for (int i = 0; i < 8; i++) {
-            uint32_t w = __builtin_bswap32(digest_hw[i]);
-            bb_store_be32(hash_out + i * 4, w);
-        }
+        uint32_t state[8];
+        for (int i = 0; i < 8; i++) state[i] = __builtin_bswap32(digest_hw[i]);
+        mining_hash_from_state(state, hash_out);
         return HASH_CHECK;
     }
     return HASH_MISS;
@@ -527,10 +519,9 @@ bool mine_nonce_range(hash_backend_t *backend,
                                                 nonce, digest_hw);
         hash_result_t hr;
         if ((h7_raw >> 16) == 0) {
-            for (int i = 0; i < 8; i++) {
-                uint32_t w = __builtin_bswap32(digest_hw[i]);
-                bb_store_be32(hash + i * 4, w);
-            }
+            uint32_t state[8];
+            for (int i = 0; i < 8; i++) state[i] = __builtin_bswap32(digest_hw[i]);
+            mining_hash_from_state(state, hash);
             hr = HASH_CHECK;
         } else {
             hr = HASH_MISS;

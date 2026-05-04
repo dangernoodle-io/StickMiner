@@ -5,6 +5,7 @@
 
 #include "sha256_hw_dport.h"
 #include "sha256.h"
+#include "work.h"
 #include "bb_core.h"
 #include "bb_byte_order.h"
 #include "esp_crypto_lock.h"
@@ -127,21 +128,24 @@ static inline void dport_wait_idle(void)
 /* Mirror: nerd_sha_ll_read_digest_swap_if (mining.cpp:905-924)
  * Early-reject: checks low 16 bits of word 7 (last digest word). If non-zero,
  * returns false without touching out[].
- * On potential hit: bswap-copies all 8 words into out[] and returns true.
- * Uses DPORT_INTERRUPT_DISABLE + DPORT_SEQUENCE_REG_READ per erratum. */
+ * On potential hit: reads all 8 canonical state words under DPORT_INTERRUPT_DISABLE
+ * (per erratum), stashes word 7 first (fin), then calls mining_hash_from_state.
+ * DPORT peripheral registers hold canonical SHA words (BE numeric value as host
+ * uint32_t), so the register read passes directly to state[i] — no bswap needed. */
 static inline bool dport_read_digest_swap_if(uint8_t out[32])
 {
     DPORT_INTERRUPT_DISABLE();                     /* mining.cpp:907 */
-    uint32_t fin = DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 7 * 4); /* mining.cpp:908 */
-    bb_store_be32(out + 7 * 4, __builtin_bswap32(fin)); /* mining.cpp:914 */
-    bb_store_be32(out + 0 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 0 * 4))); /* mining.cpp:915 */
-    bb_store_be32(out + 1 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 1 * 4))); /* mining.cpp:916 */
-    bb_store_be32(out + 2 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 2 * 4))); /* mining.cpp:917 */
-    bb_store_be32(out + 3 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 3 * 4))); /* mining.cpp:918 */
-    bb_store_be32(out + 4 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 4 * 4))); /* mining.cpp:919 */
-    bb_store_be32(out + 5 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 5 * 4))); /* mining.cpp:920 */
-    bb_store_be32(out + 6 * 4, __builtin_bswap32(DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 6 * 4))); /* mining.cpp:921 */
+    uint32_t state[8];
+    state[7] = DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 7 * 4); /* mining.cpp:908 — stash word 7 first */
+    state[0] = DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 0 * 4); /* mining.cpp:915 */
+    state[1] = DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 1 * 4); /* mining.cpp:916 */
+    state[2] = DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 2 * 4); /* mining.cpp:917 */
+    state[3] = DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 3 * 4); /* mining.cpp:918 */
+    state[4] = DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 4 * 4); /* mining.cpp:919 */
+    state[5] = DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 5 * 4); /* mining.cpp:920 */
+    state[6] = DPORT_SEQUENCE_REG_READ(SHA_TEXT_BASE + 6 * 4); /* mining.cpp:921 */
     DPORT_INTERRUPT_RESTORE();                     /* mining.cpp:922 */
+    mining_hash_from_state(state, out);
     return true;                                   /* mining.cpp:923 */
 }
 
@@ -249,13 +253,7 @@ bb_err_t sha256_hw_dport_self_test(void)
 
     /* Pack canonical-word digest into byte form for the shared comparison helper. */
     uint8_t digest_bytes[32];
-    for (int i = 0; i < 8; i++) {
-        uint32_t w = digest[i];
-        digest_bytes[i*4 + 0] = (w >> 24) & 0xff;
-        digest_bytes[i*4 + 1] = (w >> 16) & 0xff;
-        digest_bytes[i*4 + 2] = (w >> 8)  & 0xff;
-        digest_bytes[i*4 + 3] =  w        & 0xff;
-    }
+    mining_hash_from_state(digest, digest_bytes);
     return sha256_check_abc_vector("dport", digest_bytes);
 }
 
@@ -267,12 +265,9 @@ bb_err_t sha256_hw_dport_self_test(void)
  *   - SW: sha256d(header_with_nonce, 80) → canonical BE bytes.
  *   - HW: sha256_hw_dport_per_nonce(header, nonce) → dport byte format.
  *
- * Byte-order note: dport_read_digest_swap_if stores
- *   bb_store_be32(out + i*4, bswap32(reg))
- * where reg holds the canonical SHA word (BE). So hash_hw[i*4..i*4+3] is the
- * LE byte representation of canonical word i, while hash_sw[i*4..i*4+3] is the
- * BE byte representation. They differ by a per-word bswap. We convert hash_sw
- * word-by-word to dport format for comparison.
+ * Byte-order: both SW (sha256d → sha256_final → mining_hash_from_state) and HW
+ * (dport_read_digest_swap_if → mining_hash_from_state) produce the same BE-per-word
+ * format. memcmp(hash_hw, hash_sw, 32) is a direct comparison — no conversion needed.
  *
  * Caller MUST hold sha256_hw_dport_acquire() — no re-acquire here.
  * Returns BB_OK on PASS, BB_ERR_INVALID_STATE on first mismatch.
@@ -315,22 +310,11 @@ bb_err_t sha256_hw_dport_self_test_lockstep(void)
         uint8_t hash_hw[32];
         sha256_hw_dport_per_nonce(header, nonce, hash_hw);
 
-        /* Convert hash_sw to dport byte format (per-word bswap) for comparison.
-         * hash_sw[i*4..i*4+3] = canonical BE word i bytes.
-         * hash_hw[i*4..i*4+3] = LE bytes of canonical word i (bswap of hash_sw). */
-        uint8_t hash_sw_dport[32];
-        for (int w = 0; w < 8; w++) {
-            hash_sw_dport[w*4 + 0] = hash_sw[w*4 + 3];
-            hash_sw_dport[w*4 + 1] = hash_sw[w*4 + 2];
-            hash_sw_dport[w*4 + 2] = hash_sw[w*4 + 1];
-            hash_sw_dport[w*4 + 3] = hash_sw[w*4 + 0];
-        }
-
-        if (memcmp(hash_hw, hash_sw_dport, 32) != 0) {
+        if (memcmp(hash_hw, hash_sw, 32) != 0) {
             /* Find first diverging byte. */
             int first = -1;
             for (int b = 0; b < 32; b++) {
-                if (hash_hw[b] != hash_sw_dport[b]) {
+                if (hash_hw[b] != hash_sw[b]) {
                     first = b;
                     break;
                 }
@@ -342,7 +326,7 @@ bb_err_t sha256_hw_dport_self_test_lockstep(void)
                      " first_diff_byte=%d", nonce, first);
             for (int b = lo; b < hi; b++) {
                 bb_log_e(TAG, "  byte[%2d]: hw=0x%02x sw=0x%02x%s",
-                         b, hash_hw[b], hash_sw_dport[b],
+                         b, hash_hw[b], hash_sw[b],
                          (b == first) ? " <--" : "");
             }
             return BB_ERR_INVALID_STATE;
