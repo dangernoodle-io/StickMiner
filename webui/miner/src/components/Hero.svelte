@@ -5,9 +5,9 @@
   import RejectStrip from './RejectStrip.svelte'
 
   $: ghs = $stats?.asic_total_ghs ?? ($stats?.hashrate ? $stats.hashrate / 1e9 : null)
-  $: ghs1m = $stats?.asic_total_ghs_1m ?? null
-  $: ghs10m = $stats?.asic_total_ghs_10m ?? null
-  $: ghs1h = $stats?.asic_total_ghs_1h ?? null
+  $: ghs1m = $stats?.asic_total_ghs_1m ?? ($stats?.hashrate_1m != null ? $stats.hashrate_1m / 1e9 : null)
+  $: ghs10m = $stats?.asic_total_ghs_10m ?? ($stats?.hashrate_10m != null ? $stats.hashrate_10m / 1e9 : null)
+  $: ghs1h = $stats?.asic_total_ghs_1h ?? ($stats?.hashrate_1h != null ? $stats.hashrate_1h / 1e9 : null)
   $: emaGhs = $stats?.asic_hashrate_avg ? $stats.asic_hashrate_avg / 1e9 : ($stats ? $stats.hashrate_avg / 1e9 : null)
   $: expectedGhs = $stats?.expected_ghs ?? null
   $: err = $stats?.asic_hw_error_pct ?? null

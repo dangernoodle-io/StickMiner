@@ -2,7 +2,7 @@
   import { onMount } from 'svelte'
   import { stats, info, pool } from '../lib/stores'
   import { fetchPool, putPool, switchPool, deletePoolSlot, type PoolConfigured, type PoolConfigInput, type PoolPutBody } from '../lib/api'
-  import { fmtRelative, fmtNetDiff, fmtBtc, fmtNtimeAge, truncAddr } from '../lib/fmt'
+  import { fmtRelative, fmtNetDiff, fmtBtc, fmtNtimeAge, truncAddr, fmtPoolDiff } from '../lib/fmt'
   import { nbitsToDifficulty, coinbaseTag, coinbaseHeight, coinbaseTotalReward, coinbasePayoutSpk, segwitAddress } from '../lib/coinbase'
   import PoolRow from '../components/PoolRow.svelte'
   import PoolEditDialog from '../components/PoolEditDialog.svelte'
@@ -277,7 +277,7 @@
       </div>
       <div class="metrics">
         <div class="m">
-          <div class="v">{displayPool?.current_difficulty != null ? Math.round(displayPool.current_difficulty) : '—'}</div>
+          <div class="v">{fmtPoolDiff(displayPool?.current_difficulty)}</div>
           <div class="k">diff</div>
         </div>
         <div class="m">
