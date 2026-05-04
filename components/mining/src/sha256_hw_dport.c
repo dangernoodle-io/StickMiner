@@ -260,6 +260,114 @@ bb_err_t sha256_hw_dport_self_test(void)
 }
 
 /* ---------------------------------------------------------------------------
+ * SW-vs-HW lockstep self-test for the D0 SHA hot loop.
+ *
+ * Mirrors sha256_hw_ahb_self_test() lockstep section. Runs N_LOCKSTEP_ITERS
+ * nonces from a fixed starting point. For each nonce:
+ *   - SW: sha256d(header_with_nonce, 80) → canonical BE bytes.
+ *   - HW: sha256_hw_dport_per_nonce(header, nonce) → dport byte format.
+ *
+ * Byte-order note: dport_read_digest_swap_if stores
+ *   bb_store_be32(out + i*4, bswap32(reg))
+ * where reg holds the canonical SHA word (BE). So hash_hw[i*4..i*4+3] is the
+ * LE byte representation of canonical word i, while hash_sw[i*4..i*4+3] is the
+ * BE byte representation. They differ by a per-word bswap. We convert hash_sw
+ * word-by-word to dport format for comparison.
+ *
+ * Caller MUST hold sha256_hw_dport_acquire() — no re-acquire here.
+ * Returns BB_OK on PASS, BB_ERR_INVALID_STATE on first mismatch.
+ * ---------------------------------------------------------------------------
+ */
+#define DPORT_LOCKSTEP_ITERS 1000
+
+bb_err_t sha256_hw_dport_self_test_lockstep(void)
+{
+    /* Synthetic 80-byte block header. Content is arbitrary — correctness of the
+     * HW loop relative to SW is independent of the specific header bytes.
+     * Bytes 76-79 (nonce field) are overwritten per iteration below. */
+    uint8_t header[80];
+    memset(header, 0, sizeof(header));
+    /* Version (LE uint32) */
+    header[0] = 0x01; header[1] = 0x00; header[2] = 0x00; header[3] = 0x00;
+    /* Fill bytes 4-75 with a recognisable pattern (prevhash + merkle + time + bits) */
+    for (int i = 4; i < 76; i++) {
+        header[i] = (uint8_t)((i * 0x5a) ^ 0xa5);
+    }
+
+    bb_log_i(TAG, "lockstep self-test: %d nonces", DPORT_LOCKSTEP_ITERS);
+
+    for (int iter = 0; iter < DPORT_LOCKSTEP_ITERS; iter++) {
+        uint32_t nonce = (uint32_t)(0x10000000 + iter);
+
+        /* Write nonce into header bytes 76-79 in LE (Bitcoin convention). */
+        header[76] = (uint8_t)(nonce & 0xff);
+        header[77] = (uint8_t)((nonce >> 8) & 0xff);
+        header[78] = (uint8_t)((nonce >> 16) & 0xff);
+        header[79] = (uint8_t)((nonce >> 24) & 0xff);
+
+        /* SW reference: SHA256d of the full 80-byte header. */
+        uint8_t hash_sw[32];
+        sha256d(header, 80, hash_sw);
+
+        /* HW path: always reads back the full digest (ignoring early-reject).
+         * dport_read_digest_swap_if always reads and returns true, so we get
+         * the full 32 bytes every call. */
+        uint8_t hash_hw[32];
+        sha256_hw_dport_per_nonce(header, nonce, hash_hw);
+
+        /* Convert hash_sw to dport byte format (per-word bswap) for comparison.
+         * hash_sw[i*4..i*4+3] = canonical BE word i bytes.
+         * hash_hw[i*4..i*4+3] = LE bytes of canonical word i (bswap of hash_sw). */
+        uint8_t hash_sw_dport[32];
+        for (int w = 0; w < 8; w++) {
+            hash_sw_dport[w*4 + 0] = hash_sw[w*4 + 3];
+            hash_sw_dport[w*4 + 1] = hash_sw[w*4 + 2];
+            hash_sw_dport[w*4 + 2] = hash_sw[w*4 + 1];
+            hash_sw_dport[w*4 + 3] = hash_sw[w*4 + 0];
+        }
+
+        if (memcmp(hash_hw, hash_sw_dport, 32) != 0) {
+            /* Find first diverging byte. */
+            int first = -1;
+            for (int b = 0; b < 32; b++) {
+                if (hash_hw[b] != hash_sw_dport[b]) {
+                    first = b;
+                    break;
+                }
+            }
+            /* Log context: first divergence byte ± 3 bytes (clamped). */
+            int lo = first - 3; if (lo < 0) lo = 0;
+            int hi = first + 4; if (hi > 32) hi = 32;
+            bb_log_e(TAG, "lockstep mismatch nonce=0x%08" PRIx32
+                     " first_diff_byte=%d", nonce, first);
+            for (int b = lo; b < hi; b++) {
+                bb_log_e(TAG, "  byte[%2d]: hw=0x%02x sw=0x%02x%s",
+                         b, hash_hw[b], hash_sw_dport[b],
+                         (b == first) ? " <--" : "");
+            }
+            return BB_ERR_INVALID_STATE;
+        }
+    }
+
+    bb_log_i(TAG, "lockstep self-test: PASS (%d nonces)", DPORT_LOCKSTEP_ITERS);
+    return BB_OK;
+}
+
+/* ---------------------------------------------------------------------------
+ * Boot probes bundle for D0 (classic ESP32).
+ * Called from mining_run_self_tests() under the SHA peripheral lock.
+ * Runs the lockstep test; logs result; safe to call once at boot.
+ * ---------------------------------------------------------------------------
+ */
+void sha256_hw_dport_boot_probes(void)
+{
+    bb_err_t rc = sha256_hw_dport_self_test_lockstep();
+    if (rc != BB_OK) {
+        bb_log_e(TAG, "D0 lockstep self-test FAILED — SHA hot loop digest diverges from SW SHA256d");
+    }
+}
+
+/* ---------------------------------------------------------------------------
  * Init: runs known-vector self-test then logs result.
  * Return value is ignored at this layer; gate logic (Phase 2) will check it.
  * ---------------------------------------------------------------------------
