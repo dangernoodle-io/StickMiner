@@ -354,6 +354,27 @@ void test_fan_both_null(void)
     bb_json_free_str(json);
 }
 
+void test_fan_thermal_sentinels_null(void)
+{
+    /* TA-141: die_ema_c, vr_ema_c, pid_input_c all sentinel (-1.0f) → emit null */
+    fan_snapshot_t s = { .fan_rpm = 2400, .fan_duty_pct = 75,
+                         .autofan = true, .temp_target_c = 60,
+                         .manual_pct = 100, .min_pct = 25,
+                         .die_ema_c = -1.0f, .vr_ema_c = -1.0f,
+                         .pid_input_c = -1.0f, .pid_input_src = "die" };
+
+    bb_json_t root = bb_json_obj_new();
+    build_fan_json(&s, root);
+    char *json = serialize_and_free(root);
+
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"die_ema_c\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"vr_ema_c\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"pid_input_c\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"pid_input_src\":\"die\""));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"rpm\":2400"));
+    bb_json_free_str(json);
+}
+
 /* ============================================================================
  * /api/stats — ASIC-gated branches of build_stats_json
  * ========================================================================= */

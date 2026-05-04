@@ -491,6 +491,7 @@ void test_fan_both_populated(void);
 void test_fan_rpm_null(void);
 void test_fan_duty_null(void);
 void test_fan_both_null(void);
+void test_fan_thermal_sentinels_null(void);
 void test_stats_asic_total_valid_true(void);
 void test_stats_asic_total_valid_false(void);
 void test_stats_expected_ghs_populated(void);
@@ -1088,6 +1089,7 @@ int main(void) {
     RUN_TEST(test_fan_rpm_null);
     RUN_TEST(test_fan_duty_null);
     RUN_TEST(test_fan_both_null);
+    RUN_TEST(test_fan_thermal_sentinels_null);
     RUN_TEST(test_stats_asic_total_valid_true);
     RUN_TEST(test_stats_asic_total_valid_false);
     RUN_TEST(test_stats_expected_ghs_populated);
