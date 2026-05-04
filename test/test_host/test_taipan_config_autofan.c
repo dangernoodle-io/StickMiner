@@ -15,28 +15,52 @@ void test_set_autofan_enabled_round_trip(void)
     TEST_ASSERT_FALSE(taipan_config_autofan_enabled());
 }
 
-void test_set_temp_target_in_range(void)
+void test_set_die_target_in_range(void)
 {
     bb_nv_config_init();
     taipan_config_init();
-    TEST_ASSERT_EQUAL(0, taipan_config_set_temp_target_c(60));
-    TEST_ASSERT_EQUAL(60, taipan_config_temp_target_c());
+    TEST_ASSERT_EQUAL(0, taipan_config_set_die_target_c(60));
+    TEST_ASSERT_EQUAL(60, taipan_config_die_target_c());
 }
 
-void test_set_temp_target_clamps_low(void)
+void test_set_die_target_clamps_low(void)
 {
     bb_nv_config_init();
     taipan_config_init();
-    TEST_ASSERT_EQUAL(0, taipan_config_set_temp_target_c(10));
-    TEST_ASSERT_EQUAL(35, taipan_config_temp_target_c());
+    TEST_ASSERT_EQUAL(0, taipan_config_set_die_target_c(10));
+    TEST_ASSERT_EQUAL(35, taipan_config_die_target_c());
 }
 
-void test_set_temp_target_clamps_high(void)
+void test_set_die_target_clamps_high(void)
 {
     bb_nv_config_init();
     taipan_config_init();
-    TEST_ASSERT_EQUAL(0, taipan_config_set_temp_target_c(200));
-    TEST_ASSERT_EQUAL(85, taipan_config_temp_target_c());
+    TEST_ASSERT_EQUAL(0, taipan_config_set_die_target_c(200));
+    TEST_ASSERT_EQUAL(85, taipan_config_die_target_c());
+}
+
+void test_set_vr_target_in_range(void)
+{
+    bb_nv_config_init();
+    taipan_config_init();
+    TEST_ASSERT_EQUAL(0, taipan_config_set_vr_target_c(75));
+    TEST_ASSERT_EQUAL(75, taipan_config_vr_target_c());
+}
+
+void test_set_vr_target_clamps_low(void)
+{
+    bb_nv_config_init();
+    taipan_config_init();
+    TEST_ASSERT_EQUAL(0, taipan_config_set_vr_target_c(10));
+    TEST_ASSERT_EQUAL(50, taipan_config_vr_target_c());
+}
+
+void test_set_vr_target_clamps_high(void)
+{
+    bb_nv_config_init();
+    taipan_config_init();
+    TEST_ASSERT_EQUAL(0, taipan_config_set_vr_target_c(200));
+    TEST_ASSERT_EQUAL(100, taipan_config_vr_target_c());
 }
 
 void test_set_manual_fan_pct_in_range(void)

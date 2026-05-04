@@ -395,12 +395,17 @@ void build_fan_json(const fan_snapshot_t *s, bb_json_t root)
     } else {
         bb_json_obj_set_null(root, "duty_pct");
     }
-    /* TA-315: autofan config */
+    /* TA-315/TA-352: autofan config */
     bb_json_obj_set_bool(root, "autofan", s->autofan);
-    if (s->temp_target_c >= 0) {
-        bb_json_obj_set_number(root, "temp_target_c", s->temp_target_c);
+    if (s->die_target_c >= 0) {
+        bb_json_obj_set_number(root, "die_target_c", s->die_target_c);
     } else {
-        bb_json_obj_set_null(root, "temp_target_c");
+        bb_json_obj_set_null(root, "die_target_c");
+    }
+    if (s->vr_target_c >= 0) {
+        bb_json_obj_set_number(root, "vr_target_c", s->vr_target_c);
+    } else {
+        bb_json_obj_set_null(root, "vr_target_c");
     }
     if (s->manual_pct >= 0) {
         bb_json_obj_set_number(root, "manual_pct", s->manual_pct);

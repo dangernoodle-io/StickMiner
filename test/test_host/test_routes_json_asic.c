@@ -291,7 +291,7 @@ void test_power_vr_temp_null(void)
 void test_fan_both_populated(void)
 {
     fan_snapshot_t s = { .fan_rpm = 2400, .fan_duty_pct = 75,
-                         .autofan = true, .temp_target_c = 60,
+                         .autofan = true, .die_target_c = 60, .vr_target_c = 75,
                          .manual_pct = 100, .min_pct = 25 };
 
     bb_json_t root = bb_json_obj_new();
@@ -301,7 +301,8 @@ void test_fan_both_populated(void)
     TEST_ASSERT_NOT_NULL(strstr(json, "\"rpm\":2400"));
     TEST_ASSERT_NOT_NULL(strstr(json, "\"duty_pct\":75"));
     TEST_ASSERT_NOT_NULL(strstr(json, "\"autofan\":true"));
-    TEST_ASSERT_NOT_NULL(strstr(json, "\"temp_target_c\":60"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"die_target_c\":60"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"vr_target_c\":75"));
     TEST_ASSERT_NOT_NULL(strstr(json, "\"manual_pct\":100"));
     TEST_ASSERT_NOT_NULL(strstr(json, "\"min_pct\":25"));
     bb_json_free_str(json);
@@ -310,7 +311,7 @@ void test_fan_both_populated(void)
 void test_fan_rpm_null(void)
 {
     fan_snapshot_t s = { .fan_rpm = -1, .fan_duty_pct = 75,
-                         .autofan = false, .temp_target_c = 60,
+                         .autofan = false, .die_target_c = 60, .vr_target_c = 75,
                          .manual_pct = 100, .min_pct = 25 };
 
     bb_json_t root = bb_json_obj_new();
@@ -326,7 +327,7 @@ void test_fan_rpm_null(void)
 void test_fan_duty_null(void)
 {
     fan_snapshot_t s = { .fan_rpm = 2400, .fan_duty_pct = -1,
-                         .autofan = true, .temp_target_c = 60,
+                         .autofan = true, .die_target_c = 60, .vr_target_c = 75,
                          .manual_pct = 100, .min_pct = 25 };
 
     bb_json_t root = bb_json_obj_new();
@@ -341,7 +342,7 @@ void test_fan_duty_null(void)
 void test_fan_both_null(void)
 {
     fan_snapshot_t s = { .fan_rpm = -1, .fan_duty_pct = -1,
-                         .autofan = false, .temp_target_c = 60,
+                         .autofan = false, .die_target_c = 60, .vr_target_c = 75,
                          .manual_pct = 100, .min_pct = 25 };
 
     bb_json_t root = bb_json_obj_new();
@@ -354,11 +355,30 @@ void test_fan_both_null(void)
     bb_json_free_str(json);
 }
 
+void test_fan_targets_null(void)
+{
+    /* TA-352: die_target_c/vr_target_c are int-typed; <0 → emit null.
+     * Exercises the sentinel branches for both setpoint fields. */
+    fan_snapshot_t s = { .fan_rpm = 2400, .fan_duty_pct = 75,
+                         .autofan = false, .die_target_c = -1, .vr_target_c = -1,
+                         .manual_pct = 100, .min_pct = 25,
+                         .die_ema_c = -1.0f, .vr_ema_c = -1.0f,
+                         .pid_input_c = -1.0f, .pid_input_src = "die" };
+
+    bb_json_t root = bb_json_obj_new();
+    build_fan_json(&s, root);
+    char *json = serialize_and_free(root);
+
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"die_target_c\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"vr_target_c\":null"));
+    bb_json_free_str(json);
+}
+
 void test_fan_thermal_sentinels_null(void)
 {
     /* TA-141: die_ema_c, vr_ema_c, pid_input_c all sentinel (-1.0f) → emit null */
     fan_snapshot_t s = { .fan_rpm = 2400, .fan_duty_pct = 75,
-                         .autofan = true, .temp_target_c = 60,
+                         .autofan = true, .die_target_c = 60, .vr_target_c = 75,
                          .manual_pct = 100, .min_pct = 25,
                          .die_ema_c = -1.0f, .vr_ema_c = -1.0f,
                          .pid_input_c = -1.0f, .pid_input_src = "die" };

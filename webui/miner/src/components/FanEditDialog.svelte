@@ -4,20 +4,28 @@
   import Toggle from './Toggle.svelte'
 
   let autofan = false
-  let target = 60
+  let die = 60
+  let vr = 75
   let minPct = 35
   let manual = 80
   let saving = false
   let msg = ''
   let kind: '' | 'ok' | 'err' = ''
 
-  $: if ($fanEditOpen && $fan) {
-    autofan = $fan.autofan
-    target = $fan.temp_target_c
-    minPct = $fan.min_pct
-    manual = $fan.manual_pct
-    msg = ''
-    kind = ''
+  // Seed form fields ONCE on the dialog's open→true transition. The fan store
+  // polls every 5s; reseeding on every update would clobber an in-progress drag.
+  let lastOpen = false
+  $: {
+    if ($fanEditOpen && !lastOpen && $fan) {
+      autofan = $fan.autofan
+      die = $fan.die_target_c
+      vr = $fan.vr_target_c
+      minPct = $fan.min_pct
+      manual = $fan.manual_pct
+      msg = ''
+      kind = ''
+    }
+    lastOpen = $fanEditOpen
   }
 
   async function save() {
@@ -27,7 +35,8 @@
     kind = ''
     const patch: FanPatch = {}
     if (autofan !== $fan.autofan) patch.autofan = autofan
-    if (target !== $fan.temp_target_c) patch.temp_target_c = target
+    if (die !== $fan.die_target_c) patch.die_target_c = die
+    if (vr !== $fan.vr_target_c) patch.vr_target_c = vr
     if (minPct !== $fan.min_pct) patch.min_pct = minPct
     if (manual !== $fan.manual_pct) patch.manual_pct = manual
     try {
@@ -68,10 +77,18 @@
 
         <div class="slider-group" class:disabled={saving || !autofan}>
           <div class="slider-head">
-            <label for="fan-target">Target temperature</label>
-            <span class="val">{target}°C</span>
+            <label for="fan-die">Die target</label>
+            <span class="val">{die}°C</span>
           </div>
-          <input id="fan-target" type="range" min="35" max="85" step="1" bind:value={target} disabled={saving || !autofan} />
+          <input id="fan-die" type="range" min="35" max="85" step="1" bind:value={die} disabled={saving || !autofan} />
+        </div>
+
+        <div class="slider-group" class:disabled={saving || !autofan}>
+          <div class="slider-head">
+            <label for="fan-vr">VR target</label>
+            <span class="val">{vr}°C</span>
+          </div>
+          <input id="fan-vr" type="range" min="50" max="100" step="1" bind:value={vr} disabled={saving || !autofan} />
         </div>
 
         <div class="slider-group" class:disabled={saving || !autofan}>
