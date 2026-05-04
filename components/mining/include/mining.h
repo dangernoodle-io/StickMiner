@@ -195,6 +195,14 @@ typedef struct {
     double              hw_hashrate;
     hashrate_ema_t      hw_ema;
     float               temp_c;          // ESP32-S3 die temperature
+#ifndef ASIC_CHIP
+    float               hashrate_1m;       // Rolling 1m avg of hw_hashrate (-1 = unavailable)
+    float               hashrate_10m;      // Rolling 10m avg of hw_hashrate (-1 = unavailable)
+    float               hashrate_1h;       // Rolling 1h avg of hw_hashrate (-1 = unavailable)
+    float               hw_error_pct_1m;   // No source on HW SHA path; always -1 for now
+    float               hw_error_pct_10m;
+    float               hw_error_pct_1h;
+#endif
 #ifdef ASIC_CHIP
     double              asic_hashrate;
     hashrate_ema_t      asic_ema;

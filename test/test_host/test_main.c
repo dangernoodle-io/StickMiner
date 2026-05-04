@@ -409,7 +409,7 @@ void test_nonce_dedup_ring_wraparound_evicts_oldest(void);
 void test_nonce_dedup_reset_clears_all(void);
 void test_nonce_dedup_next_idx_advances_cyclically(void);
 
-// TA-234: asic_metric_avg
+// TA-234: mining_avg
 void test_avg_nan_safe_empty_all_nan(void);
 void test_avg_nan_safe_single_value(void);
 void test_avg_nan_safe_partial_nan(void);
@@ -998,7 +998,7 @@ int main(void) {
     RUN_TEST(test_asic_share_validate_version_rolling_applied);
     RUN_TEST(test_asic_share_validate_nonce_patching_position);
 
-    // TA-234: asic_metric_avg tests
+    // TA-234: mining_avg tests
     RUN_TEST(test_avg_nan_safe_empty_all_nan);
     RUN_TEST(test_avg_nan_safe_single_value);
     RUN_TEST(test_avg_nan_safe_partial_nan);

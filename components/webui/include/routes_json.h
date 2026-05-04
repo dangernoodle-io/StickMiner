@@ -54,6 +54,16 @@ typedef struct {
     uint32_t lifetime_shares;
     double   expected_ghs;     /* < 0 = unavailable, emit null */
     int64_t  now_us;           /* esp_timer_get_time() at snapshot time */
+#ifndef ASIC_CHIP
+    /* Non-ASIC rolling hashrate windows (H/s). < 0 = unavailable, emit null. */
+    double   hashrate_1m;
+    double   hashrate_10m;
+    double   hashrate_1h;
+    /* No HW-error source on HW SHA path; always < 0 → null. Reserved for parity. */
+    double   hw_error_pct_1m;
+    double   hw_error_pct_10m;
+    double   hw_error_pct_1h;
+#endif
 
 #ifdef ASIC_CHIP
     double   asic_rate;
