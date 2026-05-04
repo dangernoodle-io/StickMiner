@@ -112,7 +112,7 @@
         <p class="live-line">
           Live: {$fan.duty_pct ?? '—'}% · {$fan.rpm ?? '—'} rpm
           {#if $fan.autofan && $fan.pid_input_src}
-            · PID following {$fan.pid_input_src.toUpperCase()}
+            · PID following {$fan.pid_input_src === 'die' ? 'ASIC' : $fan.pid_input_src.toUpperCase()}
             {#if $fan.pid_input_c != null} ({$fan.pid_input_c.toFixed(1)}°C){/if}
           {/if}
         </p>

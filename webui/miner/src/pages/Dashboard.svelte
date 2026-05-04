@@ -42,7 +42,7 @@
       <h3>
         Fan
         {#if $fan?.autofan && $fan?.pid_input_src}
-          <span class="mode-badge" data-mode="auto" title="Autofan PID input source">PID: {$fan.pid_input_src.toUpperCase()}</span>
+          <span class="mode-badge" data-mode="auto" title="Autofan PID input source">PID: {$fan.pid_input_src === 'die' ? 'ASIC' : $fan.pid_input_src.toUpperCase()}</span>
         {/if}
         <span class="edit-hint">edit</span>
       </h3>
