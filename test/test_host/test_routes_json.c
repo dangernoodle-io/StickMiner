@@ -72,7 +72,7 @@ void test_stats_happy_path(void)
         "\"asic_total_ghs\":null,\"asic_hw_error_pct\":null,"
         "\"asic_total_ghs_1m\":null,\"asic_total_ghs_10m\":null,\"asic_total_ghs_1h\":null,"
         "\"asic_hw_error_pct_1m\":null,\"asic_hw_error_pct_10m\":null,\"asic_hw_error_pct_1h\":null,"
-        "\"hashrate_pool_effective\":0,\"asic_chips\":[]}",
+        "\"pool_effective_hashrate\":0,\"asic_chips\":[]}",
         json);
     bb_json_free_str(json);
 }
@@ -102,7 +102,7 @@ void test_stats_zeroed(void)
         "\"asic_total_ghs\":null,\"asic_hw_error_pct\":null,"
         "\"asic_total_ghs_1m\":null,\"asic_total_ghs_10m\":null,\"asic_total_ghs_1h\":null,"
         "\"asic_hw_error_pct_1m\":null,\"asic_hw_error_pct_10m\":null,\"asic_hw_error_pct_1h\":null,"
-        "\"hashrate_pool_effective\":0,\"asic_chips\":[]}",
+        "\"pool_effective_hashrate\":0,\"asic_chips\":[]}",
         json);
     bb_json_free_str(json);
 }
@@ -116,7 +116,7 @@ void test_stats_no_share_yet(void)
     s.last_share_us    = 0;
     s.session_start_us = 1000000LL;
     s.now_us           = 61000000LL;  /* 60 s uptime */
-    s.hashrate_pool_effective = -1.0; /* no shares yet → null */
+    s.pool_effective_hashrate = -1.0; /* no shares yet → null */
 
     bb_json_t root = bb_json_obj_new();
     build_stats_json(&s, root);
@@ -138,7 +138,7 @@ void test_stats_no_share_yet(void)
         "\"asic_total_ghs\":null,\"asic_hw_error_pct\":null,"
         "\"asic_total_ghs_1m\":null,\"asic_total_ghs_10m\":null,\"asic_total_ghs_1h\":null,"
         "\"asic_hw_error_pct_1m\":null,\"asic_hw_error_pct_10m\":null,\"asic_hw_error_pct_1h\":null,"
-        "\"hashrate_pool_effective\":null,\"asic_chips\":[]}";
+        "\"pool_effective_hashrate\":null,\"asic_chips\":[]}";
     TEST_ASSERT_EQUAL_STRING(expected, json);
     bb_json_free_str(json);
 }

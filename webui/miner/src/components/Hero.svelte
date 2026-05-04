@@ -10,7 +10,7 @@
   $: ghs1h = $stats?.asic_total_ghs_1h ?? ($stats?.hashrate_1h != null ? $stats.hashrate_1h / 1e9 : null)
   $: emaGhs = $stats?.asic_hashrate_avg ? $stats.asic_hashrate_avg / 1e9 : ($stats ? $stats.hashrate_avg / 1e9 : null)
   $: expectedGhs = $stats?.expected_ghs ?? null
-  $: poolEffectiveGhs = $stats?.hashrate_pool_effective != null ? $stats.hashrate_pool_effective / 1e9 : null
+  $: poolEffectiveGhs = $stats?.pool_effective_hashrate != null ? $stats.pool_effective_hashrate / 1e9 : null
   $: err = $stats?.asic_hw_error_pct ?? null
   $: err1m = $stats?.asic_hw_error_pct_1m ?? null
   $: err10m = $stats?.asic_hw_error_pct_10m ?? null
@@ -20,7 +20,7 @@
   $: acceptRate = accepted + rejected > 0 ? (100 * accepted) / (accepted + rejected) : null
   $: sharesPerHour = $stats && $stats.uptime_s > 60 ? (accepted * 3600) / $stats.uptime_s : null
   $: diffMult = $stats && $pool && $pool.current_difficulty > 0 ? $stats.best_diff / $pool.current_difficulty : null
-  $: poolEffShowSync = $stats && ($stats.uptime_s < 300 || $stats.hashrate_pool_effective == null)
+  $: poolEffShowSync = $stats && ($stats.uptime_s < 300 || $stats.pool_effective_hashrate == null)
 </script>
 
 {#if $stats}

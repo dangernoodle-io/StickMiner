@@ -177,13 +177,13 @@ static bb_err_t stats_handler(bb_http_request_t *req)
     s.hashrate_1m = -1.0;
     s.hashrate_10m = -1.0;
     s.hashrate_1h = -1.0;
-    s.hashrate_pool_effective = -1.0;
+    s.pool_effective_hashrate = -1.0;
     s.hw_error_pct_1m = -1.0;
     s.hw_error_pct_10m = -1.0;
     s.hw_error_pct_1h = -1.0;
 #endif
 #ifdef ASIC_CHIP
-    s.hashrate_pool_effective = -1.0;
+    s.pool_effective_hashrate = -1.0;
     s.asic_freq_cfg = -1.0f;
     s.asic_freq_eff = -1.0f;
 #endif
@@ -248,7 +248,7 @@ static bb_err_t stats_handler(bb_http_request_t *req)
     }
 
     double pool_eff_hr = mining_get_pool_effective_hashrate();
-    s.hashrate_pool_effective = (pool_eff_hr > 0.0) ? pool_eff_hr : -1.0;
+    s.pool_effective_hashrate = (pool_eff_hr > 0.0) ? pool_eff_hr : -1.0;
 
     s.now_us = esp_timer_get_time();
 
