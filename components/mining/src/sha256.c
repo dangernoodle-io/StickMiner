@@ -348,6 +348,18 @@ void sha256d(const uint8_t *data, size_t len, uint8_t hash[32]) {
     sha256(first_hash, 32, hash);
 }
 
+/* Builds the 64-byte SHA-256 input block for the "abc" known-answer vector,
+ * suitable for direct peripheral block-fill (raw bytes, not bswapped).
+ * Output: abc_block[64] initialized with "abc", padding bit, and bit-length. */
+void sha256_build_abc_block(uint8_t out[64]) {
+    memset(out, 0, 64);
+    out[0]  = 0x61;  /* 'a' */
+    out[1]  = 0x62;  /* 'b' */
+    out[2]  = 0x63;  /* 'c' */
+    out[3]  = 0x80;  /* SHA padding bit */
+    out[63] = 0x18;  /* 64-bit BE bit-length = 24 */
+}
+
 /* Pure helper: compare a 32-byte digest against the SHA-256("abc") NIST
  * vector, log PASS/FAIL with backend_tag, and return BB_OK/BB_ERR_INVALID_STATE.
  * Split out so the FAIL branch is host-testable by feeding a synthetic digest. */

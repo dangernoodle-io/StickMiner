@@ -201,3 +201,27 @@ void test_sha256_transform_performance(void)
     // Final states must match
     TEST_ASSERT_EQUAL_HEX32_ARRAY(state1, state2, 8);
 }
+
+// Test: sha256_build_abc_block produces correct 64-byte block
+// Validates the known-answer vector (abc) block builder
+void test_sha256_build_abc_block(void)
+{
+    uint8_t block[64];
+    sha256_build_abc_block(block);
+
+    // Check first 3 bytes: "abc"
+    TEST_ASSERT_EQUAL_HEX8(0x61, block[0]);
+    TEST_ASSERT_EQUAL_HEX8(0x62, block[1]);
+    TEST_ASSERT_EQUAL_HEX8(0x63, block[2]);
+
+    // Check padding bit at byte 3
+    TEST_ASSERT_EQUAL_HEX8(0x80, block[3]);
+
+    // Check bytes 4-62 are zero
+    for (int i = 4; i < 63; i++) {
+        TEST_ASSERT_EQUAL_HEX8(0x00, block[i]);
+    }
+
+    // Check bit-length at byte 63 (64-bit BE = 24 bits)
+    TEST_ASSERT_EQUAL_HEX8(0x18, block[63]);
+}

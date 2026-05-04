@@ -297,12 +297,7 @@ bb_err_t sha256_hw_ahb_self_test(void)
      * The abc_block has only one 512-bit block, so sha256_hw_midstate()
      * produces the complete digest. */
     uint8_t abc_block[64];
-    memset(abc_block, 0, sizeof(abc_block));
-    abc_block[0]  = 0x61;  /* 'a' */
-    abc_block[1]  = 0x62;  /* 'b' */
-    abc_block[2]  = 0x63;  /* 'c' */
-    abc_block[3]  = 0x80;  /* SHA padding bit */
-    abc_block[63] = 0x18;  /* 64-bit BE bit-length = 24 */
+    sha256_build_abc_block(abc_block);
 
     /* sha256_hw_midstate writes/reads SHA peripheral registers; the periph
      * clock must be on and the AES/SHA lock held, otherwise AHB writes are
@@ -323,108 +318,118 @@ bb_err_t sha256_hw_ahb_self_test(void)
         return midstate_result;
     }
 
-    /* TA-320f: lockstep test of sha256_hw_mine_nonce against the SW SHA-256d
-     * reference. Catches silent regressions in the per-nonce hot loop
-     * (TA-271 / TA-322 bug class) — a wrong-byte-order or stale-TEXT-slot
-     * bug here causes every share to be rejected by the pool with no
-     * other symptom. Required after any change to TEXT/H register sequencing,
-     * overlap-store windows, or persistent-zero discipline.
-     *
-     * Test: 8 consecutive nonces against a fixed midstate + block2 tail.
-     * For each nonce, compute SHA-256d via the SW path (sha256_transform
-     * twice), then compare h7_raw and (when in candidate range) the full
-     * digest against sha256_hw_mine_nonce's output. */
-    {
-        /* Synthetic but well-defined inputs. midstate must be a plausible
-         * SHA-256 mid-state shape (any 8 words work for correctness tests
-         * because we compare HW vs SW with the same inputs). */
-        const uint32_t midstate_canonical[8] = {
+    return BB_OK;
+}
+
+/* ---------------------------------------------------------------------------
+ * SW-vs-HW lockstep self-test for the S3/S2/C3 SHA hot loop.
+ *
+ * Mirrors sha256_hw_dport_self_test_lockstep() structure. Runs N_LOCKSTEP_ITERS
+ * nonces from a fixed starting point. For each nonce:
+ *   - HW: sha256_hw_mine_nonce() on synthetic midstate + block2 tail.
+ *   - SW: sha256d (sha256_transform twice) on the same logical inputs.
+ *
+ * Byte-order: both HW and SW compare h7_raw directly (both in HW-native format),
+ * and full digest on potential hits. memcmp is not used — comparison is per-word.
+ *
+ * Caller MUST hold sha256_hw_acquire() — this function calls pipeline_prep
+ * internally but assumes the lock is already held on entry.
+ * Returns BB_OK on PASS, BB_ERR_INVALID_STATE on first mismatch.
+ * ---------------------------------------------------------------------------
+ */
+#define AHB_LOCKSTEP_ITERS 1000
+
+bb_err_t sha256_hw_ahb_self_test_lockstep(uint32_t iters)
+{
+    /* Synthetic but well-defined inputs. midstate must be a plausible
+     * SHA-256 mid-state shape (any 8 words work for correctness tests
+     * because we compare HW vs SW with the same inputs). */
+    const uint32_t midstate_canonical[8] = {
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+    };
+    /* HW backend stores midstate in HW word order (bswap of canonical). */
+    uint32_t midstate_hw[8];
+    for (int i = 0; i < 8; i++) {
+        midstate_hw[i] = __builtin_bswap32(midstate_canonical[i]);
+    }
+    /* block2 first 12 bytes = three uint32_t words; the rest is padding
+     * + bit-length, handled by sha256_hw_mine_nonce internally. */
+    const uint32_t block2_words[3] = { 0xdeadbeef, 0x12345678, 0xcafebabe };
+
+    bb_log_i(TAG, "lockstep self-test: %lu nonces", (unsigned long)iters);
+
+    sha256_hw_pipeline_prep();
+    for (uint32_t nonce = 0x10000000; nonce < 0x10000000 + iters; nonce++) {
+        uint32_t hw_digest[8] = {0};
+        uint32_t hw_h7 = sha256_hw_mine_nonce(midstate_hw, block2_words,
+                                               nonce, hw_digest);
+
+        /* SW reference: rebuild block2 in the byte sequence the HW
+         * peripheral actually sees. SHA_TEXT_REG[i] = X stores LE bytes
+         * of X to MMIO; the peripheral reads each word position as
+         * big-endian for SHA. So a word value X feeds SHA the byte
+         * sequence (X & 0xff, (X>>8)&0xff, (X>>16)&0xff, (X>>24)&0xff).
+         * That's a straight LE byte copy of the word — no bswap. */
+        uint8_t block2_bytes[64] = {0};
+        for (int i = 0; i < 3; i++) {
+            uint32_t w = block2_words[i];
+            block2_bytes[i*4 + 0] =  w        & 0xff;
+            block2_bytes[i*4 + 1] = (w >> 8)  & 0xff;
+            block2_bytes[i*4 + 2] = (w >> 16) & 0xff;
+            block2_bytes[i*4 + 3] = (w >> 24) & 0xff;
+        }
+        block2_bytes[12] =  nonce        & 0xff;
+        block2_bytes[13] = (nonce >> 8)  & 0xff;
+        block2_bytes[14] = (nonce >> 16) & 0xff;
+        block2_bytes[15] = (nonce >> 24) & 0xff;
+        block2_bytes[16] = 0x80;       /* SHA padding */
+        block2_bytes[62] = 0x02;       /* bit-length high byte (640 bits) */
+        block2_bytes[63] = 0x80;       /* bit-length low byte */
+
+        uint32_t sw_state[8];
+        for (int i = 0; i < 8; i++) sw_state[i] = midstate_canonical[i];
+        sha256_transform(sw_state, block2_bytes);
+
+        /* Pack pass1 digest into block3 with SHA-256d padding. */
+        uint8_t block3_bytes[64] = {0};
+        for (int i = 0; i < 8; i++) {
+            block3_bytes[i*4 + 0] = (sw_state[i] >> 24) & 0xff;
+            block3_bytes[i*4 + 1] = (sw_state[i] >> 16) & 0xff;
+            block3_bytes[i*4 + 2] = (sw_state[i] >> 8)  & 0xff;
+            block3_bytes[i*4 + 3] =  sw_state[i]        & 0xff;
+        }
+        block3_bytes[32] = 0x80;
+        block3_bytes[62] = 0x01;       /* bit-length high (256 bits) */
+        block3_bytes[63] = 0x00;
+        uint32_t sw_final[8] = {
             0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
             0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
         };
-        /* HW backend stores midstate in HW word order (bswap of canonical). */
-        uint32_t midstate_hw[8];
-        for (int i = 0; i < 8; i++) {
-            midstate_hw[i] = __builtin_bswap32(midstate_canonical[i]);
+        sha256_transform(sw_final, block3_bytes);
+        uint32_t sw_h7 = __builtin_bswap32(sw_final[7]);
+
+        if (hw_h7 != sw_h7) {
+            bb_log_e(TAG, "lockstep mine_nonce mismatch @ nonce=0x%08" PRIx32
+                     ": hw_h7=0x%08" PRIx32 " sw_h7=0x%08" PRIx32,
+                     nonce, hw_h7, sw_h7);
+            return BB_ERR_INVALID_STATE;
         }
-        /* block2 first 12 bytes = three uint32_t words; the rest is padding
-         * + bit-length, handled by sha256_hw_mine_nonce internally. */
-        const uint32_t block2_words[3] = { 0xdeadbeef, 0x12345678, 0xcafebabe };
-
-        sha256_hw_acquire();
-        sha256_hw_pipeline_prep();
-        for (uint32_t nonce = 0x10000000; nonce < 0x10000008; nonce++) {
-            uint32_t hw_digest[8] = {0};
-            uint32_t hw_h7 = sha256_hw_mine_nonce(midstate_hw, block2_words,
-                                                   nonce, hw_digest);
-
-            /* SW reference: rebuild block2 in the byte sequence the HW
-             * peripheral actually sees. SHA_TEXT_REG[i] = X stores LE bytes
-             * of X to MMIO; the peripheral reads each word position as
-             * big-endian for SHA. So a word value X feeds SHA the byte
-             * sequence (X & 0xff, (X>>8)&0xff, (X>>16)&0xff, (X>>24)&0xff).
-             * That's a straight LE byte copy of the word — no bswap. */
-            uint8_t block2_bytes[64] = {0};
-            for (int i = 0; i < 3; i++) {
-                uint32_t w = block2_words[i];
-                block2_bytes[i*4 + 0] =  w        & 0xff;
-                block2_bytes[i*4 + 1] = (w >> 8)  & 0xff;
-                block2_bytes[i*4 + 2] = (w >> 16) & 0xff;
-                block2_bytes[i*4 + 3] = (w >> 24) & 0xff;
-            }
-            block2_bytes[12] =  nonce        & 0xff;
-            block2_bytes[13] = (nonce >> 8)  & 0xff;
-            block2_bytes[14] = (nonce >> 16) & 0xff;
-            block2_bytes[15] = (nonce >> 24) & 0xff;
-            block2_bytes[16] = 0x80;       /* SHA padding */
-            block2_bytes[62] = 0x02;       /* bit-length high byte (640 bits) */
-            block2_bytes[63] = 0x80;       /* bit-length low byte */
-
-            uint32_t sw_state[8];
-            for (int i = 0; i < 8; i++) sw_state[i] = midstate_canonical[i];
-            sha256_transform(sw_state, block2_bytes);
-
-            /* Pack pass1 digest into block3 with SHA-256d padding. */
-            uint8_t block3_bytes[64] = {0};
-            for (int i = 0; i < 8; i++) {
-                block3_bytes[i*4 + 0] = (sw_state[i] >> 24) & 0xff;
-                block3_bytes[i*4 + 1] = (sw_state[i] >> 16) & 0xff;
-                block3_bytes[i*4 + 2] = (sw_state[i] >> 8)  & 0xff;
-                block3_bytes[i*4 + 3] =  sw_state[i]        & 0xff;
-            }
-            block3_bytes[32] = 0x80;
-            block3_bytes[62] = 0x01;       /* bit-length high (256 bits) */
-            block3_bytes[63] = 0x00;
-            uint32_t sw_final[8] = {
-                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-                0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
-            };
-            sha256_transform(sw_final, block3_bytes);
-            uint32_t sw_h7 = __builtin_bswap32(sw_final[7]);
-
-            if (hw_h7 != sw_h7) {
-                bb_log_e(TAG, "mine_nonce mismatch @ nonce=0x%08" PRIx32
-                         ": hw_h7=0x%08" PRIx32 " sw_h7=0x%08" PRIx32,
-                         nonce, hw_h7, sw_h7);
-                sha256_hw_release();
-                return BB_ERR_INVALID_STATE;
-            }
-            /* If candidate, also compare full digest. */
-            if ((hw_h7 >> 16) == 0) {
-                for (int i = 0; i < 7; i++) {
-                    uint32_t sw_w = __builtin_bswap32(sw_final[i]);
-                    if (hw_digest[i] != sw_w) {
-                        bb_log_e(TAG, "mine_nonce digest mismatch @ nonce=0x%08"
-                                 PRIx32 " word=%d: hw=0x%08" PRIx32 " sw=0x%08"
-                                 PRIx32, nonce, i, hw_digest[i], sw_w);
-                        sha256_hw_release();
-                        return BB_ERR_INVALID_STATE;
-                    }
+        /* If candidate, also compare full digest. */
+        if ((hw_h7 >> 16) == 0) {
+            for (int i = 0; i < 7; i++) {
+                uint32_t sw_w = __builtin_bswap32(sw_final[i]);
+                if (hw_digest[i] != sw_w) {
+                    bb_log_e(TAG, "lockstep mine_nonce digest mismatch @ nonce=0x%08"
+                             PRIx32 " word=%d: hw=0x%08" PRIx32 " sw=0x%08"
+                             PRIx32, nonce, i, hw_digest[i], sw_w);
+                    return BB_ERR_INVALID_STATE;
                 }
             }
         }
-        sha256_hw_release();
     }
+
+    bb_log_i(TAG, "lockstep self-test: PASS (%lu nonces)", (unsigned long)iters);
     return BB_OK;
 }
 
@@ -580,6 +585,10 @@ void sha256_hw_ahb_boot_probes(void)
     sha256_hw_hwrite_canary();
     sha256_hw_microbench();
     sha256_hw_profile_hotloop(2000);
+    bb_err_t rc = sha256_hw_ahb_self_test_lockstep(1000);
+    if (rc != BB_OK) {
+        bb_log_e(TAG, "S3 lockstep self-test FAILED — SHA hot loop digest diverges from SW SHA256d");
+    }
     sha256_hw_release();
 #endif
 }

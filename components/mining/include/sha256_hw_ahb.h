@@ -73,6 +73,12 @@ void sha256_hw_midstate(const uint8_t header_block1[64],
 // Returns BB_OK on PASS, BB_ERR_INVALID_STATE on FAIL
 bb_err_t sha256_hw_ahb_self_test(void);
 
+// SW-vs-HW lockstep self-test of sha256_hw_mine_nonce. Runs iters nonces
+// against synthetic fixed midstate + block2 tail, comparing HW and SW digests.
+// Caller MUST hold sha256_hw_acquire(); returns BB_OK on PASS,
+// BB_ERR_INVALID_STATE on first mismatch.
+bb_err_t sha256_hw_ahb_self_test_lockstep(uint32_t iters);
+
 // Optimized per-nonce SHA-256d with zero-bswap pipeline.
 // midstate_hw[]: midstate in HW format (from sha256_hw_midstate).
 // block2_words[3]: header tail words (block2 bytes 0-11 as uint32_t[3]).

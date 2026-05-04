@@ -44,6 +44,10 @@ void sha256_transform_words(uint32_t state[8], const uint32_t words[16]);
 // Initial hash values (exposed for mining optimization)
 extern const uint32_t sha256_H0[8];
 
+// Builds the 64-byte SHA-256 input block for the "abc" known-answer vector,
+// suitable for direct peripheral block-fill (raw bytes, not bswapped).
+void sha256_build_abc_block(uint8_t out[64]);
+
 // Known-vector self-test: SHA-256("abc")
 // Returns BB_OK on PASS, BB_ERR_INVALID_STATE on FAIL
 bb_err_t sha256_sw_self_test(void);
