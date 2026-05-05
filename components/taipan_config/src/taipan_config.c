@@ -1,4 +1,5 @@
 #include "taipan_config.h"
+#include <stdio.h>
 #include <string.h>
 #include "bb_nv.h"
 #include "bb_log.h"
@@ -21,6 +22,82 @@ static struct {
 } s_config;
 
 static const char *TAG = "taipan_config";
+
+/* NVS key names indexed by pool slot (0=primary, 1=fallback).
+ * String/u16 fields use a "_2" suffix for slot 1.
+ * Bool fields use a "2" suffix (no underscore) — NVS schema is fixed. */
+static const char * const s_key_host[2]    = { "pool_host",   "pool_host_2"   };
+static const char * const s_key_port[2]    = { "pool_port",   "pool_port_2"   };
+static const char * const s_key_wallet[2]  = { "wallet_addr", "wallet_addr_2" };
+static const char * const s_key_worker[2]  = { "worker",      "worker_2"      };
+static const char * const s_key_pass[2]    = { "pool_pass",   "pool_pass_2"   };
+static const char * const s_key_enxsub[2]  = { "pool_enxsub", "pool_enxsub2"  };
+static const char * const s_key_dcdcb[2]   = { "pool_dcdcb",  "pool_dcdcb2"   };
+
+/* idx=0 → primary (no suffix); idx=1 → fallback ("_2" / "2" suffix). */
+static bb_err_t load_pool_slot(int idx, taipan_pool_cfg_t *out)
+{
+    bb_err_t err;
+
+    err = bb_nv_get_str(TAIPAN_NS, s_key_host[idx], out->host, sizeof(out->host), "");
+    if (err != BB_OK) {
+        bb_log_e(TAG, "failed to load %s", s_key_host[idx]);
+        return err;
+    }
+    err = bb_nv_get_str(TAIPAN_NS, s_key_wallet[idx], out->wallet, sizeof(out->wallet), "");
+    if (err != BB_OK) {
+        bb_log_e(TAG, "failed to load %s", s_key_wallet[idx]);
+        return err;
+    }
+    err = bb_nv_get_str(TAIPAN_NS, s_key_worker[idx], out->worker, sizeof(out->worker), "");
+    if (err != BB_OK) {
+        bb_log_e(TAG, "failed to load %s", s_key_worker[idx]);
+        return err;
+    }
+    err = bb_nv_get_str(TAIPAN_NS, s_key_pass[idx], out->pass, sizeof(out->pass), "");
+    if (err != BB_OK) {
+        bb_log_e(TAG, "failed to load %s", s_key_pass[idx]);
+        return err;
+    }
+    err = bb_nv_get_u16(TAIPAN_NS, s_key_port[idx], &out->port, 0);
+    if (err != BB_OK) {
+        bb_log_e(TAG, "failed to load %s", s_key_port[idx]);
+        return err;
+    }
+    {
+        uint8_t v = 0;
+        /* TA-306 default OFF, TA-307 default ON */
+        if (bb_nv_get_u8(TAIPAN_NS, s_key_enxsub[idx], &v, 0) == BB_OK) {
+            out->extranonce_subscribe = (v != 0);
+        }
+        if (bb_nv_get_u8(TAIPAN_NS, s_key_dcdcb[idx], &v, 1) == BB_OK) {
+            out->decode_coinbase = (v != 0);
+        }
+    }
+    return BB_OK;
+}
+
+static bb_err_t save_pool_slot(int idx, const taipan_pool_cfg_t *in)
+{
+    bb_err_t err;
+
+    err = bb_nv_set_str(TAIPAN_NS, s_key_host[idx], in->host);
+    if (err != BB_OK) return err;
+    err = bb_nv_set_u16(TAIPAN_NS, s_key_port[idx], in->port);
+    if (err != BB_OK) return err;
+    err = bb_nv_set_str(TAIPAN_NS, s_key_wallet[idx], in->wallet);
+    if (err != BB_OK) return err;
+    err = bb_nv_set_str(TAIPAN_NS, s_key_worker[idx], in->worker);
+    if (err != BB_OK) return err;
+    err = bb_nv_set_str(TAIPAN_NS, s_key_pass[idx], in->pass);
+    if (err != BB_OK) return err;
+    err = bb_nv_set_u8(TAIPAN_NS, s_key_enxsub[idx], in->extranonce_subscribe ? 1 : 0);
+    if (err != BB_OK) return err;
+    err = bb_nv_set_u8(TAIPAN_NS, s_key_dcdcb[idx],  in->decode_coinbase      ? 1 : 0);
+    if (err != BB_OK) return err;
+
+    return BB_OK;
+}
 
 static bool valid_hostname(const char *s)
 {
@@ -48,88 +125,11 @@ bb_err_t taipan_config_init(void)
 #ifdef ESP_PLATFORM
     bb_err_t err;
 
-    // Load primary pool (index 0)
-    err = bb_nv_get_str(TAIPAN_NS, "pool_host", s_config.pools[0].host, sizeof(s_config.pools[0].host), "");
-    if (err != BB_OK) {
-        bb_log_e(TAG, "failed to load pool_host");
-        return err;
-    }
+    err = load_pool_slot(0, &s_config.pools[0]);
+    if (err != BB_OK) return err;
 
-    err = bb_nv_get_str(TAIPAN_NS, "wallet_addr", s_config.pools[0].wallet, sizeof(s_config.pools[0].wallet), "");
-    if (err != BB_OK) {
-        bb_log_e(TAG, "failed to load wallet_addr");
-        return err;
-    }
-
-    err = bb_nv_get_str(TAIPAN_NS, "worker", s_config.pools[0].worker, sizeof(s_config.pools[0].worker), "");
-    if (err != BB_OK) {
-        bb_log_e(TAG, "failed to load worker");
-        return err;
-    }
-
-    err = bb_nv_get_str(TAIPAN_NS, "pool_pass", s_config.pools[0].pass, sizeof(s_config.pools[0].pass), "");
-    if (err != BB_OK) {
-        bb_log_e(TAG, "failed to load pool_pass");
-        return err;
-    }
-
-    err = bb_nv_get_u16(TAIPAN_NS, "pool_port", &s_config.pools[0].port, 0);
-    if (err != BB_OK) {
-        bb_log_e(TAG, "failed to load pool_port");
-        return err;
-    }
-
-    {
-        uint8_t v = 0;
-        /* TA-306 default OFF, TA-307 default ON */
-        if (bb_nv_get_u8(TAIPAN_NS, "pool_enxsub",  &v, 0) == BB_OK) {
-            s_config.pools[0].extranonce_subscribe = (v != 0);
-        }
-        if (bb_nv_get_u8(TAIPAN_NS, "pool_dcdcb",   &v, 1) == BB_OK) {
-            s_config.pools[0].decode_coinbase = (v != 0);
-        }
-    }
-
-    // Load fallback pool (index 1)
-    err = bb_nv_get_str(TAIPAN_NS, "pool_host_2", s_config.pools[1].host, sizeof(s_config.pools[1].host), "");
-    if (err != BB_OK) {
-        bb_log_e(TAG, "failed to load pool_host_2");
-        return err;
-    }
-
-    err = bb_nv_get_str(TAIPAN_NS, "wallet_addr_2", s_config.pools[1].wallet, sizeof(s_config.pools[1].wallet), "");
-    if (err != BB_OK) {
-        bb_log_e(TAG, "failed to load wallet_addr_2");
-        return err;
-    }
-
-    err = bb_nv_get_str(TAIPAN_NS, "worker_2", s_config.pools[1].worker, sizeof(s_config.pools[1].worker), "");
-    if (err != BB_OK) {
-        bb_log_e(TAG, "failed to load worker_2");
-        return err;
-    }
-
-    err = bb_nv_get_str(TAIPAN_NS, "pool_pass_2", s_config.pools[1].pass, sizeof(s_config.pools[1].pass), "");
-    if (err != BB_OK) {
-        bb_log_e(TAG, "failed to load pool_pass_2");
-        return err;
-    }
-
-    err = bb_nv_get_u16(TAIPAN_NS, "pool_port_2", &s_config.pools[1].port, 0);
-    if (err != BB_OK) {
-        bb_log_e(TAG, "failed to load pool_port_2");
-        return err;
-    }
-
-    {
-        uint8_t v = 0;
-        if (bb_nv_get_u8(TAIPAN_NS, "pool_enxsub2", &v, 0) == BB_OK) {
-            s_config.pools[1].extranonce_subscribe = (v != 0);
-        }
-        if (bb_nv_get_u8(TAIPAN_NS, "pool_dcdcb2",  &v, 1) == BB_OK) {
-            s_config.pools[1].decode_coinbase = (v != 0);
-        }
-    }
+    err = load_pool_slot(1, &s_config.pools[1]);
+    if (err != BB_OK) return err;
 
     // Load hostname
     err = bb_nv_get_str(TAIPAN_NS, "hostname", s_config.hostname, sizeof(s_config.hostname), "");
@@ -308,69 +308,24 @@ bb_err_t taipan_config_set_pools(const taipan_pool_cfg_t *primary,
 #ifdef ESP_PLATFORM
     bb_err_t err;
 
-    // Write primary pool (index 0)
-    err = bb_nv_set_str(TAIPAN_NS, "pool_host", primary->host);
+    err = save_pool_slot(0, primary);
     if (err != BB_OK) return err;
 
-    err = bb_nv_set_u16(TAIPAN_NS, "pool_port", primary->port);
-    if (err != BB_OK) return err;
-
-    err = bb_nv_set_str(TAIPAN_NS, "wallet_addr", primary->wallet);
-    if (err != BB_OK) return err;
-
-    err = bb_nv_set_str(TAIPAN_NS, "worker", primary->worker);
-    if (err != BB_OK) return err;
-
-    err = bb_nv_set_str(TAIPAN_NS, "pool_pass", primary->pass);
-    if (err != BB_OK) return err;
-
-    err = bb_nv_set_u8(TAIPAN_NS, "pool_enxsub", primary->extranonce_subscribe ? 1 : 0);
-    if (err != BB_OK) return err;
-    err = bb_nv_set_u8(TAIPAN_NS, "pool_dcdcb",  primary->decode_coinbase      ? 1 : 0);
-    if (err != BB_OK) return err;
-
-    // Write fallback pool (index 1) or clear if NULL
     if (fallback) {
-        err = bb_nv_set_str(TAIPAN_NS, "pool_host_2", fallback->host);
-        if (err != BB_OK) return err;
-
-        err = bb_nv_set_u16(TAIPAN_NS, "pool_port_2", fallback->port);
-        if (err != BB_OK) return err;
-
-        err = bb_nv_set_str(TAIPAN_NS, "wallet_addr_2", fallback->wallet);
-        if (err != BB_OK) return err;
-
-        err = bb_nv_set_str(TAIPAN_NS, "worker_2", fallback->worker);
-        if (err != BB_OK) return err;
-
-        err = bb_nv_set_str(TAIPAN_NS, "pool_pass_2", fallback->pass);
-        if (err != BB_OK) return err;
-
-        err = bb_nv_set_u8(TAIPAN_NS, "pool_enxsub2", fallback->extranonce_subscribe ? 1 : 0);
-        if (err != BB_OK) return err;
-        err = bb_nv_set_u8(TAIPAN_NS, "pool_dcdcb2",  fallback->decode_coinbase      ? 1 : 0);
+        err = save_pool_slot(1, fallback);
         if (err != BB_OK) return err;
     } else {
-        // Clear fallback by writing empty strings and 0 port
-        err = bb_nv_set_str(TAIPAN_NS, "pool_host_2", "");
-        if (err != BB_OK) return err;
-
-        err = bb_nv_set_u16(TAIPAN_NS, "pool_port_2", 0);
-        if (err != BB_OK) return err;
-
-        err = bb_nv_set_str(TAIPAN_NS, "wallet_addr_2", "");
-        if (err != BB_OK) return err;
-
-        err = bb_nv_set_str(TAIPAN_NS, "worker_2", "");
-        if (err != BB_OK) return err;
-
-        err = bb_nv_set_str(TAIPAN_NS, "pool_pass_2", "");
-        if (err != BB_OK) return err;
-
-        /* Reset fallback bools to their defaults so a re-add starts clean. */
-        err = bb_nv_set_u8(TAIPAN_NS, "pool_enxsub2", 0);
-        if (err != BB_OK) return err;
-        err = bb_nv_set_u8(TAIPAN_NS, "pool_dcdcb2",  1);
+        // Clear fallback by writing empty strings, 0 port, and default bools.
+        static const taipan_pool_cfg_t empty_fallback = {
+            .host   = "",
+            .port   = 0,
+            .wallet = "",
+            .worker = "",
+            .pass   = "",
+            .extranonce_subscribe = false,
+            .decode_coinbase      = true,  /* Reset to default so a re-add starts clean. */
+        };
+        err = save_pool_slot(1, &empty_fallback);
         if (err != BB_OK) return err;
     }
 #endif
