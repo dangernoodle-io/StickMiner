@@ -476,6 +476,9 @@ static void hw_prepare_job(hash_backend_t *b,
     sha256_hw_pipeline_prep();  // TA-320b: prime persistent zero slots
 }
 
+// KEEP IN SYNC with the inlined copy in mine_nonce_range (lines ~589-605).
+// Changes here MUST be reflected in mine_nonce_range's #if ESP_PLATFORM ... #endif block.
+// Both implement the same SHA256 hash validation on S3/S2/C3 via sha256_hw_mine_nonce.
 static hash_result_t hw_hash_nonce(hash_backend_t *b,
                                    uint32_t nonce,
                                    uint8_t hash_out[32])
@@ -571,6 +574,9 @@ bool mine_nonce_range(hash_backend_t *backend,
     for (uint32_t nonce = params->nonce_start; ; nonce++) {
         uint8_t hash[32];
 #if defined(ESP_PLATFORM) && (CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3)
+        // KEEP IN SYNC with hw_hash_nonce (lines 479-495).
+        // S3/S2/C3 hot loop: inlined to avoid function-pointer call overhead.
+        // See comments in hw_hash_nonce for design rationale.
         uint32_t digest_hw[8];
         uint32_t h7_raw = sha256_hw_mine_nonce(hw_ctx->midstate_hw,
                                                 hw_ctx->block2_words,
