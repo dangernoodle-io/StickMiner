@@ -63,6 +63,12 @@ static double  s_inflight_diff[STRATUM_INFLIGHT_MAX] = {0};
 static double s_pool_rtt_ms_ema = 0.0;
 static bool s_pool_rtt_initialized = false;
 
+// Helper to compute in-flight ring index for a message id.
+// Centralizes modulus arithmetic to prevent accidental drift between parallel arrays.
+static inline int inflight_slot(int id) {
+    return id % STRATUM_INFLIGHT_MAX;
+}
+
 // Pool failover state (TA-202)
 static volatile int s_active_pool_idx = TAIPAN_POOL_PRIMARY;
 static int s_consecutive_fail_count = 0;
@@ -204,7 +210,7 @@ static int stratum_request(const char *method, const char *params_json)
         return -1;
     }
     // Record send time for RTT measurement (TA-118)
-    int slot = id % STRATUM_INFLIGHT_MAX;
+    int slot = inflight_slot(id);
     s_inflight_send_us[slot] = esp_timer_get_time();
     return id;
 }
@@ -484,7 +490,7 @@ static int submit_share(mining_result_t *result)
         s_last_share_tick = xTaskGetTickCount();
         // TA-344: read pool-assigned diff stamped at job-issue time
         double share_diff = result->share_diff;
-        s_inflight_diff[rc % STRATUM_INFLIGHT_MAX] = share_diff;
+        s_inflight_diff[inflight_slot(rc)] = share_diff;
     }
     return rc < 0 ? -1 : 0;
 }
@@ -524,7 +530,7 @@ static void process_message(const char *line)
 
         // Measure RTT for any response (TA-118)
         {
-            int slot = id % STRATUM_INFLIGHT_MAX;
+            int slot = inflight_slot(id);
             int64_t send_us = s_inflight_send_us[slot];
             if (send_us > 0) {
                 int64_t rtt_us = esp_timer_get_time() - send_us;
@@ -591,7 +597,7 @@ static void process_message(const char *line)
                     bb_json_free_str(err_str);
                 }
                 // TA-344: clear inflight diff slot so stale values don't accumulate
-                s_inflight_diff[id % STRATUM_INFLIGHT_MAX] = 0.0;
+                s_inflight_diff[inflight_slot(id)] = 0.0;
                 int code = stratum_parse_error_code(error_item);
                 stratum_reject_kind_t kind = stratum_machine_classify_reject(code);
                 if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
@@ -611,8 +617,8 @@ static void process_message(const char *line)
                 }
             } else if (result_item && bb_json_item_is_true(result_item)) {
                 // TA-344: read diff from inflight slot before taking mutex (slot is set before send, consumed once here)
-                double share_diff = s_inflight_diff[id % STRATUM_INFLIGHT_MAX];
-                s_inflight_diff[id % STRATUM_INFLIGHT_MAX] = 0.0;
+                double share_diff = s_inflight_diff[inflight_slot(id)];
+                s_inflight_diff[inflight_slot(id)] = 0.0;
                 bb_log_i(TAG, "share accepted (diff=%.2f cum_diff=%.2f)", share_diff,
                          mining_stats.session.accepted_diff_sum + share_diff);
                 if (s_last_submit_us) {
