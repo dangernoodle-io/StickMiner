@@ -13,7 +13,11 @@
 #include "bb_nv.h"
 #include "taipan_config.h"
 #include "webui.h"
-#include "display.h"
+#include "ui.h"
+#include "bb_display.h"
+#if defined(BOARD_BITAXE_601) || defined(BOARD_BITAXE_403) || defined(BOARD_BITAXE_650)
+#include "bb_display_ssd1306.h"
+#endif
 #include "led.h"
 #include "esp_ota_ops.h"
 #include "esp_timer.h"
@@ -159,7 +163,7 @@ static void display_status_task(void *arg)
         }
         tick++;
 
-        display_show_status(&status);
+        ui_show_status(&status);
     }
 }
 
@@ -262,9 +266,15 @@ void app_main(void)
 
 #ifndef TM_BENCH_QUIET
     // Initialize display early so splash is visible during boot.
-    // On Bitaxe, display creates I2C bus itself if asic_init() hasn't run.
-    BB_ERROR_CHECK(display_init());
-    BB_ERROR_CHECK(display_show_splash());
+    // On Bitaxe, hand the ASIC's shared I2C bus to bb_display_ssd1306
+    // before bb_display_init so we don't open a second bus instance.
+#if defined(BOARD_BITAXE_601) || defined(BOARD_BITAXE_403) || defined(BOARD_BITAXE_650)
+#ifdef ASIC_CHIP
+    bb_display_ssd1306_set_i2c_bus(asic_get_i2c_bus());
+#endif
+#endif
+    BB_ERROR_CHECK(bb_display_init());
+    ui_show_splash();
     vTaskDelay(pdMS_TO_TICKS(2000));
 #else
     bb_log_w(TAG, "TM_BENCH_QUIET: display disabled");
@@ -314,7 +324,7 @@ void app_main(void)
         // Show provisioning info on display + solid blue LED
         char ap_ssid[32];
         bb_prov_get_ap_ssid(ap_ssid, sizeof(ap_ssid));
-        BB_ERROR_CHECK(display_show_prov(ap_ssid, "taipanminer"));
+        ui_show_prov(ap_ssid, "taipanminer");
         BB_ERROR_CHECK(led_set_color(0, 0, 38));
 
         bool connected = false;

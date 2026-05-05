@@ -5,17 +5,31 @@ list(APPEND EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/.breadboard/components"
 )
 
-# bb_display family excluded — TM uses its local components/display/. Without
-# excluding the backends, IDF Component Manager resolves their idf_component.yml
-# deps; bb_display_ek79007 → esp_lcd_ek79007 is esp32p4-only and breaks
-# version solving on bitaxe-403/601/650/tdongle-s3.
+# Resolve FIRMWARE_BOARD early so per-board EXCLUDE_COMPONENTS can branch on it.
+# (Final assignment, including project()-name use, happens further down.)
+if(NOT DEFINED FIRMWARE_BOARD)
+    if(DEFINED ENV{PIOENV})
+        string(REGEX REPLACE "-debug$" "" FIRMWARE_BOARD "$ENV{PIOENV}")
+    else()
+        set(FIRMWARE_BOARD "unknown")
+    endif()
+endif()
+
+# bb_display_ek79007 (esp32p4-only) and bb_display_ili9341 are excluded to
+# prevent IDF Component Manager from resolving their platform-specific deps
+# on bitaxe/tdongle-s3 targets. Per-board excludes also drop the unused
+# panel backend so its constructor doesn't race the right one in
+# bb_display_init's first-success-wins loop (st77xx has no probe and
+# accepts junk pins, masquerading as the active backend on bitaxe boards).
 set(EXCLUDE_COMPONENTS
-    bb_display
     bb_display_ek79007
     bb_display_ili9341
-    bb_display_ssd1306
-    bb_display_st77xx
 )
+if(FIRMWARE_BOARD MATCHES "^bitaxe-")
+    list(APPEND EXCLUDE_COMPONENTS bb_display_st77xx)
+elseif(FIRMWARE_BOARD MATCHES "^tdongle-")
+    list(APPEND EXCLUDE_COMPONENTS bb_display_ssd1306)
+endif()
 
 # Override breadboard's nv_config namespace to "taipanminer" for on-device compatibility
 # (compile-time define; breadboard's nv_config.c checks `#ifndef BB_NV_CONFIG_NAMESPACE`)

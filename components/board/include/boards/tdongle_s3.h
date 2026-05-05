@@ -16,6 +16,13 @@
 #define LCD_OFFSET_X  1
 #define LCD_OFFSET_Y  26
 
+// I2C — not wired on T-Dongle S3; -1 satisfies bb_display_ssd1306 compile
+// (probe will fail gracefully at runtime and the backend is skipped).
+#define PIN_I2C_SDA    -1
+#define PIN_I2C_SCL    -1
+#define I2C_BUS_SPEED_HZ 400000
+#define I2C_BUS_NUM    0
+
 // APA102 RGB LED (SPI bit-bang)
 #define PIN_LED_CLK   39
 #define PIN_LED_DIN   40

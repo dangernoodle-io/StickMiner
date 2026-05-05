@@ -65,10 +65,10 @@ For clangd-based C/C++ IntelliSense (via the `espidf-clangd-lsp` Claude Code plu
 
 ## Project layout
 
-- `src/` — app entry point, version
+- `src/` — app entry point, version, UI layer (`src/ui/`)
 - `components/` — ESP-IDF components:
-  - Local: `mining`, `stratum`, `board`, `asic`, `display`, `led`, `ota_validator`, `taipan_config`, `webui`
-  - From breadboard: `log_stream`, `nv_config`, `ota_pull`, `ota_push`, `http_server`, `bb_wifi`, `bb_prov`, `bb_mdns`
+  - Local: `mining`, `stratum`, `board`, `asic`, `led`, `ota_validator`, `taipan_config`, `webui`
+  - From breadboard: `log_stream`, `nv_config`, `ota_pull`, `ota_push`, `http_server`, `bb_wifi`, `bb_prov`, `bb_mdns`, `bb_display`, `bb_display_st77xx` (tdongle-s3), `bb_display_ssd1306` (bitaxe-*)
 - `components/board/include/boards/` — per-board pin/peripheral headers
 - `sdkconfig/` — hand-authored sdkconfig deltas per board
 - `test/test_host/` — host-based unit tests (run without hardware via native env)
@@ -89,7 +89,11 @@ TaipanMiner consumes shared infrastructure components from the breadboard librar
   - `bb_wifi` — WiFi STA/AP, reconnect logic
   - `bb_prov` — provisioning state machine, event distribution
   - `bb_mdns` — mDNS advertisement
-- **Display** remains local (three panel drivers; raw-bitmap API incompatible with breadboard's LVGL design).
+  - `bb_display` — panel-agnostic display API (clear/blit/flush/draw_text/show_splash/show_prov)
+  - `bb_display_st77xx` — ST7735/ST7789 SPI backend (tdongle-s3; ST7735 variant with vendor-init overlay)
+  - `bb_display_ssd1306` — SSD1306 I²C backend (bitaxe-*; height=32 via sdkconfig delta)
+- **UI layer**: `src/ui/ui.c` — TM-specific display logic (splash with logo, provisioning screen, scrolling status for ST7735, paging status for SSD1306). Routes all pixel output through `bb_display_*`.
+- **I²C bus sharing**: bitaxe boards share the I²C bus between ASIC init and SSD1306. `asic_get_i2c_bus()` is passed to `bb_display_ssd1306_set_i2c_bus()` before `bb_display_init()` to avoid opening a second bus instance.
 
 ## Hardware
 
