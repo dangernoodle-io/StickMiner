@@ -247,6 +247,9 @@ typedef struct {
     float               asic_hw_error_pct_1m;  // Rolling 1m average of asic_hw_error_pct
     float               asic_hw_error_pct_10m; // Rolling 10m average of asic_hw_error_pct
     float               asic_hw_error_pct_1h;  // Rolling 1h average of asic_hw_error_pct
+    float               pcore_mw_1m;         // Rolling 1m average of pcore_mw
+    float               pcore_mw_10m;        // Rolling 10m average of pcore_mw
+    float               pcore_mw_1h;         // Rolling 1h average of pcore_mw
 #endif
     uint32_t            hw_shares;
     mining_session_t    session;

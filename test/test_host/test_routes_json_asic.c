@@ -75,6 +75,10 @@ void test_power_all_sensors_null(void)
     s.board_temp_c  = -1.0f;
     s.vr_temp_c     = -1.0f;
     s.nominal_vin_mv = 5000;
+    s.efficiency_jth_1m = -1.0;
+    s.efficiency_jth_10m = -1.0;
+    s.efficiency_jth_1h = -1.0;
+    s.expected_efficiency_jth = -1.0;
 
     bb_json_t root = bb_json_obj_new();
     build_power_json(&s, root);
@@ -82,7 +86,8 @@ void test_power_all_sensors_null(void)
 
     TEST_ASSERT_EQUAL_STRING(
         "{\"vcore_mv\":null,\"icore_ma\":null,\"pcore_mw\":null,"
-        "\"efficiency_jth\":null,\"vin_mv\":null,\"vin_low\":null,"
+        "\"efficiency_jth\":null,\"efficiency_jth_1m\":null,\"efficiency_jth_10m\":null,"
+        "\"efficiency_jth_1h\":null,\"expected_efficiency_jth\":null,\"vin_mv\":null,\"vin_low\":null,"
         "\"board_temp_c\":null,\"vr_temp_c\":null}",
         json);
     bb_json_free_str(json);
@@ -279,6 +284,62 @@ void test_power_vr_temp_null(void)
 
     TEST_ASSERT_NOT_NULL(strstr(json, "\"vr_temp_c\":null"));
     TEST_ASSERT_NOT_NULL(strstr(json, "\"board_temp_c\":55"));
+    bb_json_free_str(json);
+}
+
+void test_power_rolling_efficiency_populated(void)
+{
+    /* TA-213: rolling efficiency windows with realistic values */
+    power_snapshot_t s = {0};
+    s.vcore_mv      = 1200;
+    s.icore_ma      = 15000;
+    s.pcore_mw      = 18000;
+    s.vin_mv        = 5000;
+    s.asic_hashrate = 485e9;
+    s.board_temp_c  = 55.0f;
+    s.vr_temp_c     = 60.0f;
+    s.nominal_vin_mv = 5000;
+    s.efficiency_jth_1m = 18.5;      /* mW per GH/s */
+    s.efficiency_jth_10m = 18.4;
+    s.efficiency_jth_1h = 18.2;
+    s.expected_efficiency_jth = 16.8;
+
+    bb_json_t root = bb_json_obj_new();
+    build_power_json(&s, root);
+    char *json = serialize_and_free(root);
+
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"efficiency_jth_1m\":18.5"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"efficiency_jth_10m\":18.4"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"efficiency_jth_1h\":18.2"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"expected_efficiency_jth\":16.8"));
+    bb_json_free_str(json);
+}
+
+void test_power_rolling_efficiency_null_sentinels(void)
+{
+    /* TA-213: negative sentinel values → null */
+    power_snapshot_t s = {0};
+    s.vcore_mv      = 1200;
+    s.icore_ma      = 15000;
+    s.pcore_mw      = 18000;
+    s.vin_mv        = 5000;
+    s.asic_hashrate = 485e9;
+    s.board_temp_c  = 55.0f;
+    s.vr_temp_c     = 60.0f;
+    s.nominal_vin_mv = 5000;
+    s.efficiency_jth_1m = -1.0;      /* sentinel */
+    s.efficiency_jth_10m = -1.0;
+    s.efficiency_jth_1h = -1.0;
+    s.expected_efficiency_jth = -1.0;
+
+    bb_json_t root = bb_json_obj_new();
+    build_power_json(&s, root);
+    char *json = serialize_and_free(root);
+
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"efficiency_jth_1m\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"efficiency_jth_10m\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"efficiency_jth_1h\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(json, "\"expected_efficiency_jth\":null"));
     bb_json_free_str(json);
 }
 

@@ -753,6 +753,10 @@ static bb_err_t power_handler(bb_http_request_t *req)
         .board_temp_c  = -1.0f,
         .vr_temp_c     = -1.0f,
         .nominal_vin_mv = BOARD_NOMINAL_VIN_MV,
+        .efficiency_jth_1m = -1.0,
+        .efficiency_jth_10m = -1.0,
+        .efficiency_jth_1h = -1.0,
+        .expected_efficiency_jth = -1.0,
     };
 
     if (xSemaphoreTake(mining_stats.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
@@ -763,6 +767,34 @@ static bb_err_t power_handler(bb_http_request_t *req)
         s.asic_hashrate = mining_stats.asic_hashrate;
         s.board_temp_c  = mining_stats.board_temp_c;
         s.vr_temp_c     = mining_stats.vr_temp_c;
+
+        float pcore_1m = mining_stats.pcore_mw_1m;
+        float pcore_10m = mining_stats.pcore_mw_10m;
+        float pcore_1h = mining_stats.pcore_mw_1h;
+        float ghs_1m = mining_stats.asic_total_ghs_1m;
+        float ghs_10m = mining_stats.asic_total_ghs_10m;
+        float ghs_1h = mining_stats.asic_total_ghs_1h;
+
+        if (pcore_1m > 0 && ghs_1m > 0) {
+            s.efficiency_jth_1m = (double)pcore_1m / (double)ghs_1m;
+        }
+        if (pcore_10m > 0 && ghs_10m > 0) {
+            s.efficiency_jth_10m = (double)pcore_10m / (double)ghs_10m;
+        }
+        if (pcore_1h > 0 && ghs_1h > 0) {
+            s.efficiency_jth_1h = (double)pcore_1h / (double)ghs_1h;
+        }
+
+        float asic_freq = mining_stats.asic_freq_configured_mhz;
+        if (s.vcore_mv > 0 && s.icore_ma > 0 && asic_freq > 0) {
+            double expected_w = (double)s.vcore_mv / 1000.0 * (double)s.icore_ma / 1000.0;
+            double expected_ghs = 0.0;
+            if (mining_get_expected_ghs(asic_freq, &expected_ghs) && expected_ghs > 0) {
+                double expected_th = expected_ghs / 1000.0;
+                s.expected_efficiency_jth = expected_w / expected_th;
+            }
+        }
+
         xSemaphoreGive(mining_stats.mutex);
     }
 

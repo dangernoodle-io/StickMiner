@@ -162,6 +162,13 @@ static float s_pool_eff_10m_prev = NAN;
 static float s_pool_eff_1h_prev = NAN;
 static double s_pool_eff_prev_sum = 0.0;
 
+/* Power rolling averages (TA-213) */
+static unsigned long s_pcore_poll_count = 0;
+static float s_pcore_1m[ASIC_AVG_1M_SIZE];
+static float s_pcore_10m[ASIC_AVG_10M_SIZE];
+static float s_pcore_1h[ASIC_AVG_1H_SIZE];
+static float s_pcore_10m_prev = NAN, s_pcore_1h_prev = NAN;
+
 // Register addresses for 5s polling loop
 static const uint8_t s_poll_regs[] = {
     ASIC_REG_TOTAL_COUNT,
@@ -245,6 +252,12 @@ static void init_avg_buffers(void)
     s_pool_eff_10m_prev = NAN;
     s_pool_eff_1h_prev = NAN;
     s_pool_eff_prev_sum = 0.0;
+    s_pcore_poll_count = 0;
+    for (int i = 0; i < ASIC_AVG_1M_SIZE; i++)  s_pcore_1m[i]  = NAN;
+    for (int i = 0; i < ASIC_AVG_10M_SIZE; i++) s_pcore_10m[i] = NAN;
+    for (int i = 0; i < ASIC_AVG_1H_SIZE; i++)  s_pcore_1h[i]  = NAN;
+    s_pcore_10m_prev = NAN;
+    s_pcore_1h_prev = NAN;
 }
 
 // --- asic_init ---
@@ -781,6 +794,17 @@ void asic_mining_task(void *arg)
                     mining_stats.fan_rpm = rpm;
                     mining_stats.fan_duty_pct = duty;
                     mining_stats.board_temp_c = board_t;
+
+                    float pcore_val = (p >= 0) ? (float)p : NAN;
+                    float pc_1m = 0.0f, pc_10m = 0.0f, pc_1h = 0.0f;
+                    mining_avg_update(s_pcore_poll_count, pcore_val,
+                                           s_pcore_1m, s_pcore_10m, s_pcore_1h,
+                                           &s_pcore_10m_prev, &s_pcore_1h_prev,
+                                           &pc_1m, &pc_10m, &pc_1h);
+                    mining_stats.pcore_mw_1m = pc_1m;
+                    mining_stats.pcore_mw_10m = pc_10m;
+                    mining_stats.pcore_mw_1h = pc_1h;
+                    s_pcore_poll_count++;
                     xSemaphoreGive(mining_stats.mutex);
                 }
             }

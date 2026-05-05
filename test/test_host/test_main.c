@@ -528,6 +528,8 @@ void test_power_vcore_null_others_populated(void);
 void test_power_icore_null(void);
 void test_power_board_temp_null(void);
 void test_power_vr_temp_null(void);
+void test_power_rolling_efficiency_populated(void);
+void test_power_rolling_efficiency_null_sentinels(void);
 void test_fan_both_populated(void);
 void test_fan_rpm_null(void);
 void test_fan_duty_null(void);
@@ -1177,6 +1179,8 @@ int main(void) {
     RUN_TEST(test_power_icore_null);
     RUN_TEST(test_power_board_temp_null);
     RUN_TEST(test_power_vr_temp_null);
+    RUN_TEST(test_power_rolling_efficiency_populated);
+    RUN_TEST(test_power_rolling_efficiency_null_sentinels);
     RUN_TEST(test_fan_both_populated);
     RUN_TEST(test_fan_rpm_null);
     RUN_TEST(test_fan_duty_null);
