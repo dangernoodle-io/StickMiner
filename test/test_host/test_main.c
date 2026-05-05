@@ -206,6 +206,10 @@ void test_mining_compute_pool_effective_hps_divide_by_zero_guard(void);
 void test_mining_get_pool_effective_hashrate_host_stub(void);
 void test_mining_get_pool_effective_rolling_host_stubs(void);
 
+// Forward declarations from test_mining_hotloop_sync.c
+void test_mining_hotloop_finds_known_share(void);
+void test_mining_hotloop_rejects_non_matching_nonce(void);
+
 // Forward declarations from test_stratum.c
 void test_format_submit_no_version(void);
 void test_format_submit_with_version(void);
@@ -815,6 +819,8 @@ int main(void) {
     RUN_TEST(test_mining_compute_pool_effective_hps_divide_by_zero_guard);
     RUN_TEST(test_mining_get_pool_effective_hashrate_host_stub);
     RUN_TEST(test_mining_get_pool_effective_rolling_host_stubs);
+    RUN_TEST(test_mining_hotloop_finds_known_share);
+    RUN_TEST(test_mining_hotloop_rejects_non_matching_nonce);
 
     // Stratum utils tests
     RUN_TEST(test_format_submit_no_version);

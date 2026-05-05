@@ -476,18 +476,14 @@ static void hw_prepare_job(hash_backend_t *b,
     sha256_hw_pipeline_prep();  // TA-320b: prime persistent zero slots
 }
 
-// KEEP IN SYNC with the inlined copy in mine_nonce_range (lines ~589-605).
-// Changes here MUST be reflected in mine_nonce_range's #if ESP_PLATFORM ... #endif block.
-// Both implement the same SHA256 hash validation on S3/S2/C3 via sha256_hw_mine_nonce.
-static hash_result_t hw_hash_nonce(hash_backend_t *b,
-                                   uint32_t nonce,
-                                   uint8_t hash_out[32])
+static inline __attribute__((always_inline))
+hash_result_t hw_hot_loop_kernel(uint32_t *midstate_hw,
+                                 uint32_t *block2_words,
+                                 uint32_t nonce,
+                                 uint8_t hash_out[32])
 {
-    hw_backend_ctx_t *ctx = (hw_backend_ctx_t *)b->ctx;
     uint32_t digest_hw[8];
-    uint32_t h7_raw = sha256_hw_mine_nonce(ctx->midstate_hw, ctx->block2_words,
-                                           nonce, digest_hw);
-
+    uint32_t h7_raw = sha256_hw_mine_nonce(midstate_hw, block2_words, nonce, digest_hw);
     if ((h7_raw >> 16) == 0) {
         uint32_t state[8];
         for (int i = 0; i < 8; i++) state[i] = __builtin_bswap32(digest_hw[i]);
@@ -495,6 +491,14 @@ static hash_result_t hw_hash_nonce(hash_backend_t *b,
         return HASH_CHECK;
     }
     return HASH_MISS;
+}
+
+static hash_result_t hw_hash_nonce(hash_backend_t *b,
+                                   uint32_t nonce,
+                                   uint8_t hash_out[32])
+{
+    hw_backend_ctx_t *ctx = (hw_backend_ctx_t *)b->ctx;
+    return hw_hot_loop_kernel(ctx->midstate_hw, ctx->block2_words, nonce, hash_out);
 }
 
 static void hw_backend_setup(hash_backend_t *b, hw_backend_ctx_t *ctx)
@@ -574,22 +578,8 @@ bool mine_nonce_range(hash_backend_t *backend,
     for (uint32_t nonce = params->nonce_start; ; nonce++) {
         uint8_t hash[32];
 #if defined(ESP_PLATFORM) && (CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3)
-        // KEEP IN SYNC with hw_hash_nonce (lines 479-495).
-        // S3/S2/C3 hot loop: inlined to avoid function-pointer call overhead.
-        // See comments in hw_hash_nonce for design rationale.
-        uint32_t digest_hw[8];
-        uint32_t h7_raw = sha256_hw_mine_nonce(hw_ctx->midstate_hw,
-                                                hw_ctx->block2_words,
-                                                nonce, digest_hw);
-        hash_result_t hr;
-        if ((h7_raw >> 16) == 0) {
-            uint32_t state[8];
-            for (int i = 0; i < 8; i++) state[i] = __builtin_bswap32(digest_hw[i]);
-            mining_hash_from_state(state, hash);
-            hr = HASH_CHECK;
-        } else {
-            hr = HASH_MISS;
-        }
+        // S3/S2/C3 hot loop: call kernel directly to skip the function-pointer indirection.
+        hash_result_t hr = hw_hot_loop_kernel(hw_ctx->midstate_hw, hw_ctx->block2_words, nonce, hash);
 #else
         hash_result_t hr = backend->hash_nonce(backend, nonce, hash);
 #endif
