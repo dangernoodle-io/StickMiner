@@ -252,10 +252,10 @@ bb_err_t asic_init(void)
 {
     bb_log_i(TAG, "initializing ASIC subsystem");
 
-    // Run SW SHA self-test at the top of asic_init
-    if (sha256_sw_self_test() != BB_OK) {
-        bb_log_e(TAG, "SHA self-test FAILED — mining will not start");
-        mining_set_sha_self_test_failed();
+    // mining_run_self_tests() runs in app_main before any task starts;
+    // assert the gate is clean rather than re-running (TA-347)
+    if (mining_sha_self_test_failed()) {
+        bb_log_e(TAG, "SHA self-test gate failed before asic_init; aborting");
         return BB_OK;
     }
 
