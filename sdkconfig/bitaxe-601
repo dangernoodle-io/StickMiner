@@ -1,3 +1,4 @@
 # Bitaxe 601 — delta from sdkconfig.defaults
 CONFIG_UART_ISR_IN_IRAM=y
 CONFIG_VFS_SELECT_IN_RAM=y
+CONFIG_BB_DISPLAY_SSD1306_HEIGHT=32

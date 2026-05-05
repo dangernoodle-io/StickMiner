@@ -32,6 +32,18 @@
 // SSD1306 OLED display (0.91")
 #define SSD1306_I2C_ADDR   0x3C
 
+// No SPI LCD — -1 pins satisfy bb_display_st77xx compile
+#define PIN_LCD_CLK    -1
+#define PIN_LCD_MOSI   -1
+#define PIN_LCD_CS     -1
+#define PIN_LCD_DC     -1
+#define PIN_LCD_RST    -1
+#define PIN_LCD_BL     -1
+#define LCD_WIDTH       0
+#define LCD_HEIGHT      0
+#define LCD_OFFSET_X    0
+#define LCD_OFFSET_Y    0
+
 // ADC power monitoring
 #define PIN_ADC_VMON       2       // ADC1_CH1
 
