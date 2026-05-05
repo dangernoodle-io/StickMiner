@@ -372,6 +372,10 @@ void build_power_json(const power_snapshot_t *s, bb_json_t root)
     } else {
         bb_json_obj_set_null(root, "efficiency_jth");
     }
+    EMIT_NULLABLE(efficiency_jth_1m, "efficiency_jth_1m");
+    EMIT_NULLABLE(efficiency_jth_10m, "efficiency_jth_10m");
+    EMIT_NULLABLE(efficiency_jth_1h, "efficiency_jth_1h");
+    EMIT_NULLABLE(expected_efficiency_jth, "expected_efficiency_jth");
     if (s->vin_mv >= 0) {
         bb_json_obj_set_number(root, "vin_mv", s->vin_mv);
     } else {

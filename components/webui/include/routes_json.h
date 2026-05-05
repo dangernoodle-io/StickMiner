@@ -246,6 +246,10 @@ typedef struct {
     float  board_temp_c;    /* < 0 → null */
     float  vr_temp_c;       /* < 0 → null */
     int    nominal_vin_mv;  /* board constant (BOARD_NOMINAL_VIN_MV) */
+    double efficiency_jth_1m;     /* < 0 → null */
+    double efficiency_jth_10m;    /* < 0 → null */
+    double efficiency_jth_1h;     /* < 0 → null */
+    double expected_efficiency_jth; /* < 0 → null */
 } power_snapshot_t;
 
 void build_power_json(const power_snapshot_t *s, bb_json_t root);
