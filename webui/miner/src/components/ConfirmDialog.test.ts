@@ -8,14 +8,8 @@ describe('ConfirmDialog', () => {
     vi.clearAllMocks()
   })
 
-  it.skip('renders when open=true', () => {
-    // BLOCKED: Svelte error: lifecycle_function_unavailable — `mount(...)` is not
-    // available on the server. vitest's jsdom environment resolves the Svelte SSR
-    // bundle instead of the client bundle because @sveltejs/vite-plugin-svelte
-    // defaults ssr=true in the test transform. Fix requires configuring
-    // vite-plugin-svelte with { compilerOptions: { runes: true } } and ensuring
-    // the client build is resolved in the test env — deferred to a follow-up PR.
-    const { container } = render(ConfirmDialog, {
+  it('renders when open=true', () => {
+    render(ConfirmDialog, {
       props: {
         open: true,
         title: 'Test Title',
@@ -26,9 +20,8 @@ describe('ConfirmDialog', () => {
     expect(screen.getByText('Test message')).toBeInTheDocument()
   })
 
-  it.skip('does not render when open=false', () => {
-    // BLOCKED: same SSR mount issue as above
-    const { container } = render(ConfirmDialog, {
+  it('does not render when open=false', () => {
+    render(ConfirmDialog, {
       props: {
         open: false,
         title: 'Hidden Title',
@@ -38,12 +31,11 @@ describe('ConfirmDialog', () => {
     expect(screen.queryByText('Hidden Title')).not.toBeInTheDocument()
   })
 
-  // skipped: vitest 4 + jsdom 29 localStorage shim lacks getItem/clear (TA-219 follow-up)
-  it.skip('writes to localStorage when skipKey is set and checkbox is checked', async () => {
+  it('writes to localStorage when skipKey is set and checkbox is checked', async () => {
     render(ConfirmDialog, {
       props: {
         open: true,
-        title: 'Confirm',
+        title: 'Are you sure?',
         message: 'Test',
         skipKey: 'test-skip'
       }
@@ -59,11 +51,11 @@ describe('ConfirmDialog', () => {
     expect(localStorage.getItem('test-skip')).toBe('1')
   })
 
-  it.skip('does not write to localStorage if checkbox unchecked', async () => {
+  it('does not write to localStorage if checkbox unchecked', async () => {
     render(ConfirmDialog, {
       props: {
         open: true,
-        title: 'Confirm',
+        title: 'Are you sure?',
         message: 'Test',
         skipKey: 'test-skip'
       }
@@ -76,56 +68,47 @@ describe('ConfirmDialog', () => {
     expect(localStorage.getItem('test-skip')).toBeNull()
   })
 
-  it.skip('closes dialog when confirm button is clicked', async () => {
-    // BLOCKED: same SSR mount issue as 'renders when open=true'
+  it('hides dialog when confirm button is clicked', async () => {
     render(ConfirmDialog, {
       props: {
         open: true,
-        title: 'Confirm',
+        title: 'Are you sure?',
         message: 'Test'
       }
     })
 
-    expect(screen.getByText('Confirm')).toBeInTheDocument()
+    expect(screen.getByText('Are you sure?')).toBeInTheDocument()
 
-    const buttons = screen.getAllByRole('button')
-    const confirmBtn = buttons[buttons.length - 1] // Last button is Confirm
+    const confirmBtn = screen.getByRole('button', { name: 'Confirm' })
     await fireEvent.click(confirmBtn)
 
-    // After clicking confirm, dialog should be hidden
-    // The component handles the state change internally
-    // Just verify the button was clickable
-    expect(confirmBtn).toBeInTheDocument()
+    // confirm() sets open=false → title disappears from DOM
+    expect(screen.queryByText('Are you sure?')).not.toBeInTheDocument()
   })
 
-  it.skip('closes dialog when cancel button is clicked', async () => {
-    // BLOCKED: same SSR mount issue as 'renders when open=true'
+  it('hides dialog when cancel button is clicked', async () => {
     render(ConfirmDialog, {
       props: {
         open: true,
-        title: 'Confirm',
+        title: 'Are you sure?',
         message: 'Test'
       }
     })
 
-    expect(screen.getByText('Confirm')).toBeInTheDocument()
+    expect(screen.getByText('Are you sure?')).toBeInTheDocument()
 
-    const buttons = screen.getAllByRole('button')
-    const cancelBtn = buttons[0] // First button is Cancel
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' })
     await fireEvent.click(cancelBtn)
 
-    // After clicking cancel, dialog should be hidden
-    // The component handles the state change internally
-    // Just verify the button was clickable
-    expect(cancelBtn).toBeInTheDocument()
+    // cancel() sets open=false → title disappears from DOM
+    expect(screen.queryByText('Are you sure?')).not.toBeInTheDocument()
   })
 
-  it.skip('hides skipKey checkbox when not provided', () => {
-    // BLOCKED: same SSR mount issue as 'renders when open=true'
+  it('hides skipKey checkbox when not provided', () => {
     render(ConfirmDialog, {
       props: {
         open: true,
-        title: 'Confirm',
+        title: 'Are you sure?',
         message: 'Test'
       }
     })
