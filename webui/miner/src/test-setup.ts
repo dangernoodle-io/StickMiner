@@ -21,3 +21,38 @@ function makeStorageShim(): Storage {
 
 Object.defineProperty(globalThis, 'localStorage', { value: makeStorageShim(), configurable: true, writable: true })
 Object.defineProperty(globalThis, 'sessionStorage', { value: makeStorageShim(), configurable: true, writable: true })
+
+// Mock matchMedia for uplot
+if (!window.matchMedia) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => {},
+    }),
+  })
+}
+
+// Mock EventSource for Diagnostics SSE
+class MockEventSource {
+  constructor(url: string) {}
+  addEventListener() {}
+  removeEventListener() {}
+  close() {}
+  onopen: null = null
+  onerror: null = null
+  onmessage: null = null
+}
+
+if (!globalThis.EventSource) {
+  Object.defineProperty(globalThis, 'EventSource', {
+    writable: true,
+    value: MockEventSource,
+  })
+}
