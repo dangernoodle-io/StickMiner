@@ -124,6 +124,8 @@ jobs:
           path: webui
       - name: Install webui deps
         working-directory: webui
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         run: pnpm install --frozen-lockfile
       - name: Install system chromium
         run: sudo apt-get update && sudo apt-get install -y chromium-browser
