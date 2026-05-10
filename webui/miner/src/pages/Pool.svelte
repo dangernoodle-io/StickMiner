@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
   import { stats, info, pool } from '../lib/stores'
-  import { fetchPool, putPool, switchPool, deletePoolSlot, type PoolConfigured, type PoolConfigInput, type PoolPutBody } from '../lib/api'
   import { fmtRelative, fmtNetDiff, fmtBtc, fmtNtimeAge, truncAddr, fmtPoolDiff } from '../lib/fmt'
   import { nbitsToDifficulty, coinbaseTag, coinbaseHeight, coinbaseTotalReward, coinbasePayoutSpk, segwitAddress } from '../lib/coinbase'
   import PoolRow from '../components/PoolRow.svelte'
@@ -10,35 +8,16 @@
   import ModalSpinner from '../components/ModalSpinner.svelte'
   import Tooltip from '../components/Tooltip.svelte'
   import RollingRates from '../components/RollingRates.svelte'
+  import { createPoolState } from '../lib/poolState.svelte'
 
   const POOL_IDXS: (0 | 1)[] = [0, 1]
 
-  type PoolForm = {
-    host: string
-    port: number
-    wallet: string
-    worker: string
-    pool_pass: string
-    extranonce_subscribe: boolean  // TA-306
-    decode_coinbase: boolean       // TA-307
-  }
+  const state = createPoolState()
 
-  let saving = false
-  let saveMsg = ''
-  let editingIdx: number | null = null  // 0 = primary, 1 = fallback
-  let switching = false
-  // ConfirmDialog state for handleRemove
-  let removeConfirmOpen = false
-  let removeConfirmMsg = ''
-  let pendingRemoveSlot: 'primary' | 'fallback' | null = null
-  // Same overlay machinery as switching, but flipped on after a save that
-  // forces a fresh stratum session (i.e. saving the active slot).
-  let reconnecting = false
-  // Frozen snapshot of $pool taken at switch-click; rendered in place of the
-  // live store while switching so the page doesn't flicker as the firmware
-  // tears down the old session. Cleared once the new session is observed.
-  let frozenPool: typeof $pool | null = null
-  $: displayPool = (switching || reconnecting) ? frozenPool : $pool
+  let autoRotate = false
+  let hostname = ''
+
+  $: displayPool = (state.switching || state.reconnecting) ? state.frozenPool : $pool
 
   /* TA-307: per-pool flag for the active session controls UI coinbase
    * decoding. Defaults to true when no active pool / no config so the
@@ -62,193 +41,13 @@
         && coinbaseTotalReward(n.coinb2) == null
         && coinbasePayoutSpk(n.coinb2) == null
   })()
-
-  let form: PoolForm = { host: '', port: 0, wallet: '', worker: '', pool_pass: '', extranonce_subscribe: false, decode_coinbase: true }
-  let autoRotate = false
-  let hostname = ''
-
-  onMount(() => {
-    // No-op; pool store auto-polls via stores.ts
-  })
-
-  function startEdit(idx: number) {
-    editingIdx = idx
-    saveMsg = ''
-    const cfg = idx === 0 ? $pool?.configured?.primary : $pool?.configured?.fallback
-    if (cfg) {
-      form = {
-        host: cfg.host,
-        port: cfg.port,
-        wallet: cfg.wallet,
-        worker: cfg.worker,
-        pool_pass: '',
-        extranonce_subscribe: cfg.extranonce_subscribe ?? false,
-        decode_coinbase: cfg.decode_coinbase ?? true,
-      }
-    } else {
-      form = { host: '', port: 0, wallet: '', worker: '', pool_pass: '', extranonce_subscribe: false, decode_coinbase: true }
-    }
-  }
-
-  function cancelEdit() {
-    editingIdx = null
-    saveMsg = ''
-  }
-
-  // Build a PUT slot for a non-edited pool by mirroring its current state.
-  // Omits pool_pass — firmware preserves it on missing key (see PR #280).
-  function slotFromCurrent(c: NonNullable<PoolConfigured>): PoolConfigInput {
-    const next: PoolConfigInput = {
-      host: c.host,
-      port: c.port,
-      worker: c.worker,
-      wallet: c.wallet,
-      pool_pass: '',
-      extranonce_subscribe: c.extranonce_subscribe ?? false,
-      decode_coinbase: c.decode_coinbase ?? true,
-    }
-    delete (next as Partial<PoolConfigInput>).pool_pass
-    return next
-  }
-
-  // Build a PUT slot from the form (the edited pool). Omit pool_pass when
-  // the field is empty so the firmware preserves the stored value (we never
-  // echo passwords back, so blank means "unchanged"). Same convention as
-  // slotFromCurrent.
-  function slotFromForm(): PoolConfigInput {
-    const next: PoolConfigInput = {
-      host: form.host.trim(),
-      port: form.port,
-      worker: form.worker.trim(),
-      wallet: form.wallet.trim(),
-      pool_pass: form.pool_pass,
-      extranonce_subscribe: form.extranonce_subscribe,
-      decode_coinbase: form.decode_coinbase,
-    }
-    if (!form.pool_pass) delete (next as Partial<PoolConfigInput>).pool_pass
-    return next
-  }
-
-  async function handleSave() {
-    if (editingIdx === null) return
-    saveMsg = ''
-    saving = true
-    /* If editing the currently-active slot, the save needs to drive a
-     * fresh stratum session before the user-visible state lines up with
-     * what they just entered. Mirror handleSwitch's freeze-and-poll so
-     * the page doesn't flicker with stale values during the reconnect. */
-    const editingActive = $pool?.active_pool_idx === editingIdx && $pool?.connected
-    const preAge = editingActive ? ($pool?.session_start_ago_s ?? null) : null
-    if (editingActive) {
-      frozenPool = $pool
-      reconnecting = true
-    }
-    try {
-      const cfg = $pool?.configured
-      const edited = slotFromForm()
-      const body: PoolPutBody = {
-        primary: editingIdx === 0
-          ? edited
-          : (cfg?.primary ? slotFromCurrent(cfg.primary) : edited),
-        fallback: editingIdx === 1
-          ? edited
-          : (cfg?.fallback ? slotFromCurrent(cfg.fallback) : null),
-      }
-      await putPool(body)
-      saveMsg = 'Saved.'
-      editingIdx = null
-
-      if (editingActive) {
-        /* Wait for the firmware to bring up a fresh session under the new
-         * config. Same shape as handleSwitch — bounded poll, fresh-session
-         * detector via session_start_ago_s shrinking. */
-        const deadline = Date.now() + 15000
-        while (Date.now() < deadline) {
-          await new Promise(r => setTimeout(r, 750))
-          const p = await fetchPool()
-          pool.set(p)
-          if (!p.connected) continue
-          if (p.session_start_ago_s == null) continue
-          if (preAge == null || p.session_start_ago_s < preAge) break
-        }
-      } else {
-        pool.set(await fetchPool())
-      }
-    } catch (e) {
-      saveMsg = `Save failed: ${(e as Error).message}`
-    } finally {
-      saving = false
-      reconnecting = false
-      frozenPool = null
-    }
-  }
-
-  function handleRemove(slot: 'primary' | 'fallback') {
-    const isPromote = slot === 'primary'
-    removeConfirmMsg = isPromote
-      ? 'Remove the primary pool? The fallback will be promoted to primary.'
-      : 'Remove the fallback pool? Auto-failover will be disabled.'
-    pendingRemoveSlot = slot
-    removeConfirmOpen = true
-  }
-
-  async function doRemove() {
-    if (!pendingRemoveSlot) return
-    const slot = pendingRemoveSlot
-    pendingRemoveSlot = null
-    saveMsg = ''
-    saving = true
-    // Freeze the view while the firmware reshuffles slots, similar to switch.
-    frozenPool = $pool
-    try {
-      await deletePoolSlot(slot)
-      pool.set(await fetchPool())
-    } catch (e) {
-      saveMsg = `Remove failed: ${(e as Error).message}`
-    } finally {
-      saving = false
-      frozenPool = null
-    }
-  }
-
-  async function handleSwitch(idx: 0 | 1) {
-    // Freeze the displayed pool BEFORE flipping `switching` so the first
-    // reactive tick already sees a stable view.
-    frozenPool = $pool
-    // Snapshot pre-switch session age. The firmware flips active_pool_idx
-    // synchronously and only tears down the stratum socket on the next loop
-    // iteration, so checking idx+connected post-call returns true instantly
-    // while the *old* session is still up. Wait for a fresh session
-    // (new session_start_ago_s smaller than the pre-switch value).
-    const preAge = $pool?.session_start_ago_s ?? null
-    switching = true
-    try {
-      await switchPool(idx)
-      const deadline = Date.now() + 15000
-      while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 750))
-        const p = await fetchPool()
-        pool.set(p)
-        if (p.active_pool_idx !== idx) continue
-        if (!p.connected) continue
-        if (p.session_start_ago_s == null) continue
-        if (preAge == null || p.session_start_ago_s < preAge) break
-      }
-    } catch (e) {
-      saveMsg = `Switch failed: ${(e as Error).message}`
-    } finally {
-      switching = false
-      frozenPool = null
-    }
-  }
-
 </script>
 
-<div class="pool-grid" class:is-switching={switching || reconnecting}>
+<div class="pool-grid" class:is-switching={state.switching || state.reconnecting}>
   <ModalSpinner
-    visible={switching || reconnecting}
-    label={reconnecting ? 'Reconnecting…' : 'Switching pools…'}
-    sublabel={reconnecting ? 'applying changes' : 'reconnecting stratum'}
+    visible={state.switching || state.reconnecting}
+    label={state.reconnecting ? 'Reconnecting…' : 'Switching pools…'}
+    sublabel={state.reconnecting ? 'applying changes' : 'reconnecting stratum'}
   />
   <!-- Active pool status — read-only metrics from /api/pool (TA-281). -->
   <section class="card active">
@@ -395,11 +194,11 @@
           <PoolRow
             idx={idx}
             displayPool={displayPool}
-            {saving}
-            {switching}
-            on:edit={() => startEdit(idx)}
-            on:switch={() => handleSwitch(idx)}
-            on:remove={() => handleRemove(idx === 0 ? 'primary' : 'fallback')}
+            saving={state.saving}
+            switching={state.switching}
+            on:edit={() => state.startEdit(idx)}
+            on:switch={() => state.handleSwitch(idx)}
+            on:remove={() => state.requestRemove(idx === 0 ? 'primary' : 'fallback')}
           />
         {/each}
       </div>
@@ -408,24 +207,24 @@
 </div>
 
 <PoolEditDialog
-  open={editingIdx !== null}
-  bind:form
-  kind={editingIdx === 0 ? 'Primary' : 'Fallback'}
-  {saving}
-  {saveMsg}
+  open={state.editingIdx !== null}
+  bind:form={state.form}
+  kind={state.editingIdx === 0 ? 'Primary' : 'Fallback'}
+  saving={state.saving}
+  saveMsg={state.saveMsg}
   workerPlaceholder={hostname || $info?.worker_name || 'miner-1'}
-  on:save={handleSave}
-  on:cancel={cancelEdit}
+  on:save={state.handleSave}
+  on:cancel={state.cancelEdit}
 />
 
 <ConfirmDialog
-  open={removeConfirmOpen}
+  open={state.removeConfirmOpen}
   title="Remove pool?"
-  message={removeConfirmMsg}
+  message={state.removeConfirmMsg}
   confirmLabel="Remove"
   danger
-  on:confirm={() => { removeConfirmOpen = false; doRemove() }}
-  on:cancel={() => { removeConfirmOpen = false; pendingRemoveSlot = null }}
+  on:confirm={() => { state.removeConfirmOpen = false; state.doRemove() }}
+  on:cancel={() => { state.removeConfirmOpen = false; state.pendingRemoveSlot = null }}
 />
 
 <style>
