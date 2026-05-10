@@ -12,42 +12,42 @@
 
   const POOL_IDXS: (0 | 1)[] = [0, 1]
 
-  const state = createPoolState()
+  const ps = createPoolState()
 
-  let autoRotate = false
-  let hostname = ''
+  let autoRotate = $state(false)
+  let hostname = $state('')
 
-  $: displayPool = (state.switching || state.reconnecting) ? state.frozenPool : $pool
+  const displayPool = $derived((ps.switching || ps.reconnecting) ? ps.frozenPool : $pool)
 
   /* TA-307: per-pool flag for the active session controls UI coinbase
    * decoding. Defaults to true when no active pool / no config so the
    * tiles render normally pre-connect. */
-  $: activeDecodeCoinbase = (() => {
+  const activeDecodeCoinbase = $derived.by(() => {
     const idx = displayPool?.active_pool_idx
     if (idx === 0) return displayPool?.configured?.primary?.decode_coinbase ?? true
     if (idx === 1) return displayPool?.configured?.fallback?.decode_coinbase ?? true
     return true
-  })()
+  })
 
   /* Parse-failed signal: flag is on, notify is non-empty, but no parser
    * recognized any coinbase field. Used to badge the toggle so the user
    * knows the tiles vanished because the parser couldn't read this pool's
    * shape, not because they turned the flag off. */
-  $: coinbaseParseFailed = (() => {
+  const coinbaseParseFailed = $derived.by(() => {
     if (!activeDecodeCoinbase) return false
     const n = displayPool?.notify
     if (!n || !n.coinb1 || n.coinb1.length < 84) return false
     return coinbaseHeight(n.coinb1) == null
         && coinbaseTotalReward(n.coinb2) == null
         && coinbasePayoutSpk(n.coinb2) == null
-  })()
+  })
 </script>
 
-<div class="pool-grid" class:is-switching={state.switching || state.reconnecting}>
+<div class="pool-grid" class:is-switching={ps.switching || ps.reconnecting}>
   <ModalSpinner
-    visible={state.switching || state.reconnecting}
-    label={state.reconnecting ? 'Reconnecting…' : 'Switching pools…'}
-    sublabel={state.reconnecting ? 'applying changes' : 'reconnecting stratum'}
+    visible={ps.switching || ps.reconnecting}
+    label={ps.reconnecting ? 'Reconnecting…' : 'Switching pools…'}
+    sublabel={ps.reconnecting ? 'applying changes' : 'reconnecting stratum'}
   />
   <!-- Active pool status — read-only metrics from /api/pool (TA-281). -->
   <section class="card active">
@@ -194,11 +194,11 @@
           <PoolRow
             idx={idx}
             displayPool={displayPool}
-            saving={state.saving}
-            switching={state.switching}
-            on:edit={() => state.startEdit(idx)}
-            on:switch={() => state.handleSwitch(idx)}
-            on:remove={() => state.requestRemove(idx === 0 ? 'primary' : 'fallback')}
+            saving={ps.saving}
+            switching={ps.switching}
+            on:edit={() => ps.startEdit(idx)}
+            on:switch={() => ps.handleSwitch(idx)}
+            on:remove={() => ps.requestRemove(idx === 0 ? 'primary' : 'fallback')}
           />
         {/each}
       </div>
@@ -207,24 +207,24 @@
 </div>
 
 <PoolEditDialog
-  open={state.editingIdx !== null}
-  bind:form={state.form}
-  kind={state.editingIdx === 0 ? 'Primary' : 'Fallback'}
-  saving={state.saving}
-  saveMsg={state.saveMsg}
+  open={ps.editingIdx !== null}
+  bind:form={ps.form}
+  kind={ps.editingIdx === 0 ? 'Primary' : 'Fallback'}
+  saving={ps.saving}
+  saveMsg={ps.saveMsg}
   workerPlaceholder={hostname || $info?.worker_name || 'miner-1'}
-  on:save={state.handleSave}
-  on:cancel={state.cancelEdit}
+  on:save={ps.handleSave}
+  on:cancel={ps.cancelEdit}
 />
 
 <ConfirmDialog
-  open={state.removeConfirmOpen}
+  open={ps.removeConfirmOpen}
   title="Remove pool?"
-  message={state.removeConfirmMsg}
+  message={ps.removeConfirmMsg}
   confirmLabel="Remove"
   danger
-  on:confirm={() => { state.removeConfirmOpen = false; state.doRemove() }}
-  on:cancel={() => { state.removeConfirmOpen = false; state.pendingRemoveSlot = null }}
+  on:confirm={() => { ps.removeConfirmOpen = false; ps.doRemove() }}
+  on:cancel={() => { ps.removeConfirmOpen = false; ps.pendingRemoveSlot = null }}
 />
 
 <style>
