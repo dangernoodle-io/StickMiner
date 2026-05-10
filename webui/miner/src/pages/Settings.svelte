@@ -1,93 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { fetchSettings, patchSettings, type Settings } from '../lib/api'
   import { stats, info, fan, hasAsic, fanEditOpen } from '../lib/stores'
   import Toggle from '../components/Toggle.svelte'
+  import { createSettingsState } from '../lib/settingsState.svelte'
 
-  let loading = true
-  let loadErr = ''
-  let saved: Settings | null = null
+  const ss = createSettingsState()
 
-  let displayOn = false
-  let otaSkip = false
-  let savingDisplay = false
-  let savingOtaSkip = false
-  let displayMsg = ''
-  let otaMsg = ''
-  let displayKind: '' | 'ok' | 'err' = ''
-  let otaKind: '' | 'ok' | 'err' = ''
+  const chipCount = $derived($stats?.asic_count ?? 1)
+  const defaultFreq = $derived($stats?.asic_freq_configured_mhz ?? 400)
+  const chipIndices = $derived(Array.from({ length: chipCount }, (_, i) => i))
 
-  $: chipCount = $stats?.asic_count ?? 1
-  $: defaultFreq = $stats?.asic_freq_configured_mhz ?? 400
-  $: chipIndices = Array.from({ length: chipCount }, (_, i) => i)
-
-  async function load() {
-    loading = true
-    loadErr = ''
-    try {
-      const s = await fetchSettings()
-      saved = s
-      displayOn = !!saved.display_en
-      otaSkip = !!saved.ota_skip_check
-    } catch (e) {
-      loadErr = (e as Error).message
-    } finally {
-      loading = false
-    }
-  }
-
-  onMount(load)
-
-  function onDisplayChange(e: Event) {
-    saveDisplay((e.currentTarget as HTMLInputElement).checked)
-  }
-  function onOtaChange(e: Event) {
-    // checkbox is "OTA check on boot" — checked = check enabled = skip=false
-    saveOtaSkip(!(e.currentTarget as HTMLInputElement).checked)
-  }
-
-  async function saveDisplay(next: boolean) {
-    savingDisplay = true
-    displayMsg = ''
-    displayKind = ''
-    try {
-      const res = await patchSettings({ display_en: next })
-      displayOn = next
-      displayKind = 'ok'
-      displayMsg = res.reboot_required ? 'Saved — reboot to apply' : 'Saved'
-    } catch (e) {
-      displayOn = saved?.display_en ?? !next
-      displayKind = 'err'
-      displayMsg = (e as Error).message
-    } finally {
-      savingDisplay = false
-    }
-  }
-
-  async function saveOtaSkip(next: boolean) {
-    savingOtaSkip = true
-    otaMsg = ''
-    otaKind = ''
-    try {
-      const res = await patchSettings({ ota_skip_check: next })
-      otaSkip = next
-      otaKind = 'ok'
-      otaMsg = res.reboot_required ? 'Saved — reboot to apply' : 'Saved'
-    } catch (e) {
-      otaSkip = saved?.ota_skip_check ?? !next
-      otaKind = 'err'
-      otaMsg = (e as Error).message
-    } finally {
-      savingOtaSkip = false
-    }
-  }
+  onMount(() => ss.loadSettings())
 </script>
 
 <div class="page">
-  {#if loading}
+  {#if ss.loading}
     <div class="loading">Loading settings…</div>
-  {:else if loadErr}
-    <div class="error">Failed to load settings: {loadErr}</div>
+  {:else if ss.loadErr}
+    <div class="error">Failed to load settings: {ss.loadErr}</div>
   {:else}
     {#if $hasAsic}
       <!-- ASIC (per-chip) -->
@@ -166,15 +96,15 @@
       <div class="row">
         <span class="k">OLED display</span>
         <div class="v">
-          <Toggle checked={displayOn} disabled={savingDisplay} on:change={onDisplayChange} />
-          {#if displayMsg}<span class="status" data-kind={displayKind}>{displayMsg}</span>{/if}
+          <Toggle checked={ss.displayOn} disabled={ss.savingDisplay} on:change={ss.onDisplayChange} />
+          {#if ss.displayMsg}<span class="status" data-kind={ss.displayKind}>{ss.displayMsg}</span>{/if}
         </div>
       </div>
       <div class="row">
         <span class="k">OTA check on boot</span>
         <div class="v">
-          <Toggle checked={!otaSkip} disabled={savingOtaSkip} on:change={onOtaChange} />
-          {#if otaMsg}<span class="status" data-kind={otaKind}>{otaMsg}</span>{/if}
+          <Toggle checked={!ss.otaSkip} disabled={ss.savingOtaSkip} on:change={ss.onOtaChange} />
+          {#if ss.otaMsg}<span class="status" data-kind={ss.otaKind}>{ss.otaMsg}</span>{/if}
         </div>
       </div>
     </div>
