@@ -7,14 +7,6 @@ vi.mock('../lib/api', () => ({
   postReboot: vi.fn(), setLogLevel: vi.fn(), fetchLogLevels: vi.fn(), fetchDiagAsic: vi.fn()
 }))
 
-// Mock EventSource
-global.EventSource = class {
-  constructor(url: string) {}
-  addEventListener() {}
-  removeEventListener() {}
-  close() {}
-} as any
-
 import Diagnostics from './Diagnostics.svelte'
 
 describe('Diagnostics', () => {

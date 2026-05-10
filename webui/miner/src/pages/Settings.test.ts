@@ -24,7 +24,7 @@ const baseStats = {
   asic_freq_effective_mhz: 395, asic_small_cores: 256, asic_count: 2, expected_ghs: 485,
   asic_total_ghs: 485.5, asic_hw_error_pct: 0.01, asic_total_ghs_1m: 484, asic_total_ghs_10m: 486,
   asic_total_ghs_1h: 483, asic_hw_error_pct_1m: 0.01, asic_hw_error_pct_10m: 0.01,
-  asic_hw_error_pct_1h: 0.02, hashrate_1m: null, hashrate_10m: null, hashrate_1h: null,
+  asic_hw_error_pct_1h: 0.02,
   hw_error_pct_1m: null, hw_error_pct_10m: null, hw_error_pct_1h: null,
   pool_effective_hashrate: null, rejected: null
 }
