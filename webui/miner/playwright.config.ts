@@ -23,8 +23,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        channel: 'chromium',
-        executablePath: '/usr/bin/chromium-browser',
+        channel: 'chrome',
       },
     },
   ],

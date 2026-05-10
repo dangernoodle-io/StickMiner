@@ -127,8 +127,6 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         run: pnpm install --frozen-lockfile
-      - name: Install system chromium
-        run: sudo apt-get update && sudo apt-get install -y chromium-browser
       - name: Run e2e tests
         working-directory: webui
         env:
@@ -141,7 +139,7 @@ jobs:
           name: playwright-report
           path: webui/miner/playwright-report
 
-  # e2e uses system chromium (apt) to avoid playwright install extraction hang on GH runners
+  # e2e uses pre-installed Google Chrome on GH runners (channel: chrome) — no playwright install / no apt
   build:
     needs: webui-check
     runs-on: ubuntu-latest
