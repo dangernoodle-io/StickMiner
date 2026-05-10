@@ -52,7 +52,7 @@
       <!-- Fan (TA-315) -->
       <h2 class="section-head">
         Fan
-        <button class="btn outline sm" disabled={!$fan} on:click={() => fanEditOpen.set(true)}>Edit</button>
+        <button class="btn outline sm" disabled={!$fan} onclick={() => fanEditOpen.set(true)}>Edit</button>
       </h2>
       <div class="settings">
         <div class="row">
@@ -96,14 +96,14 @@
       <div class="row">
         <span class="k">OLED display</span>
         <div class="v">
-          <Toggle checked={ss.displayOn} disabled={ss.savingDisplay} on:change={ss.onDisplayChange} />
+          <Toggle checked={ss.displayOn} disabled={ss.savingDisplay} onchange={ss.onDisplayChange} />
           {#if ss.displayMsg}<span class="status" data-kind={ss.displayKind}>{ss.displayMsg}</span>{/if}
         </div>
       </div>
       <div class="row">
         <span class="k">OTA check on boot</span>
         <div class="v">
-          <Toggle checked={!ss.otaSkip} disabled={ss.savingOtaSkip} on:change={ss.onOtaChange} />
+          <Toggle checked={!ss.otaSkip} disabled={ss.savingOtaSkip} onchange={ss.onOtaChange} />
           {#if ss.otaMsg}<span class="status" data-kind={ss.otaKind}>{ss.otaMsg}</span>{/if}
         </div>
       </div>

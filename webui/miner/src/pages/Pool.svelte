@@ -196,9 +196,9 @@
             displayPool={displayPool}
             saving={ps.saving}
             switching={ps.switching}
-            on:edit={() => ps.startEdit(idx)}
-            on:switch={() => ps.handleSwitch(idx)}
-            on:remove={() => ps.requestRemove(idx === 0 ? 'primary' : 'fallback')}
+            onedit={() => ps.startEdit(idx)}
+            onswitch={() => ps.handleSwitch(idx)}
+            onremove={() => ps.requestRemove(idx === 0 ? 'primary' : 'fallback')}
           />
         {/each}
       </div>
@@ -213,8 +213,8 @@
   saving={ps.saving}
   saveMsg={ps.saveMsg}
   workerPlaceholder={hostname || $info?.worker_name || 'miner-1'}
-  on:save={ps.handleSave}
-  on:cancel={ps.cancelEdit}
+  onsave={ps.handleSave}
+  oncancel={ps.cancelEdit}
 />
 
 <ConfirmDialog
@@ -223,8 +223,8 @@
   message={ps.removeConfirmMsg}
   confirmLabel="Remove"
   danger
-  on:confirm={() => { ps.removeConfirmOpen = false; ps.doRemove() }}
-  on:cancel={() => { ps.removeConfirmOpen = false; ps.pendingRemoveSlot = null }}
+  onconfirm={() => { ps.removeConfirmOpen = false; ps.doRemove() }}
+  oncancel={() => { ps.removeConfirmOpen = false; ps.pendingRemoveSlot = null }}
 />
 
 <style>

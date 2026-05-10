@@ -27,11 +27,11 @@
     <div class="info-row"><span class="k">Build</span><span>{fmtBuildTime($info?.build_date, $info?.build_time)}</span></div>
 
     <div class="row-actions">
-      <button class="btn primary" on:click={os.handleCheck} disabled={$otaCheck.checking || $otaInstall.installing || busy}>
+      <button class="btn primary" onclick={os.handleCheck} disabled={$otaCheck.checking || $otaInstall.installing || busy}>
         {$otaCheck.checking ? 'Checking…' : 'Check for Updates'}
       </button>
       {#if $otaCheck.result?.update_available}
-        <button class="btn primary" on:click={os.requestInstall} disabled={$otaInstall.installing || busy}>
+        <button class="btn primary" onclick={os.requestInstall} disabled={$otaInstall.installing || busy}>
           {$otaInstall.installing ? 'Installing…' : `Install ${$otaCheck.result.latest_version}`}
         </button>
       {/if}
@@ -57,9 +57,9 @@
     <div
       class="dropzone"
       class:drag-over={os.dragOver}
-      on:dragover={os.onDragOver}
-      on:dragleave={os.onDragLeave}
-      on:drop={os.onDrop}
+      ondragover={os.onDragOver}
+      ondragleave={os.onDragLeave}
+      ondrop={os.onDrop}
       role="region"
       aria-label="Firmware drop zone"
     >
@@ -71,18 +71,18 @@
       {:else}
         <div class="dz-msg">
           Drag <code>{fwName}</code> here, or
-          <button class="btn outline sm" on:click={() => os.fileInput?.click()} type="button" disabled={busy}>choose file</button>
+          <button class="btn outline sm" onclick={() => os.fileInput?.click()} type="button" disabled={busy}>choose file</button>
         </div>
       {/if}
-      <input type="file" accept=".bin,application/octet-stream" bind:this={os.fileInput} on:change={os.onFileSelect} hidden />
+      <input type="file" accept=".bin,application/octet-stream" bind:this={os.fileInput} onchange={os.onFileSelect} hidden />
     </div>
 
     {#if os.selectedFile}
       <div class="row-actions">
-        <button class="btn primary" on:click={os.requestUpload} disabled={$otaUpload.uploading || busy}>
+        <button class="btn primary" onclick={os.requestUpload} disabled={$otaUpload.uploading || busy}>
           {$otaUpload.uploading ? `Uploading ${$otaUpload.pct.toFixed(0)}%` : 'Flash firmware'}
         </button>
-        <button class="btn outline" on:click={() => { os.selectedFile = null; if (os.fileInput) os.fileInput.value = '' }} disabled={$otaUpload.uploading || busy}>
+        <button class="btn outline" onclick={() => { os.selectedFile = null; if (os.fileInput) os.fileInput.value = '' }} disabled={$otaUpload.uploading || busy}>
           Clear
         </button>
       </div>
@@ -110,8 +110,8 @@
     ? `Install ${$otaCheck.result.latest_version}? The miner will reboot after flashing.`
     : 'Install firmware? The miner will reboot after flashing.'}
   confirmLabel="Install"
-  on:confirm={() => { os.installConfirmOpen = false; os.handleInstall() }}
-  on:cancel={() => (os.installConfirmOpen = false)}
+  onconfirm={() => { os.installConfirmOpen = false; os.handleInstall() }}
+  oncancel={() => (os.installConfirmOpen = false)}
 />
 
 <ConfirmDialog
@@ -121,8 +121,8 @@
     ? `Flash "${os.selectedFile.name}" (${fmtSize(os.selectedFile.size)})? The miner will reboot after upload.`
     : 'Flash firmware? The miner will reboot after upload.'}
   confirmLabel="Flash"
-  on:confirm={() => { os.uploadConfirmOpen = false; os.handleUpload() }}
-  on:cancel={() => (os.uploadConfirmOpen = false)}
+  onconfirm={() => { os.uploadConfirmOpen = false; os.handleUpload() }}
+  oncancel={() => (os.uploadConfirmOpen = false)}
 />
 
 <style>

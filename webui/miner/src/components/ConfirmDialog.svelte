@@ -1,30 +1,40 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte'
+  let {
+    open = $bindable(false),
+    title,
+    message,
+    confirmLabel = 'Confirm',
+    cancelLabel = 'Cancel',
+    danger = false,
+    /** Optional localStorage key. When set, user can tick "Don't show again" to skip future prompts. */
+    skipKey = null,
+    onconfirm,
+    oncancel,
+  }: {
+    open?: boolean
+    title: string
+    message: string
+    confirmLabel?: string
+    cancelLabel?: string
+    danger?: boolean
+    skipKey?: string | null
+    onconfirm?: () => void
+    oncancel?: () => void
+  } = $props()
 
-  export let open = false
-  export let title: string
-  export let message: string
-  export let confirmLabel = 'Confirm'
-  export let cancelLabel = 'Cancel'
-  export let danger = false
-  /** Optional localStorage key. When set, user can tick "Don't show again" to skip future prompts. */
-  export let skipKey: string | null = null
-
-  const dispatch = createEventDispatcher<{ confirm: void; cancel: void }>()
-
-  let dontShowAgain = false
+  let dontShowAgain = $state(false)
 
   function confirm() {
     if (skipKey && dontShowAgain) {
       try { localStorage.setItem(skipKey, '1') } catch { /* ignore */ }
     }
     open = false
-    dispatch('confirm')
+    onconfirm?.()
   }
 
   function cancel() {
     open = false
-    dispatch('cancel')
+    oncancel?.()
   }
 
   export function shouldSkip(key: string): boolean {
@@ -33,7 +43,7 @@
 </script>
 
 {#if open}
-  <div class="modal-backdrop" on:click={cancel} role="presentation"></div>
+  <div class="modal-backdrop" onclick={cancel} role="presentation"></div>
   <div class="modal-panel dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
     <h3 id="confirm-title">{title}</h3>
     <p>{message}</p>
@@ -46,8 +56,8 @@
     {/if}
 
     <div class="actions">
-      <button class="btn outline" on:click={cancel}>{cancelLabel}</button>
-      <button class="btn {danger ? 'danger' : 'primary'}" on:click={confirm}>{confirmLabel}</button>
+      <button class="btn outline" onclick={cancel}>{cancelLabel}</button>
+      <button class="btn {danger ? 'danger' : 'primary'}" onclick={confirm}>{confirmLabel}</button>
     </div>
   </div>
 {/if}

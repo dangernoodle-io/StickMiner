@@ -1,16 +1,25 @@
 <script lang="ts">
-  export let checked: boolean
-  export let disabled = false
-  export let size: 'sm' | 'md' = 'md'
+  let {
+    checked = $bindable(),
+    disabled = false,
+    size = 'md' as 'sm' | 'md',
+    onchange,
+  }: {
+    checked: boolean
+    disabled?: boolean
+    size?: 'sm' | 'md'
+    onchange?: (e: Event) => void
+  } = $props()
 
-  function onChange(e: Event) {
+  function handleChange(e: Event) {
     const target = e.currentTarget as HTMLInputElement
     checked = target.checked
+    onchange?.(e)
   }
 </script>
 
 <label class="toggle" class:disabled class:sm={size === 'sm'}>
-  <input type="checkbox" {checked} {disabled} on:change={onChange} on:change />
+  <input type="checkbox" {checked} {disabled} onchange={handleChange} />
   <span class="slider"></span>
 </label>
 

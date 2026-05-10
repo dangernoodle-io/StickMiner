@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte'
   import PoolEditForm from './PoolEditForm.svelte'
 
   type PoolForm = {
@@ -12,22 +11,33 @@
     decode_coinbase: boolean
   }
 
-  export let open = false
-  export let form: PoolForm
-  export let kind: 'Primary' | 'Fallback'
-  export let saving = false
-  export let saveMsg = ''
-  export let workerPlaceholder = 'miner-1'
-
-  const dispatch = createEventDispatcher<{ save: void; cancel: void }>()
+  let {
+    open = false,
+    form = $bindable(),
+    kind,
+    saving = false,
+    saveMsg = '',
+    workerPlaceholder = 'miner-1',
+    onsave,
+    oncancel,
+  }: {
+    open?: boolean
+    form: PoolForm
+    kind: 'Primary' | 'Fallback'
+    saving?: boolean
+    saveMsg?: string
+    workerPlaceholder?: string
+    onsave?: () => void
+    oncancel?: () => void
+  } = $props()
 
   function onBackdrop() {
-    if (!saving) dispatch('cancel')
+    if (!saving) oncancel?.()
   }
 </script>
 
 {#if open}
-  <div class="modal-backdrop" on:click={onBackdrop} role="presentation"></div>
+  <div class="modal-backdrop" onclick={onBackdrop} role="presentation"></div>
   <div class="modal-panel dialog" role="dialog" aria-modal="true" aria-labelledby="pool-edit-title">
     <PoolEditForm
       bind:form
@@ -35,8 +45,8 @@
       {saving}
       {saveMsg}
       {workerPlaceholder}
-      on:save
-      on:cancel
+      {onsave}
+      {oncancel}
     />
   </div>
 {/if}

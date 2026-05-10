@@ -38,7 +38,7 @@
       </div>
     </section>
 
-    <section class="card clickable" on:click={openFanEdit} on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') openFanEdit() }} role="button" tabindex="0" title="Edit fan settings">
+    <section class="card clickable" onclick={openFanEdit} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') openFanEdit() }} role="button" tabindex="0" title="Edit fan settings">
       <h3>
         Fan
         {#if $fan?.autofan && $fan?.pid_input_src}

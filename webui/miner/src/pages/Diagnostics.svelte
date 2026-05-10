@@ -82,7 +82,7 @@
       <select
         class="sm-select"
         value={ds.selectedLevel}
-        on:change={ds.onLevelChange}
+        onchange={ds.onLevelChange}
         disabled={ds.applying || !ds.selectedTag}
         title="Log level"
       >
@@ -96,13 +96,13 @@
       <label class="autoscroll">
         <input type="checkbox" bind:checked={ds.autoscroll} /> auto-scroll
       </label>
-      <button class="btn outline sm" on:click={ds.clear} disabled={!ds.lines.length}>Clear</button>
+      <button class="btn outline sm" onclick={ds.clear} disabled={!ds.lines.length}>Clear</button>
     </div>
 
     {#if ds.applyMsg}<div class="status-msg" data-kind={ds.applyKind}>{ds.applyMsg}</div>{/if}
     {#if ds.levelsErr}<div class="status-msg" data-kind="err">{ds.levelsErr}</div>{/if}
 
-    <pre class="log-panel" bind:this={ds.panel} on:scroll={ds.onPanelScroll}>{#each ds.filtered as l}{l}
+    <pre class="log-panel" bind:this={ds.panel} onscroll={ds.onPanelScroll}>{#each ds.filtered as l}{l}
 {/each}</pre>
     {#if ds.filter}
       <div class="filter-hint">
@@ -113,7 +113,7 @@
 
   <div class="section">
     <h2>Device</h2>
-    <button class="btn danger" on:click={ds.requestReboot} disabled={ds.rebooting}>
+    <button class="btn danger" onclick={ds.requestReboot} disabled={ds.rebooting}>
       {ds.rebooting ? 'Rebooting…' : 'Reboot'}
     </button>
     {#if ds.rebootMsg}<div class="status-msg">{ds.rebootMsg}</div>{/if}
@@ -127,7 +127,7 @@
   confirmLabel="Reboot"
   danger
   skipKey={ds.REBOOT_SKIP_KEY}
-  on:confirm={ds.doReboot}
+  onconfirm={ds.doReboot}
 />
 
 <style>
