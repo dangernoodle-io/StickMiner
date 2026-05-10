@@ -120,7 +120,7 @@
           Updated {fmtRelative(lastFetchAgoS)}
         </span>
       {/if}
-      <button class="btn outline sm" on:click={handleRefresh} disabled={loading}>
+      <button class="btn outline sm" onclick={handleRefresh} disabled={loading}>
         {loading ? 'Loading...' : 'Refresh'}
       </button>
     </div>

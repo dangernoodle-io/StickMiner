@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte'
   import Tooltip from './Tooltip.svelte'
   import Toggle from './Toggle.svelte'
   import PasswordInput from 'ui-kit/PasswordInput.svelte'
@@ -14,16 +13,26 @@
     decode_coinbase: boolean
   }
 
-  export let form: PoolForm
-  export let kind: 'Primary' | 'Fallback'
-  export let saving: boolean = false
-  export let saveMsg: string = ''
-  export let workerPlaceholder: string = 'miner-1'
-
-  const dispatch = createEventDispatcher<{ save: void; cancel: void }>()
+  let {
+    form = $bindable(),
+    kind,
+    saving = false,
+    saveMsg = '',
+    workerPlaceholder = 'miner-1',
+    onsave,
+    oncancel,
+  }: {
+    form: PoolForm
+    kind: 'Primary' | 'Fallback'
+    saving?: boolean
+    saveMsg?: string
+    workerPlaceholder?: string
+    onsave?: () => void
+    oncancel?: () => void
+  } = $props()
 </script>
 
-<form class="setup-form" on:submit|preventDefault={() => dispatch('save')}>
+<form class="setup-form" onsubmit={(e) => { e.preventDefault(); onsave?.() }}>
   <section>
     <h2>{kind} pool</h2>
 
@@ -89,7 +98,7 @@
   </details>
 
   <div class="actions">
-    <button type="button" class="btn outline" on:click={() => dispatch('cancel')} disabled={saving}>Cancel</button>
+    <button type="button" class="btn outline" onclick={() => oncancel?.()} disabled={saving}>Cancel</button>
     <button type="submit" class="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
   </div>
   {#if saveMsg}<div class="msg">{saveMsg}</div>{/if}

@@ -18,7 +18,7 @@
         <button
           class="win-btn"
           class:active={hs.windowIdx === i}
-          on:click={() => hs.selectWindow(i)}
+          onclick={() => hs.selectWindow(i)}
         >{w.label}</button>
       {/each}
     </div>

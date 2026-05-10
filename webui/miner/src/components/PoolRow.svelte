@@ -1,42 +1,54 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte'
   import type { Pool, PoolConfigured } from '../lib/api'
   import { truncWallet } from '../lib/fmt'
   import { coinbaseHeight } from '../lib/coinbase'
   import Tooltip from './Tooltip.svelte'
 
-  // Which slot this row represents.
-  export let idx: 0 | 1
-  // Source of truth for the displayed pool (frozen during a switch).
-  export let displayPool: Pool | null
-  export let saving: boolean = false
-  export let switching: boolean = false
+  let {
+    // Which slot this row represents.
+    idx,
+    // Source of truth for the displayed pool (frozen during a switch).
+    displayPool,
+    saving = false,
+    switching = false,
+    onedit,
+    onswitch,
+    onremove,
+  }: {
+    idx: 0 | 1
+    displayPool: Pool | null
+    saving?: boolean
+    switching?: boolean
+    onedit?: () => void
+    onswitch?: () => void
+    onremove?: () => void
+  } = $props()
 
-  $: kind = (idx === 0 ? 'Primary' : 'Fallback') as 'Primary' | 'Fallback'
-  $: cfg = idx === 0 ? displayPool?.configured?.primary : displayPool?.configured?.fallback
-  $: otherCfg = idx === 0 ? displayPool?.configured?.fallback : displayPool?.configured?.primary
-  $: isActive = displayPool?.active_pool_idx === idx && displayPool?.connected
+  const kind = $derived((idx === 0 ? 'Primary' : 'Fallback') as 'Primary' | 'Fallback')
+  const cfg = $derived(idx === 0 ? displayPool?.configured?.primary : displayPool?.configured?.fallback)
+  const otherCfg = $derived(idx === 0 ? displayPool?.configured?.fallback : displayPool?.configured?.primary)
+  const isActive = $derived(displayPool?.active_pool_idx === idx && displayPool?.connected)
   // The "switch" button shows on the inactive row when we have somewhere to switch from.
-  $: canSwitchTo = !isActive && cfg && displayPool?.active_pool_idx === (idx === 0 ? 1 : 0) && otherCfg
+  const canSwitchTo = $derived(!isActive && cfg && displayPool?.active_pool_idx === (idx === 0 ? 1 : 0) && otherCfg)
   // Primary can be removed iff fallback is configured (so it can be promoted).
   // Fallback can always be removed when configured.
-  $: canRemove = cfg && (idx === 1 || !!displayPool?.configured?.fallback)
-  $: removeTitle = idx === 0
+  const canRemove = $derived(cfg && (idx === 1 || !!displayPool?.configured?.fallback))
+  const removeTitle = $derived(idx === 0
     ? 'Remove primary; fallback will be promoted'
-    : 'Remove fallback pool'
+    : 'Remove fallback pool')
 
   /* Status pill text/class for the per-toggle indicators on the summary
    * row. For the active pool we surface runtime state from the pool
    * snapshot. For inactive pools we only know the persisted user pref
    * (ON/OFF). */
-  $: subscribeStatus = (() => {
+  const subscribeStatus = $derived.by(() => {
     const enabled = cfg?.extranonce_subscribe ?? false
     if (!isActive) return enabled ? { text: 'ON', cls: 'on' } : { text: 'OFF', cls: 'off' }
     const runtime = displayPool?.extranonce_subscribe_status ?? 'off'
     return { text: runtime.toUpperCase(), cls: runtime }
-  })()
+  })
 
-  $: decodeStatus = (() => {
+  const decodeStatus = $derived.by(() => {
     const enabled = cfg?.decode_coinbase ?? true
     if (!enabled) return { text: 'OFF', cls: 'off' }
     if (!isActive) return { text: 'ON', cls: 'on' }
@@ -47,13 +59,7 @@
       if (coinbaseHeight(n.coinb1) == null) return { text: 'PARSE FAILED', cls: 'rejected' }
     }
     return { text: 'ACTIVE', cls: 'active' }
-  })()
-
-  const dispatch = createEventDispatcher<{
-    edit: void
-    switch: void
-    remove: void
-  }>()
+  })
 </script>
 
 <div class="pool-row" class:disabled={!cfg}>
@@ -103,11 +109,11 @@
         </div>
         <div class="actions">
           {#if canSwitchTo}
-            <button class="btn outline sm" on:click={() => dispatch('switch')} disabled={switching}>{switching ? 'Switching…' : 'Switch'}</button>
+            <button class="btn outline sm" onclick={() => onswitch?.()} disabled={switching}>{switching ? 'Switching…' : 'Switch'}</button>
           {/if}
-          <button class="btn outline sm" on:click={() => dispatch('edit')}>Edit</button>
+          <button class="btn outline sm" onclick={() => onedit?.()}>Edit</button>
           {#if canRemove}
-            <button class="btn outline danger sm" on:click={() => dispatch('remove')} disabled={saving} title={removeTitle}>Remove</button>
+            <button class="btn outline danger sm" onclick={() => onremove?.()} disabled={saving} title={removeTitle}>Remove</button>
           {/if}
         </div>
       {:else}
@@ -118,7 +124,7 @@
           </div>
         </div>
         <div class="actions">
-          <button class="btn outline sm" on:click={() => dispatch('edit')}>{idx === 0 ? 'Configure' : '+ Add'}</button>
+          <button class="btn outline sm" onclick={() => onedit?.()}>{idx === 0 ? 'Configure' : '+ Add'}</button>
         </div>
     {/if}
   </div>

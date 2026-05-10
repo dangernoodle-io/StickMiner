@@ -59,9 +59,9 @@
 </script>
 
 {#if $fanEditOpen}
-  <div class="modal-backdrop" on:click={close} role="presentation"></div>
+  <div class="modal-backdrop" onclick={close} role="presentation"></div>
   <div class="modal-panel dialog" role="dialog" aria-modal="true" aria-labelledby="fan-edit-title">
-    <form class="setup-form" on:submit|preventDefault={save}>
+    <form class="setup-form" onsubmit={(e) => { e.preventDefault(); save() }}>
       <section>
         <h2 id="fan-edit-title">Fan</h2>
 
@@ -119,7 +119,7 @@
       {/if}
 
       <div class="actions">
-        <button type="button" class="btn outline" on:click={close} disabled={saving}>Cancel</button>
+        <button type="button" class="btn outline" onclick={close} disabled={saving}>Cancel</button>
         <button type="submit" class="btn primary" disabled={saving || !$fan}>
           {saving ? 'Saving…' : 'Save'}
         </button>
