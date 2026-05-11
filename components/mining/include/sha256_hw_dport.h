@@ -46,9 +46,8 @@ bool sha256_hw_dport_per_nonce(const uint8_t header_80[80], uint32_t nonce, uint
 static inline void sha256_hw_acquire(void) { sha256_hw_dport_acquire(); }
 static inline void sha256_hw_release(void) { sha256_hw_dport_release(); }
 
-/* TA-271 step B will define the per-nonce hot-loop API here. The signature
- * differs from the AHB version because classic ESP32 cannot inject midstate
- * (no writable H regs) — must re-hash block1 every nonce. */
+/* TA-367 Phase B+C inline kernel: see sha256_hw_dport_kernel.h
+ * (body in header so mine_nonce_range can inline cross-TU). */
 
 #endif // CONFIG_IDF_TARGET_ESP32
 

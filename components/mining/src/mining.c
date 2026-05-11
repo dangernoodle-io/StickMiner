@@ -116,6 +116,9 @@ sha_overlap_state_t mining_get_sha_hwrite_state(void) {
 #include "sha256_hw_ahb.h"
 #elif CONFIG_IDF_TARGET_ESP32
 #include "sha256_hw_dport.h"
+#if defined(ESP_PLATFORM) && CONFIG_IDF_TARGET_ESP32
+#include "sha256_hw_dport_kernel.h"
+#endif
 #endif
 #include "bb_nv.h"
 #include "bb_system.h"
@@ -578,6 +581,9 @@ bool mine_nonce_range(hash_backend_t *backend,
     uint32_t hashes = 0;
 #if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
     hw_backend_ctx_t *hw_ctx = (hw_backend_ctx_t *)backend->ctx;
+#elif CONFIG_IDF_TARGET_ESP32
+    /* TA-367 Phase B+C: D0 pipelined + raw MMIO kernel */
+    hw_backend_ctx_t *hw_ctx = (hw_backend_ctx_t *)backend->ctx;
 #endif
 #endif
 
@@ -586,6 +592,9 @@ bool mine_nonce_range(hash_backend_t *backend,
 #if defined(ESP_PLATFORM) && (CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3)
         // S3/S2/C3 hot loop: call kernel directly to skip the function-pointer indirection.
         hash_result_t hr = hw_hot_loop_kernel(hw_ctx->midstate_hw, hw_ctx->block2_words, nonce, hash);
+#elif defined(ESP_PLATFORM) && CONFIG_IDF_TARGET_ESP32
+        // D0 hot loop: TA-367 pipelined fill + raw MMIO kernel
+        hash_result_t hr = sha256_hw_dport_kernel(hw_ctx->header, nonce, hw_ctx->target_word0_max, hash) ? HASH_CHECK : HASH_MISS;
 #else
         hash_result_t hr = backend->hash_nonce(backend, nonce, hash);
 #endif

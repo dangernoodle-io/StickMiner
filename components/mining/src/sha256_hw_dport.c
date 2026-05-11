@@ -154,6 +154,11 @@ static inline bool dport_read_digest_swap_if(uint8_t out[32], uint32_t target_wo
     return true;
 }
 
+/* TA-367 Phase B+C inline kernel lives in sha256_hw_dport_kernel.h so
+ * mine_nonce_range can inline it across translation units. The non-inlined
+ * sha256_hw_dport_per_nonce below remains as the SW-vs-HW lockstep test's
+ * reference path. */
+
 /* ---------------------------------------------------------------------------
  * Per-nonce SHA-256d hot loop with pool-target early-reject (classic ESP32, DPORT bus)
  * Mirror of minerWorkerHw inner loop (mining.cpp:1076-1094).
