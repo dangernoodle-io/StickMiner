@@ -1,6 +1,7 @@
 #pragma once
 
 #define BOARD_NAME "bitaxe-403"
+#define BOARD_HAS_DISPLAY 1
 
 // BM1368 ASIC (UART1)
 #define PIN_ASIC_TX        17

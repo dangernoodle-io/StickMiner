@@ -1,6 +1,7 @@
 #pragma once
 
 #define BOARD_NAME "tdongle-s3"
+#define BOARD_HAS_DISPLAY 1
 
 // ST7735 LCD (SPI)
 #define PIN_LCD_CLK   5
