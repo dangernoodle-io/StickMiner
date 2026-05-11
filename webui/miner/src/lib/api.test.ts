@@ -21,6 +21,13 @@ import {
   fetchOtaCheck,
   triggerOtaUpdate,
   fetchOtaStatus,
+  fetchDiagHeap,
+  checkDiagHeap,
+  fetchDiagTasks,
+  fetchDiagPanic,
+  clearAbnormalResets,
+  clearDiagPanic,
+  coredumpUrl,
 } from './api'
 
 // ---------------------------------------------------------------------------
@@ -536,5 +543,141 @@ describe('uploadOta', () => {
     ;(globalThis as any).XMLHttpRequest = makeXhrShim({ status: 0, failAbort: true })
     const file = new File(['data'], 'fw.bin')
     await expect(uploadOta(file, vi.fn())).rejects.toThrow('upload aborted')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Heap diagnostics
+// ---------------------------------------------------------------------------
+
+describe('fetchDiagHeap', () => {
+  it('GETs /api/diag/heap and returns parsed JSON', async () => {
+    const spy = setFetch(200, {
+      internal: { free: 1000, allocated: 500, largest_free_block: 400, minimum_ever_free: 100 },
+      dma: { free: 2000, allocated: 1000, largest_free_block: 1500, minimum_ever_free: 500 },
+      default: { free: 3000, allocated: 2000, largest_free_block: 2500, minimum_ever_free: 1000 },
+    })
+    const result = await fetchDiagHeap()
+    expect(spy.mock.calls[0][0]).toBe('/api/diag/heap')
+    expect(result).toMatchObject({ internal: { free: 1000 } })
+  })
+
+  it('throws on non-OK response', async () => {
+    setFetch(500)
+    await expect(fetchDiagHeap()).rejects.toThrow('/api/diag/heap')
+  })
+})
+
+describe('checkDiagHeap', () => {
+  it('POSTs to /api/diag/heap/check and returns ok boolean', async () => {
+    const spy = setFetch(200, { ok: true })
+    const result = await checkDiagHeap()
+    const [url, init] = spy.mock.calls[0]
+    expect(url).toBe('/api/diag/heap/check')
+    expect(init.method).toBe('POST')
+    expect(result).toBe(true)
+  })
+
+  it('returns false when ok is false', async () => {
+    setFetch(200, { ok: false })
+    const result = await checkDiagHeap()
+    expect(result).toBe(false)
+  })
+
+  it('throws on non-OK response', async () => {
+    setFetch(500)
+    await expect(checkDiagHeap()).rejects.toThrow('heap check failed')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Task diagnostics
+// ---------------------------------------------------------------------------
+
+describe('fetchDiagTasks', () => {
+  it('GETs /api/diag/tasks and returns array', async () => {
+    const spy = setFetch(200, [
+      { name: 'IDLE1', prio: 0, base_prio: 0, stack_hwm: 100, state: 'ready' },
+      { name: 'mining', prio: 20, base_prio: 20, stack_hwm: 500, state: 'running' },
+    ])
+    const result = await fetchDiagTasks()
+    expect(spy.mock.calls[0][0]).toBe('/api/diag/tasks')
+    expect(result).toHaveLength(2)
+    expect(result[0].name).toBe('IDLE1')
+  })
+
+  it('throws on non-OK response', async () => {
+    setFetch(500)
+    await expect(fetchDiagTasks()).rejects.toThrow('/api/diag/tasks')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Panic diagnostics
+// ---------------------------------------------------------------------------
+
+describe('fetchDiagPanic', () => {
+  it('GETs /api/diag/panic and returns panic data', async () => {
+    const spy = setFetch(200, {
+      available: true,
+      coredump: true,
+      boots_since: 2,
+      task: 'mining',
+      exc_pc: 0x400d1234,
+      exc_cause: 28,
+      panic_reason: 'Stack overflow',
+    })
+    const result = await fetchDiagPanic()
+    expect(spy.mock.calls[0][0]).toBe('/api/diag/panic')
+    expect(result).toMatchObject({ available: true, coredump: true })
+  })
+
+  it('throws on non-OK response', async () => {
+    setFetch(500)
+    await expect(fetchDiagPanic()).rejects.toThrow('/api/diag/panic')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Reset and panic clearing
+// ---------------------------------------------------------------------------
+
+describe('clearAbnormalResets', () => {
+  it('DELETEs /api/diag/abnormal-resets', async () => {
+    const spy = setFetch(200)
+    await clearAbnormalResets()
+    const [url, init] = spy.mock.calls[0]
+    expect(url).toBe('/api/diag/abnormal-resets')
+    expect(init.method).toBe('DELETE')
+  })
+
+  it('throws on non-OK response', async () => {
+    setFetch(500)
+    await expect(clearAbnormalResets()).rejects.toThrow('clear abnormal-resets failed')
+  })
+})
+
+describe('clearDiagPanic', () => {
+  it('DELETEs /api/diag/panic', async () => {
+    const spy = setFetch(200)
+    await clearDiagPanic()
+    const [url, init] = spy.mock.calls[0]
+    expect(url).toBe('/api/diag/panic')
+    expect(init.method).toBe('DELETE')
+  })
+
+  it('throws on non-OK response', async () => {
+    setFetch(500)
+    await expect(clearDiagPanic()).rejects.toThrow('clear panic failed')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Coredump constant
+// ---------------------------------------------------------------------------
+
+describe('coredumpUrl', () => {
+  it('exports const pointing to coredump endpoint', () => {
+    expect(coredumpUrl).toContain('/api/diag/panic/coredump')
   })
 })

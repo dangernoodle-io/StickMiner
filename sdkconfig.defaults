@@ -43,6 +43,9 @@ CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
 CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
 CONFIG_ESP_COREDUMP_CHECKSUM_CRC32=y
 
+# FreeRTOS trace facility (~1KB RAM; enables uxTaskGetSystemState for /api/diag/tasks)
+CONFIG_FREERTOS_USE_TRACE_FACILITY=y
+
 # Watchdog
 # 60 s timeout (Kconfig range cap) absorbs long stalls during pull-OTA on bitaxe
 # (TLS handshake + mbedTLS SHA on Core 1, bb_log writer TX backpressure on

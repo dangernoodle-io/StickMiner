@@ -5,7 +5,10 @@ import { route } from './lib/router'
 
 vi.mock('./lib/api', () => ({
   fetchStats: vi.fn(), fetchInfo: vi.fn(), fetchPower: vi.fn(), fetchFan: vi.fn(),
-  fetchSettings: vi.fn(), fetchPool: vi.fn(), fetchHealth: vi.fn(), ping: vi.fn()
+  fetchSettings: vi.fn(), fetchPool: vi.fn(), fetchHealth: vi.fn(), ping: vi.fn(),
+  fetchDiagHeap: vi.fn(), checkDiagHeap: vi.fn(), fetchDiagTasks: vi.fn(),
+  fetchDiagPanic: vi.fn(), clearAbnormalResets: vi.fn(), clearDiagPanic: vi.fn(),
+  coredumpUrl: '/api/diag/panic/coredump'
 }))
 
 import App from './App.svelte'
