@@ -466,6 +466,6 @@ bench_quiet_skip_net:;
 
 #ifndef TM_BENCH_QUIET
     // Start display status task on Core 0
-    xTaskCreatePinnedToCore(display_status_task, "display", 4096, NULL, 2, NULL, 0);
+    xTaskCreatePinnedToCore(display_status_task, "display", 6144, NULL, 2, NULL, 0);
 #endif
 }

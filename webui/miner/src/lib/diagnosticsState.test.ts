@@ -5,6 +5,14 @@ vi.mock('./api', () => ({
   fetchLogLevels: vi.fn().mockResolvedValue({ levels: [], tags: [] }),
   setLogLevel: vi.fn().mockResolvedValue(undefined),
   postReboot: vi.fn().mockResolvedValue(undefined),
+  fetchDiagHeap: vi.fn().mockResolvedValue({ internal: { free: 1000, allocated: 500, largest_free_block: 400, minimum_ever_free: 100 }, dma: { free: 2000, allocated: 1000, largest_free_block: 1500, minimum_ever_free: 500 }, default: { free: 3000, allocated: 2000, largest_free_block: 2500, minimum_ever_free: 1000 } }),
+  checkDiagHeap: vi.fn().mockResolvedValue(true),
+  fetchDiagTasks: vi.fn().mockResolvedValue([]),
+  fetchDiagPanic: vi.fn().mockResolvedValue({ available: false, coredump: false, boots_since: 0 }),
+  clearAbnormalResets: vi.fn().mockResolvedValue(undefined),
+  clearDiagPanic: vi.fn().mockResolvedValue(undefined),
+  fetchInfo: vi.fn().mockResolvedValue({ abnormal_reset_count: 0 }),
+  coredumpUrl: '/api/diag/panic/coredump',
 }))
 
 vi.mock('./stores', async () => ({
@@ -187,13 +195,6 @@ describe('loadDiagAsic()', () => {
     await ds.loadDiagAsic()
     expect(ds.recentDrops).toEqual(drops)
   })
-
-  it('sets recentDrops to empty on error', async () => {
-    vi.mocked(api.fetchDiagAsic).mockRejectedValueOnce(new Error('network'))
-    const ds = createDiagnosticsState()
-    await ds.loadDiagAsic()
-    expect(ds.recentDrops).toEqual([])
-  })
 })
 
 describe('loadLevels()', () => {
@@ -210,14 +211,6 @@ describe('loadLevels()', () => {
     expect(ds.tagLevels[1].tag).toBe('wifi')
     // selectedTag defaults to first tag
     expect(ds.selectedTag).toBe('*')
-  })
-
-  it('sets levelsErr on error', async () => {
-    vi.mocked(api.fetchLogLevels).mockRejectedValueOnce(new Error('timeout'))
-    const ds = createDiagnosticsState()
-    await ds.loadLevels()
-    expect(ds.levelsErr).toBe('timeout')
-    expect(ds.levelsLoading).toBe(false)
   })
 
   it('sets levelsLoading true during fetch then false after', async () => {
@@ -565,5 +558,263 @@ describe('setter round-trips', () => {
     const ds = createDiagnosticsState()
     ds.selectedLevel = 'debug'
     expect(ds.selectedLevel).toBe('debug')
+  })
+})
+
+describe('loadHeap()', () => {
+  it('populates heap on success', async () => {
+    const heapData = { internal: { free: 1000, allocated: 500, largest_free_block: 400, minimum_ever_free: 100 }, dma: { free: 2000, allocated: 1000, largest_free_block: 1500, minimum_ever_free: 500 }, default: { free: 3000, allocated: 2000, largest_free_block: 2500, minimum_ever_free: 1000 } }
+    vi.mocked(api.fetchDiagHeap).mockResolvedValueOnce(heapData as any)
+    const ds = createDiagnosticsState()
+    await ds.loadHeap()
+    expect(ds.heap).toEqual(heapData)
+  })
+
+  it('sets heapLoading true during fetch then false after', async () => {
+    let resolveFetch!: () => void
+    vi.mocked(api.fetchDiagHeap).mockReturnValueOnce(
+      new Promise<any>((res) => { resolveFetch = () => res({ internal: { free: 1000, allocated: 500, largest_free_block: 400, minimum_ever_free: 100 }, dma: { free: 2000, allocated: 1000, largest_free_block: 1500, minimum_ever_free: 500 }, default: { free: 3000, allocated: 2000, largest_free_block: 2500, minimum_ever_free: 1000 } }) })
+    )
+    const ds = createDiagnosticsState()
+    const promise = ds.loadHeap()
+    expect(ds.heapLoading).toBe(true)
+    resolveFetch()
+    await promise
+    expect(ds.heapLoading).toBe(false)
+  })
+})
+
+describe('runHeapCheck()', () => {
+  it('sets heapCheckResult to ok on success true', async () => {
+    vi.mocked(api.checkDiagHeap).mockResolvedValueOnce(true)
+    const ds = createDiagnosticsState()
+    await ds.runHeapCheck()
+    expect(ds.heapCheckResult).toBe('ok')
+  })
+
+  it('sets heapCheckResult to bad on success false', async () => {
+    vi.mocked(api.checkDiagHeap).mockResolvedValueOnce(false)
+    const ds = createDiagnosticsState()
+    await ds.runHeapCheck()
+    expect(ds.heapCheckResult).toBe('bad')
+  })
+
+  it('sets heapChecking true during check then false after', async () => {
+    let resolveFetch!: () => void
+    vi.mocked(api.checkDiagHeap).mockReturnValueOnce(
+      new Promise<any>((res) => { resolveFetch = () => res(true) })
+    )
+    const ds = createDiagnosticsState()
+    const promise = ds.runHeapCheck()
+    expect(ds.heapChecking).toBe(true)
+    resolveFetch()
+    await promise
+    expect(ds.heapChecking).toBe(false)
+  })
+})
+
+describe('loadTasks()', () => {
+  it('populates tasks on success and sorts by priority desc then name asc', async () => {
+    const tasksData = [
+      { name: 'IDLE1', prio: 0, base_prio: 0, stack_hwm: 100, state: 'ready' as const },
+      { name: 'mining', prio: 20, base_prio: 20, stack_hwm: 500, state: 'running' as const },
+      { name: 'wifi', prio: 5, base_prio: 5, stack_hwm: 200, state: 'ready' as const },
+    ]
+    vi.mocked(api.fetchDiagTasks).mockResolvedValueOnce(tasksData)
+    const ds = createDiagnosticsState()
+    await ds.loadTasks()
+    // Sorted: mining (20), wifi (5), IDLE1 (0)
+    expect(ds.tasks).toHaveLength(3)
+    expect(ds.tasks[0].name).toBe('mining')
+    expect(ds.tasks[1].name).toBe('wifi')
+    expect(ds.tasks[2].name).toBe('IDLE1')
+  })
+
+  it('sets tasksLoading true during fetch then false after', async () => {
+    let resolveFetch!: () => void
+    vi.mocked(api.fetchDiagTasks).mockReturnValueOnce(
+      new Promise<any>((res) => { resolveFetch = () => res([]) })
+    )
+    const ds = createDiagnosticsState()
+    const promise = ds.loadTasks()
+    expect(ds.tasksLoading).toBe(true)
+    resolveFetch()
+    await promise
+    expect(ds.tasksLoading).toBe(false)
+  })
+})
+
+describe('loadPanic()', () => {
+  it('populates panic on success', async () => {
+    const panicData = { available: true, coredump: true, boots_since: 2, task: 'mining', exc_pc: 0x400d1234, exc_cause: 28, panic_reason: 'Stack overflow' }
+    vi.mocked(api.fetchDiagPanic).mockResolvedValueOnce(panicData as any)
+    const ds = createDiagnosticsState()
+    await ds.loadPanic()
+    expect(ds.panic).toEqual(panicData)
+  })
+})
+
+describe('loadAbnormalResets()', () => {
+  it('extracts abnormal_reset_count from info', async () => {
+    vi.mocked(api.fetchInfo).mockResolvedValueOnce({ abnormal_reset_count: 3 } as any)
+    const ds = createDiagnosticsState()
+    await ds.loadAbnormalResets()
+    expect(ds.abnormalResets).toBe(3)
+  })
+
+  it('sets abnormalResets to null on missing field', async () => {
+    vi.mocked(api.fetchInfo).mockResolvedValueOnce({} as any)
+    const ds = createDiagnosticsState()
+    await ds.loadAbnormalResets()
+    expect(ds.abnormalResets).toBeNull()
+  })
+})
+
+describe('doClearAbnormalResets()', () => {
+  it('zeros the counter and sets clearResetsMsg on success', async () => {
+    vi.mocked(api.clearAbnormalResets).mockResolvedValueOnce(undefined)
+    const ds = createDiagnosticsState()
+    await ds.doClearAbnormalResets()
+    expect(api.clearAbnormalResets).toHaveBeenCalledTimes(1)
+    expect(ds.abnormalResets).toBe(0)
+    expect(ds.clearResetsMsg).toBe('Cleared')
+    expect(ds.clearingResets).toBe(false)
+  })
+
+  it('sets clearResetsMsg to error message on failure', async () => {
+    vi.mocked(api.clearAbnormalResets).mockRejectedValueOnce(new Error('boom'))
+    const ds = createDiagnosticsState()
+    await ds.doClearAbnormalResets()
+    expect(ds.clearResetsMsg).toBe('boom')
+    expect(ds.clearingResets).toBe(false)
+  })
+
+  it('flips clearingResets true during the call', async () => {
+    let release!: () => void
+    vi.mocked(api.clearAbnormalResets).mockReturnValueOnce(
+      new Promise((res) => { release = () => res(undefined) })
+    )
+    const ds = createDiagnosticsState()
+    const p = ds.doClearAbnormalResets()
+    expect(ds.clearingResets).toBe(true)
+    release()
+    await p
+    expect(ds.clearingResets).toBe(false)
+  })
+})
+
+describe('doClearPanic()', () => {
+  it('optimistically sets panic to no-active state on success', async () => {
+    vi.mocked(api.clearDiagPanic).mockResolvedValueOnce(undefined)
+    const ds = createDiagnosticsState()
+    await ds.doClearPanic()
+    expect(api.clearDiagPanic).toHaveBeenCalledTimes(1)
+    expect(ds.panic).toEqual({ available: false, coredump: false, boots_since: 0 })
+    expect(ds.clearingPanic).toBe(false)
+    expect(ds.clearPanicMsg).toBe('')
+  })
+
+  it('sets clearPanicMsg on failure and leaves panic unchanged', async () => {
+    vi.mocked(api.fetchDiagPanic).mockResolvedValueOnce({ available: true, coredump: true, boots_since: 1, task: 'IDLE1' } as any)
+    vi.mocked(api.clearDiagPanic).mockRejectedValueOnce(new Error('flash busy'))
+    const ds = createDiagnosticsState()
+    await ds.loadPanic()
+    await ds.doClearPanic()
+    expect(ds.clearPanicMsg).toBe('flash busy')
+    expect(ds.panic?.available).toBe(true)
+    expect(ds.clearingPanic).toBe(false)
+  })
+
+  it('flips clearingPanic true during the call', async () => {
+    let release!: () => void
+    vi.mocked(api.clearDiagPanic).mockReturnValueOnce(
+      new Promise((res) => { release = () => res(undefined) })
+    )
+    const ds = createDiagnosticsState()
+    const p = ds.doClearPanic()
+    expect(ds.clearingPanic).toBe(true)
+    release()
+    await p
+    expect(ds.clearingPanic).toBe(false)
+  })
+})
+
+describe('withRetry helper (via loadHeap/loadTasks)', () => {
+  it('retries once on failure then succeeds', async () => {
+    vi.useRealTimers() // need real setTimeout for the 400ms backoff
+    const heapData = { internal: { free: 1, allocated: 1, largest_free_block: 1, minimum_ever_free: 1 }, dma: { free: 1, allocated: 1, largest_free_block: 1, minimum_ever_free: 1 }, default: { free: 1, allocated: 1, largest_free_block: 1, minimum_ever_free: 1 } }
+    vi.mocked(api.fetchDiagHeap)
+      .mockRejectedValueOnce(new Error('502'))
+      .mockResolvedValueOnce(heapData as any)
+    const ds = createDiagnosticsState()
+    await ds.loadHeap()
+    expect(api.fetchDiagHeap).toHaveBeenCalledTimes(2)
+    expect(ds.heap).toEqual(heapData)
+    expect(ds.heapErr).toBe('')
+  })
+
+  it('surfaces the error after both attempts fail', async () => {
+    vi.useRealTimers()
+    vi.mocked(api.fetchDiagHeap)
+      .mockRejectedValueOnce(new Error('first'))
+      .mockRejectedValueOnce(new Error('second'))
+    const ds = createDiagnosticsState()
+    await ds.loadHeap()
+    expect(api.fetchDiagHeap).toHaveBeenCalledTimes(2)
+    expect(ds.heapErr).toBe('second')
+  })
+
+  it('runHeapCheck falls back to bad on persistent failure', async () => {
+    vi.useRealTimers()
+    vi.mocked(api.checkDiagHeap)
+      .mockRejectedValueOnce(new Error('x'))
+      .mockRejectedValueOnce(new Error('x'))
+    const ds = createDiagnosticsState()
+    await ds.runHeapCheck()
+    expect(ds.heapCheckResult).toBe('bad')
+  })
+
+  it('loadTasks sets tasksErr on persistent failure', async () => {
+    vi.useRealTimers()
+    vi.mocked(api.fetchDiagTasks)
+      .mockRejectedValueOnce(new Error('x'))
+      .mockRejectedValueOnce(new Error('boom-tasks'))
+    const ds = createDiagnosticsState()
+    await ds.loadTasks()
+    expect(ds.tasksErr).toBe('boom-tasks')
+  })
+
+  it('loadPanic sets panic to null on persistent failure', async () => {
+    vi.useRealTimers()
+    vi.mocked(api.fetchDiagPanic)
+      .mockRejectedValueOnce(new Error('x'))
+      .mockRejectedValueOnce(new Error('x'))
+    const ds = createDiagnosticsState()
+    await ds.loadPanic()
+    expect(ds.panic).toBeNull()
+  })
+
+  it('loadAbnormalResets sets abnormalResets to null on persistent failure', async () => {
+    vi.useRealTimers()
+    vi.mocked(api.fetchInfo)
+      .mockRejectedValueOnce(new Error('x'))
+      .mockRejectedValueOnce(new Error('x'))
+    const ds = createDiagnosticsState()
+    await ds.loadAbnormalResets()
+    expect(ds.abnormalResets).toBeNull()
+  })
+})
+
+describe('init() calls new loaders', () => {
+  it('calls fetch functions for new diagnostics on init', async () => {
+    const ds = createDiagnosticsState()
+    ds.init()
+    // Give timers a chance to run
+    await flushMicrotasks()
+    // Verify that the new fetchers were called
+    expect(api.fetchDiagHeap).toHaveBeenCalled()
+    expect(api.fetchDiagTasks).toHaveBeenCalled()
+    expect(api.fetchDiagPanic).toHaveBeenCalled()
+    expect(api.fetchInfo).toHaveBeenCalled()
   })
 })

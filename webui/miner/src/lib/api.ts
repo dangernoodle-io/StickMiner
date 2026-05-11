@@ -280,6 +280,60 @@ export const fetchPool = () => getJson<Pool>('/api/pool')
 export interface DiagAsic { recent_drops: RecentDrop[] }
 export const fetchDiagAsic = () => getJson<DiagAsic>('/api/diag/asic')
 
+export interface HeapCap {
+  free: number
+  allocated: number
+  largest_free_block: number
+  minimum_ever_free: number
+}
+export interface DiagHeap {
+  internal: HeapCap
+  dma: HeapCap
+  default: HeapCap
+}
+export const fetchDiagHeap = () => getJson<DiagHeap>('/api/diag/heap')
+
+export async function checkDiagHeap(): Promise<boolean> {
+  const res = await fetch(`${baseUrl}/api/diag/heap/check`, { method: 'POST' })
+  if (!res.ok) throw new Error(`heap check failed: ${res.status}`)
+  const d = await res.json() as { ok: boolean }
+  return d.ok
+}
+
+export type TaskState = 'running' | 'ready' | 'blocked' | 'suspended' | 'deleted' | 'invalid'
+export interface DiagTask {
+  name: string
+  prio: number
+  base_prio: number
+  stack_hwm: number
+  state: TaskState
+}
+export const fetchDiagTasks = () => getJson<DiagTask[]>('/api/diag/tasks')
+
+export interface DiagPanic {
+  available: boolean
+  coredump: boolean
+  boots_since: number
+  task?: string
+  exc_pc?: number
+  exc_cause?: number
+  backtrace?: number[]
+  panic_reason?: string
+}
+export const fetchDiagPanic = () => getJson<DiagPanic>('/api/diag/panic')
+
+export async function clearAbnormalResets(): Promise<void> {
+  const res = await fetch(`${baseUrl}/api/diag/abnormal-resets`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`clear abnormal-resets failed: ${res.status}`)
+}
+
+export async function clearDiagPanic(): Promise<void> {
+  const res = await fetch(`${baseUrl}/api/diag/panic`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`clear panic failed: ${res.status}`)
+}
+
+export const coredumpUrl = `${baseUrl}/api/diag/panic/coredump`
+
 export interface Settings {
   hostname: string
   display_en?: boolean
