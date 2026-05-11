@@ -3,6 +3,7 @@
 // Pins inherited from bitaxe-601; verify against Gamma Duo schematic before first flash.
 
 #define BOARD_NAME "bitaxe-650"
+#define BOARD_HAS_DISPLAY 1
 
 // BM1370 ASIC (UART1) — dual chip in daisy chain
 #define PIN_ASIC_TX        17

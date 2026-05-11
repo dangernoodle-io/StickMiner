@@ -125,6 +125,7 @@ static void start_mining(void)
     bb_log_i(TAG, "all tasks started");
 }
 
+#ifdef BOARD_HAS_DISPLAY
 static void display_status_task(void *arg)
 {
     (void)arg;
@@ -168,6 +169,7 @@ static void display_status_task(void *arg)
         ui_show_status(&status);
     }
 }
+#endif
 
 static void log_reset_reason(void)
 {
@@ -261,7 +263,7 @@ void app_main(void)
     }
 #endif
 
-#ifndef TM_BENCH_QUIET
+#if defined(BOARD_HAS_DISPLAY) && !defined(TM_BENCH_QUIET)
     // Initialize display early so splash is visible during boot.
     // On Bitaxe, hand the ASIC's shared I2C bus to bb_display_ssd1306
     // before bb_display_init so we don't open a second bus instance.
@@ -273,7 +275,8 @@ void app_main(void)
     BB_ERROR_CHECK(bb_display_init());
     ui_show_splash();
     vTaskDelay(pdMS_TO_TICKS(2000));
-#else
+#endif
+#ifdef TM_BENCH_QUIET
     bb_log_w(TAG, "TM_BENCH_QUIET: display disabled");
 #endif
 
@@ -324,7 +327,9 @@ void app_main(void)
         // Show provisioning info on display + solid blue LED
         char ap_ssid[32];
         bb_prov_get_ap_ssid(ap_ssid, sizeof(ap_ssid));
+#ifdef BOARD_HAS_DISPLAY
         ui_show_prov(ap_ssid, "taipanminer");
+#endif
         BB_ERROR_CHECK(led_set_color(0, 0, 38));
 
         bool connected = false;
@@ -497,7 +502,7 @@ bench_quiet_skip_net:;
     // Start mining
     start_mining();
 
-#ifndef TM_BENCH_QUIET
+#if defined(BOARD_HAS_DISPLAY) && !defined(TM_BENCH_QUIET)
     // Start display status task on Core 0
     xTaskCreatePinnedToCore(display_status_task, "display", 6144, NULL, 2, NULL, 0);
 #endif
