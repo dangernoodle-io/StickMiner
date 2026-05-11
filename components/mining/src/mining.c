@@ -541,6 +541,8 @@ static void hw_prepare_job(hash_backend_t *b,
                             ((uint32_t)work->target[29] << 16) |
                             ((uint32_t)work->target[30] <<  8) |
                              (uint32_t)work->target[31];
+    /* TA-369 D.1: preload persistent TEXT[10..15] for this job */
+    sha256_hw_dport_kernel_init(work->header);
 }
 
 static hash_result_t hw_dport_hash_nonce(hash_backend_t *b,
