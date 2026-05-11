@@ -30,6 +30,8 @@
 #include "bb_registry.h"
 #include "knot.h"
 #include "ota_validator_io.h"
+#include "bb_ota_validator.h"
+#include "boot_fallback_decision.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "asic_chip.h"
@@ -239,15 +241,16 @@ void app_main(void)
     // Register TaipanMiner-specific info extender for breadboard's /api/info endpoint
     BB_ERROR_CHECK(webui_register_info_extender());
 
-    if (boot_cnt >= BB_NV_CONFIG_BOOT_FAIL_THRESHOLD && bb_nv_config_is_provisioned()) {
+    if (should_fall_back_to_ap(boot_cnt, bb_nv_config_is_provisioned(), bb_ota_is_validated())) {
         bb_log_w(TAG, "boot_count=%" PRIu8 " >= %d: clearing provisioning for AP fallback",
                  boot_cnt, BB_NV_CONFIG_BOOT_FAIL_THRESHOLD);
         bb_nv_config_clear_wifi();
         bb_nv_config_clear_provisioned();
         bb_nv_config_reset_boot_count();
     } else if (boot_cnt > 1) {
-        bb_log_w(TAG, "boot_count=%" PRIu8 " (%d until AP fallback)",
-                 boot_cnt, BB_NV_CONFIG_BOOT_FAIL_THRESHOLD - boot_cnt);
+        const char *validated_note = bb_ota_is_validated() ? " (validated, will not fall back)" : "";
+        bb_log_w(TAG, "boot_count=%" PRIu8 " (%d until AP fallback)%s",
+                 boot_cnt, BB_NV_CONFIG_BOOT_FAIL_THRESHOLD - boot_cnt, validated_note);
     }
 
 #ifdef ASIC_CHIP
@@ -357,7 +360,15 @@ void app_main(void)
         // Normal boot: connect to saved WiFi
 #ifdef TM_BENCH_QUIET
         bb_log_w(TAG, "TM_BENCH_QUIET: skipping mDNS/HTTP/knot/webui — bringing up WiFi only for stratum");
-        BB_ERROR_CHECK(bb_wifi_init());
+        // Validated firmware retries indefinitely on cold-boot timeout instead of
+        // falling back to AP mode — outage shouldn't wipe credentials.
+        while (true) {
+            bb_err_t rc = bb_wifi_init();
+            if (rc == BB_OK) break;
+            if (!bb_ota_is_validated()) break;  // unvalidated path: bb_wifi already restarted
+            bb_log_w(TAG, "wifi cold-boot timeout; retrying in 30s");
+            vTaskDelay(pdMS_TO_TICKS(30000));
+        }
         goto bench_quiet_skip_net;
 #endif
         bb_mdns_set_service_type("_taipanminer");
@@ -387,7 +398,20 @@ void app_main(void)
             bb_mdns_set_txt("version", bb_system_get_version());
             bb_mdns_set_txt("state", "mining");
         }
-        BB_ERROR_CHECK(bb_wifi_init());
+        // Normal boot: connect to saved WiFi.
+        // Validated firmware retries indefinitely on cold-boot timeout instead of
+        // falling back to AP mode — outage shouldn't wipe credentials. bb_wifi
+        // suppresses the boot_count increment + restart for validated builds and
+        // returns ESP_ERR_TIMEOUT instead.
+        while (true) {
+            bb_err_t rc = bb_wifi_init();
+            if (rc == BB_OK) break;
+            if (!bb_ota_is_validated()) break;  // unvalidated path: bb_wifi already
+                                                // restarted (this line shouldn't be
+                                                // reached, but defensive)
+            bb_log_w(TAG, "wifi cold-boot timeout; retrying in 30s");
+            vTaskDelay(pdMS_TO_TICKS(30000));
+        }
         if (knot_en) {
             BB_ERROR_CHECK(knot_init());
             {

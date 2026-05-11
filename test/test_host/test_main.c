@@ -68,6 +68,12 @@ void test_nv_config_init(void);
 void test_nv_config_all_empty_before_provisioning(void);
 void test_nv_config_not_provisioned_by_default(void);
 
+// Forward declarations from test_boot_fallback.c
+void test_boot_fallback_below_threshold_no_fallback(void);
+void test_boot_fallback_at_threshold_provisioned_unvalidated_falls_back(void);
+void test_boot_fallback_at_threshold_provisioned_validated_no_fallback(void);
+void test_boot_fallback_at_threshold_unprovisioned_no_fallback(void);
+
 // Forward declarations from test_config_hostname.c
 void test_valid_hostname_single_char(void);
 void test_valid_hostname_lowercase_digits_hyphen(void);
@@ -689,6 +695,12 @@ int main(void) {
     RUN_TEST(test_nv_config_init);
     RUN_TEST(test_nv_config_all_empty_before_provisioning);
     RUN_TEST(test_nv_config_not_provisioned_by_default);
+
+    // Boot fallback decision tests
+    RUN_TEST(test_boot_fallback_below_threshold_no_fallback);
+    RUN_TEST(test_boot_fallback_at_threshold_provisioned_unvalidated_falls_back);
+    RUN_TEST(test_boot_fallback_at_threshold_provisioned_validated_no_fallback);
+    RUN_TEST(test_boot_fallback_at_threshold_unprovisioned_no_fallback);
 
     // config_hostname tests
     RUN_TEST(test_valid_hostname_single_char);
