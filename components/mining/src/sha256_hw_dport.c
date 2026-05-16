@@ -6,10 +6,12 @@
 #include "sha256_hw_dport.h"
 #include "sha256.h"
 #include "work.h"
+#include "mining.h"
 #include "bb_core.h"
 #include "bb_byte_order.h"
 #include "esp_crypto_lock.h"
 #include "esp_private/periph_ctrl.h"
+#include "esp_timer.h"
 #include "soc/dport_access.h"
 #include "soc/hwcrypto_reg.h"
 #include "esp_attr.h"
@@ -344,9 +346,45 @@ bb_err_t sha256_hw_dport_self_test_lockstep(void)
 }
 
 /* ---------------------------------------------------------------------------
+ * Boot-time micro-bench (mirrors sha256_hw_microbench in the AHB backend):
+ * 1000 SHA peripheral ops on D0, logs "HW SHA microbench: N us/op (~M kH/s)".
+ * Surfaces per-device + per-firmware throughput so /api/info.expected_ghs is
+ * populated on esp32-wroom32 builds. Mining does 2 SHA ops per nonce, so
+ * kH/s = 500 / us_per_op. Budget: ~25ms on D0 at ~25us/op.
+ * Caller must hold the SHA peripheral lock.
+ * ---------------------------------------------------------------------------
+ */
+void sha256_hw_dport_microbench(void)
+{
+    static const uint32_t test_msg[16] = {
+        0x12345678, 0x9abcdef0, 0x12345678, 0x9abcdef0,
+        0x12345678, 0x9abcdef0, 0x12345678, 0x9abcdef0,
+        0x00000080, 0, 0, 0, 0, 0, 0, 0x00010000
+    };
+    const uint32_t iterations = 1000;
+    uint32_t *reg_addr_buf = (uint32_t *)SHA_TEXT_BASE;
+
+    int64_t start = esp_timer_get_time();
+    for (uint32_t i = 0; i < iterations; i++) {
+        for (int j = 0; j < 16; j++) {
+            reg_addr_buf[j] = test_msg[j];
+        }
+        DPORT_REG_WRITE(SHA_256_START_REG, 1);
+        while (DPORT_REG_READ(SHA_256_BUSY_REG)) {}
+    }
+    int64_t elapsed = esp_timer_get_time() - start;
+
+    double us_per_op = (double)elapsed / iterations;
+    double khs = 500.0 / us_per_op;
+    bb_log_i(TAG, "HW SHA microbench: %.2f us/op (~%.0f kH/s peripheral ceiling)",
+             us_per_op, khs);
+    mining_set_sha_microbench(us_per_op, khs);
+}
+
+/* ---------------------------------------------------------------------------
  * Boot probes bundle for D0 (classic ESP32).
  * Called from mining_run_self_tests() under the SHA peripheral lock.
- * Runs the lockstep test; logs result; safe to call once at boot.
+ * Runs the lockstep test + microbench; logs results; safe to call once at boot.
  * ---------------------------------------------------------------------------
  */
 void sha256_hw_dport_boot_probes(void)
@@ -355,6 +393,7 @@ void sha256_hw_dport_boot_probes(void)
     if (rc != BB_OK) {
         bb_log_e(TAG, "D0 lockstep self-test FAILED — SHA hot loop digest diverges from SW SHA256d");
     }
+    sha256_hw_dport_microbench();
 }
 
 /* ---------------------------------------------------------------------------
