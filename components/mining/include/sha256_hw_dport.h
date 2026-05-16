@@ -31,9 +31,14 @@ bb_err_t sha256_hw_dport_self_test(void);
  * Returns BB_OK on PASS, BB_ERR_INVALID_STATE on mismatch. */
 bb_err_t sha256_hw_dport_self_test_lockstep(void);
 
-/* Boot probes bundle (calls lockstep self-test + logs result).
+/* Boot probes bundle (lockstep self-test + microbench + logs results).
  * Caller MUST hold sha256_hw_dport_acquire(). */
 void sha256_hw_dport_boot_probes(void);
+
+/* Boot-time micro-bench: 1000 SHA peripheral ops; logs us/op + kH/s ceiling
+ * and feeds mining_set_sha_microbench() so /api/info.expected_ghs is
+ * populated on D0 builds. Caller MUST hold sha256_hw_dport_acquire(). */
+void sha256_hw_dport_microbench(void);
 
 /* Pool-target-aware early-reject on digest MSB word (state[7]).
  * Returns true on potential hit (MSB word <= target_word0_max). Caller
