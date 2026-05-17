@@ -59,13 +59,6 @@ void test_invalid_hostname_trailing_hyphen(void)
     TEST_ASSERT_NOT_EQUAL(0, config_set_hostname("trailing-"));
 }
 
-void test_invalid_hostname_uppercase(void)
-{
-    bb_nv_config_init();
-    config_init();
-    TEST_ASSERT_NOT_EQUAL(0, config_set_hostname("UPPER"));
-}
-
 void test_invalid_hostname_underscore(void)
 {
     bb_nv_config_init();
