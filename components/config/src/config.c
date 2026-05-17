@@ -12,7 +12,6 @@
 
 static struct {
     pool_cfg_t pools[POOL_COUNT];
-    char hostname[33];
     /* TA-315/TA-352: autofan / PID fields */
     bool     autofan_enabled;
     uint16_t die_target_c;
@@ -101,27 +100,6 @@ static bb_err_t save_pool_slot(int idx, const pool_cfg_t *in)
     return BB_OK;
 }
 
-static bool valid_hostname(const char *s)
-{
-    if (!s || s[0] == '\0') {
-        return false;
-    }
-    size_t len = strlen(s);
-    if (len > 32) {
-        return false;
-    }
-    if (s[0] == '-' || s[len - 1] == '-') {
-        return false;
-    }
-    for (size_t i = 0; i < len; i++) {
-        char c = s[i];
-        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-')) {
-            return false;
-        }
-    }
-    return true;
-}
-
 bb_err_t config_init(void)
 {
 #ifdef ESP_PLATFORM
@@ -133,28 +111,33 @@ bb_err_t config_init(void)
     err = load_pool_slot(1, &s_config.pools[1]);
     if (err != BB_OK) return err;
 
-    // Load hostname
-    err = bb_nv_get_str(NV_NS, "hostname", s_config.hostname, sizeof(s_config.hostname), "");
-    if (err != BB_OK) {
-        bb_log_e(TAG, "failed to load hostname");
-        return err;
-    }
-
-#ifdef ESP_PLATFORM
-    // Migration: if hostname is empty and worker is set, derive hostname from worker
-    if (s_config.hostname[0] == '\0' && s_config.pools[0].worker[0] != '\0') {
-        char normalized[64];
-        bb_mdns_build_hostname(s_config.pools[0].worker, NULL, normalized, sizeof(normalized));
-        if (normalized[0] != '\0') {
-            err = config_set_hostname(normalized);
-            if (err == BB_OK) {
-                bb_log_i(TAG, "migrated hostname from worker: %s", normalized);
-            } else {
-                bb_log_w(TAG, "failed to migrate hostname from worker");
+    // Hostname migration: BB owns the source of truth (bb_nv_config/hostname).
+    // On first boot of new firmware, if bb_nv has no hostname yet, derive one
+    // from the legacy TM NVS key or the worker name, then persist to bb_nv.
+    // Subsequent boots read directly from bb_nv (no migration needed).
+    // Note: bb_wifi_autoinit already ran in EARLY tier; the migrated hostname
+    // applies from the NEXT boot (one-boot lag window, accepted).
+    {
+        const char *bb_hn = bb_nv_config_hostname();
+        if (!bb_hn || !bb_hn[0]) {
+            char migrated[33] = {0};
+            // Try legacy TM NVS key first
+            bb_nv_get_str(NV_NS, "hostname", migrated, sizeof(migrated), "");
+            if (!migrated[0] && s_config.pools[0].worker[0] != '\0') {
+                // Derive from worker if no legacy hostname
+                bb_mdns_build_hostname(s_config.pools[0].worker, NULL,
+                                       migrated, sizeof(migrated));
+            }
+            if (migrated[0]) {
+                bb_err_t merr = bb_nv_config_set_hostname(migrated);
+                if (merr == BB_OK) {
+                    bb_log_i(TAG, "migrated hostname to bb_nv: %s", migrated);
+                } else {
+                    bb_log_w(TAG, "hostname migration failed: %d", merr);
+                }
             }
         }
     }
-#endif
 
     /* TA-315/TA-352: autofan / PID fields */
     {
@@ -310,7 +293,7 @@ uint16_t config_pool_port(void) { return config_pool_port_idx(POOL_PRIMARY); }
 const char *config_wallet_addr(void) { return config_wallet_addr_idx(POOL_PRIMARY); }
 const char *config_worker_name(void) { return config_worker_name_idx(POOL_PRIMARY); }
 const char *config_pool_pass(void) { return config_pool_pass_idx(POOL_PRIMARY); }
-const char *config_hostname(void) { return s_config.hostname; }
+const char *config_hostname(void) { return bb_nv_config_hostname(); }
 
 bb_err_t config_set_pools(const pool_cfg_t *primary,
                                  const pool_cfg_t *fallback)
@@ -409,22 +392,9 @@ bb_err_t config_set_pool(const char *pool_host, uint16_t pool_port,
 
 bb_err_t config_set_hostname(const char *hostname)
 {
-    if (!valid_hostname(hostname)) {
-        return BB_ERR_INVALID_ARG;
-    }
-
-#ifdef ESP_PLATFORM
-    bb_err_t err = bb_nv_set_str(NV_NS, "hostname", hostname);
-    if (err != BB_OK) {
-        return err;
-    }
-#endif
-
-    // Update in-memory cache on success
-    strncpy(s_config.hostname, hostname, sizeof(s_config.hostname) - 1);
-    s_config.hostname[sizeof(s_config.hostname) - 1] = '\0';
-
-    return BB_OK;
+    // Delegate to BB: bb_nv_config_set_hostname validates (RFC 1123 charset,
+    // max 32 chars, no leading/trailing hyphen) and persists to bb_nv.
+    return bb_nv_config_set_hostname(hostname);
 }
 
 /* TA-315/TA-352: autofan / PID getters */
