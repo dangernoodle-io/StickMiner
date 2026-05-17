@@ -16,10 +16,16 @@ else()
 endif()
 
 idf_component_register(
-    SRCS "main.c" "partition_fixup.c" "partition_fixup_decision.c" "${CMAKE_BINARY_DIR}/partition_fixup_data.c"
+    SRCS "main.c" "tm_pre_http.c" "partition_fixup.c" "partition_fixup_decision.c" "${CMAKE_BINARY_DIR}/partition_fixup_data.c"
           "ui/ui.c"
     INCLUDE_DIRS "." "ui"
     REQUIRES mining stratum bb_wifi bb_prov bb_mdns bb_http bb_nv config asic board spi_flash
              bb_display ${_display_backend}
              led bb_log bb_ntp bb_system bb_ota_pull bb_ota_push bb_openapi bb_manifest
+             bb_registry webui
 )
+
+include("${CMAKE_CURRENT_LIST_DIR}/../.breadboard/cmake/bb_registry.cmake")
+bb_registry_force_register_pre_http(${COMPONENT_LIB} taipan_cors)
+bb_registry_force_register_pre_http(${COMPONENT_LIB} taipan_openapi)
+bb_registry_force_register_pre_http(${COMPONENT_LIB} taipan_webui_reserve)

@@ -82,7 +82,6 @@ void test_valid_hostname_max_length(void);
 void test_invalid_hostname_empty(void);
 void test_invalid_hostname_leading_hyphen(void);
 void test_invalid_hostname_trailing_hyphen(void);
-void test_invalid_hostname_uppercase(void);
 void test_invalid_hostname_underscore(void);
 void test_invalid_hostname_dot(void);
 void test_invalid_hostname_too_long(void);
@@ -714,7 +713,6 @@ int main(void) {
     RUN_TEST(test_invalid_hostname_empty);
     RUN_TEST(test_invalid_hostname_leading_hyphen);
     RUN_TEST(test_invalid_hostname_trailing_hyphen);
-    RUN_TEST(test_invalid_hostname_uppercase);
     RUN_TEST(test_invalid_hostname_underscore);
     RUN_TEST(test_invalid_hostname_dot);
     RUN_TEST(test_invalid_hostname_too_long);

@@ -26,7 +26,6 @@
 #include "bb_log.h"
 #include "bb_ota_pull.h"
 #include "bb_ota_push.h"
-#include "bb_openapi.h"
 #include "bb_manifest.h"
 #include "bb_registry.h"
 #include "knot.h"
@@ -279,9 +278,6 @@ void app_main(void)
     bb_log_w(TAG, "TM_BENCH_QUIET: display disabled");
 #endif
 
-    // Set CORS methods before HTTP server starts (required for PATCH support)
-    bb_http_set_cors_methods("GET, POST, PATCH, OPTIONS");
-
     if (!bb_nv_config_is_provisioned()) {
         bb_log_i(TAG, "entering provisioning mode");
         // Configure provisioning before AP start
@@ -304,7 +300,6 @@ void app_main(void)
              * (e.g. "tdongles3-1") instead of the generic "TaipanMiner". */
             bb_mdns_set_instance_name(hn);
             bb_mdns_set_hostname(hn);
-            bb_wifi_set_hostname(hn);
         }
 
         bool mdns_en = bb_nv_config_mdns_enabled();
@@ -363,16 +358,7 @@ void app_main(void)
     } else {
         // Normal boot: connect to saved WiFi
 #ifdef TM_BENCH_QUIET
-        bb_log_w(TAG, "TM_BENCH_QUIET: skipping mDNS/HTTP/knot/webui — bringing up WiFi only for stratum");
-        // Validated firmware retries indefinitely on cold-boot timeout instead of
-        // falling back to AP mode — outage shouldn't wipe credentials.
-        while (true) {
-            bb_err_t rc = bb_wifi_init();
-            if (rc == BB_OK) break;
-            if (!bb_ota_is_validated()) break;  // unvalidated path: bb_wifi already restarted
-            bb_log_w(TAG, "wifi cold-boot timeout; retrying in 30s");
-            vTaskDelay(pdMS_TO_TICKS(30000));
-        }
+        bb_log_w(TAG, "TM_BENCH_QUIET: skipping mDNS/HTTP/knot/webui — WiFi managed by BB EARLY tier");
         goto bench_quiet_skip_net;
 #endif
         bb_mdns_set_service_type("_taipanminer");
@@ -391,7 +377,6 @@ void app_main(void)
             /* Instance name == hostname so dns-sd browses surface a useful identifier. */
             bb_mdns_set_instance_name(hn);
             bb_mdns_set_hostname(hn);
-            bb_wifi_set_hostname(hn);
         }
         bool mdns_en = bb_nv_config_mdns_enabled();
         bool knot_en = config_knot_enabled() && mdns_en;  // dependency
@@ -401,20 +386,6 @@ void app_main(void)
             bb_mdns_set_txt("board", FIRMWARE_BOARD);
             bb_mdns_set_txt("version", bb_system_get_version());
             bb_mdns_set_txt("state", "mining");
-        }
-        // Normal boot: connect to saved WiFi.
-        // Validated firmware retries indefinitely on cold-boot timeout instead of
-        // falling back to AP mode — outage shouldn't wipe credentials. bb_wifi
-        // suppresses the boot_count increment + restart for validated builds and
-        // returns ESP_ERR_TIMEOUT instead.
-        while (true) {
-            bb_err_t rc = bb_wifi_init();
-            if (rc == BB_OK) break;
-            if (!bb_ota_is_validated()) break;  // unvalidated path: bb_wifi already
-                                                // restarted (this line shouldn't be
-                                                // reached, but defensive)
-            bb_log_w(TAG, "wifi cold-boot timeout; retrying in 30s");
-            vTaskDelay(pdMS_TO_TICKS(30000));
         }
         if (knot_en) {
             BB_ERROR_CHECK(knot_init());
@@ -437,20 +408,9 @@ void app_main(void)
                               "mining");
             }
         }
-        // Set OpenAPI metadata before server start (for auto-registration)
-        {
-            static const bb_openapi_meta_t openapi_meta = {
-                .title = "TaipanMiner API",
-                .version = NULL,
-                .description = "Bitcoin mining firmware API for ESP32-S3 boards",
-            };
-            bb_openapi_set_meta(&openapi_meta);
-        }
-        // Reserve URI handler slots for routes that webui registers
-        // imperatively post-server-start. webui owns the count.
-        webui_reserve_mining_routes();
-        BB_ERROR_CHECK(bb_http_server_ensure_started());
-        // Initialize registry (auto-registers all breadboard routes and endpoints)
+        // Initialize registry: walks PRE_HTTP tier (CORS, OpenAPI meta, route-reserve),
+        // auto-starts HTTP server (CONFIG_BB_HTTP_AUTOSTART=y), then walks regular tier
+        // (auto-registers all breadboard routes and endpoints).
         BB_ERROR_CHECK(bb_registry_init());
         // Register mDNS keys (manifest auto-registered by registry)
         {
