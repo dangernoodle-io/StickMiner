@@ -4,9 +4,6 @@
 #include "bb_nv.h"
 #include "bb_log.h"
 #include "bb_manifest.h"
-#ifdef ESP_PLATFORM
-#include "bb_mdns.h"
-#endif
 
 #define NV_NS "taipanminer"
 
@@ -110,34 +107,6 @@ bb_err_t config_init(void)
 
     err = load_pool_slot(1, &s_config.pools[1]);
     if (err != BB_OK) return err;
-
-    // Hostname migration: BB owns the source of truth (bb_nv_config/hostname).
-    // On first boot of new firmware, if bb_nv has no hostname yet, derive one
-    // from the legacy TM NVS key or the worker name, then persist to bb_nv.
-    // Subsequent boots read directly from bb_nv (no migration needed).
-    // Note: bb_wifi_autoinit already ran in EARLY tier; the migrated hostname
-    // applies from the NEXT boot (one-boot lag window, accepted).
-    {
-        const char *bb_hn = bb_nv_config_hostname();
-        if (!bb_hn || !bb_hn[0]) {
-            char migrated[33] = {0};
-            // Try legacy TM NVS key first
-            bb_nv_get_str(NV_NS, "hostname", migrated, sizeof(migrated), "");
-            if (!migrated[0] && s_config.pools[0].worker[0] != '\0') {
-                // Derive from worker if no legacy hostname
-                bb_mdns_build_hostname(s_config.pools[0].worker, NULL,
-                                       migrated, sizeof(migrated));
-            }
-            if (migrated[0]) {
-                bb_err_t merr = bb_nv_config_set_hostname(migrated);
-                if (merr == BB_OK) {
-                    bb_log_i(TAG, "migrated hostname to bb_nv: %s", migrated);
-                } else {
-                    bb_log_w(TAG, "hostname migration failed: %d", merr);
-                }
-            }
-        }
-    }
 
     /* TA-315/TA-352: autofan / PID fields */
     {
@@ -521,15 +490,6 @@ bb_err_t config_register_manifest(void)
             .default_ = "",
             .max_len = 63,
             .desc = "pool password",
-            .reboot_required = false,
-            .provisioning_only = false,
-        },
-        {
-            .key = "hostname",
-            .type = "str",
-            .default_ = "",
-            .max_len = 32,
-            .desc = "device hostname",
             .reboot_required = false,
             .provisioning_only = false,
         },
