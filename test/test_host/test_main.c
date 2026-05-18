@@ -89,8 +89,23 @@ void test_hostname_persists_after_set(void);
 
 // Forward declarations from test_config_manifest.c
 void test_register_manifest_returns_ok(void);
-void test_register_manifest_registers_six_keys(void);
+void test_register_manifest_registers_tm_keys(void);
+void test_register_manifest_hostname_absent(void);
 void test_register_manifest_idempotent_via_clear(void);
+
+// Forward declarations from test_config_migration.c
+void test_migration_hostname_skipped_when_bb_cfg_already_set(void);
+void test_migration_hostname_stays_empty_when_no_legacy(void);
+void test_migration_hostname_worker_derived_when_no_legacy(void);
+void test_migration_legacy_wifi_ssid_absent_after_init(void);
+void test_migration_legacy_wifi_pass_absent_after_init(void);
+void test_migration_legacy_hostname_absent_after_init(void);
+void test_migration_legacy_mdns_en_absent_after_init(void);
+void test_migration_legacy_update_check_en_absent_after_init(void);
+void test_migration_legacy_display_en_absent_after_init(void);
+void test_migration_config_init_returns_ok(void);
+void test_migration_repeated_init_idempotent(void);
+void test_migration_hostname_not_in_tm_manifest(void);
 
 // Forward declarations from test_config_pools.c
 void test_set_pools_null_primary_rejected(void);
@@ -724,8 +739,21 @@ int main(void) {
 
     // config manifest tests
     RUN_TEST(test_register_manifest_returns_ok);
-    RUN_TEST(test_register_manifest_registers_six_keys);
+    RUN_TEST(test_register_manifest_registers_tm_keys);
+    RUN_TEST(test_register_manifest_hostname_absent);
     RUN_TEST(test_register_manifest_idempotent_via_clear);
+    RUN_TEST(test_migration_hostname_skipped_when_bb_cfg_already_set);
+    RUN_TEST(test_migration_hostname_stays_empty_when_no_legacy);
+    RUN_TEST(test_migration_hostname_worker_derived_when_no_legacy);
+    RUN_TEST(test_migration_legacy_wifi_ssid_absent_after_init);
+    RUN_TEST(test_migration_legacy_wifi_pass_absent_after_init);
+    RUN_TEST(test_migration_legacy_hostname_absent_after_init);
+    RUN_TEST(test_migration_legacy_mdns_en_absent_after_init);
+    RUN_TEST(test_migration_legacy_update_check_en_absent_after_init);
+    RUN_TEST(test_migration_legacy_display_en_absent_after_init);
+    RUN_TEST(test_migration_config_init_returns_ok);
+    RUN_TEST(test_migration_repeated_init_idempotent);
+    RUN_TEST(test_migration_hostname_not_in_tm_manifest);
     RUN_TEST(test_set_pools_null_primary_rejected);
     RUN_TEST(test_set_pools_primary_only_clears_fallback);
     RUN_TEST(test_set_pools_writes_both_slots);
