@@ -9,6 +9,8 @@
   import LiveTitle from './components/LiveTitle.svelte'
   import RebootOverlay from './components/RebootOverlay.svelte'
   import FanEditDialog from './components/FanEditDialog.svelte'
+  import UpdateBadge from './components/UpdateBadge.svelte'
+  import { createUpdateAvailableState } from './lib/updateAvailableState.svelte'
   import Dashboard from './pages/Dashboard.svelte'
   import System from './pages/System.svelte'
   import Pool from './pages/Pool.svelte'
@@ -20,9 +22,15 @@
   import 'ui-kit/theme.css'
   import 'ui-kit/utilities.css'
 
+  const updateState = createUpdateAvailableState()
+
   onMount(() => {
     start()
-    return () => stop()
+    updateState.start()
+    return () => {
+      stop()
+      updateState.stop()
+    }
   })
 
   $: alerts = (() => {
@@ -59,7 +67,10 @@
 <LiveTitle />
 
 <main>
-  <Header />
+  <div class="header-row">
+    <Header />
+    <UpdateBadge available={updateState.available} latest={updateState.latest} />
+  </div>
   <div class="sticky-nav"><Nav /></div>
   <AlertBanner {alerts} />
 
@@ -86,6 +97,14 @@
 <FanEditDialog />
 
 <style>
+  .header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
   main {
     max-width: 1100px;
     margin: 0 auto;

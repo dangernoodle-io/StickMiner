@@ -26,6 +26,7 @@
 #include "bb_log.h"
 #include "bb_ota_pull.h"
 #include "bb_ota_push.h"
+#include "bb_update_check.h"
 #include "bb_manifest.h"
 #include "bb_registry.h"
 #include "knot.h"
@@ -605,6 +606,30 @@ bench_quiet_skip_net:;
 #ifndef TM_BENCH_QUIET
     // Sync time via SNTP (UTC)
     bb_ntp_start("pool.ntp.org");
+
+    // Periodic update-availability check; bb_event topic "update.available"
+    // auto-attached to /api/events SSE stream by bb_update_check (BB #236).
+    bb_update_check_set_releases_url(
+        "https://api.github.com/repos/dangernoodle-io/TaipanMiner/releases/latest");
+    bb_update_check_set_firmware_board("taipanminer-" FIRMWARE_BOARD);
+    // Pin the upd_check worker to Core 1. Core 0 already carries httpd +
+    // lwip + wifi + stratum; on tdongle a Core-0-bound mbedTLS handshake
+    // starves IDLE0 past the 60s task watchdog (BB B1-217). On bitaxe the
+    // ASIC does the mining work so Core 1 is mostly idle anyway. Same
+    // affinity is safe everywhere.
+    bb_update_check_set_task_core(1);
+#ifdef ASIC_CHIP
+    // Bitaxe: NO pause hook. The bm1370 quiesce → re-init cycle churns UART
+    // buffer allocations and fragments the heap so the next TLS handshake
+    // fails on heap_largest_free_block. Mining keeps running through the
+    // check; bb_ota_pull still uses the hooks for the longer download.
+#else
+    // Tdongle: USE the pause hook. Mining runs on the same CPU as wifi/lwip
+    // here, so the TLS handshake on top of an active SHA hot-loop starves
+    // IDLE0 and trips the task watchdog. Pausing only suspends the task
+    // (no ASIC re-init churn), so it's heap-neutral.
+    bb_update_check_set_hooks(mining_pause, mining_resume);
+#endif
 
     // Initialize OTA pull with breadboard component
     bb_ota_pull_set_releases_url("https://api.github.com/repos/dangernoodle-io/TaipanMiner/releases/latest");

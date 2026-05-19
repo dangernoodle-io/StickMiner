@@ -27,6 +27,13 @@ export interface SseClientOptions {
   retryMaxMs?: number
   /** Override for tests. */
   eventSourceCtor?: typeof EventSource
+  /**
+   * SSE event name to subscribe to. Default subscribes to the unnamed
+   * "message" channel via `onmessage`. When set, uses `addEventListener` for
+   * the named event — required for streams that emit `event: <name>` lines
+   * (browsers do not deliver those to `onmessage`).
+   */
+  eventName?: string
 }
 
 const DEFAULTS = {
@@ -67,9 +74,14 @@ export class SseClient {
       this.retryDelay = this.opts.retryInitialMs
       this.opts.onOpen?.()
     }
-    es.onmessage = (e: MessageEvent) => {
+    const handler = (e: MessageEvent) => {
       this.lastMessageAt = Date.now()
       this.opts.onMessage(e.data)
+    }
+    if (this.opts.eventName) {
+      es.addEventListener(this.opts.eventName, handler as EventListener)
+    } else {
+      es.onmessage = handler
     }
     es.onerror = () => this.handleError()
 
